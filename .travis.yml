@@ -1,0 +1,34 @@
+sudo: required
+dist: xenial
+services:
+  - xvfb
+
+language: python
+# ===== Linux ======
+
+python:
+  - 3.5
+  - 3.6
+  - 3.7
+  - 3.8
+  - 3.9
+before_install:
+  - pip install pytest>=3.6 pycodestyle python-coveralls pytest-cov>=2.5 coveralls
+  - pip install --upgrade pip
+  - pip install .
+  
+
+#before_script:
+#  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then export DISPLAY=:99.0; sh -e /etc/init.d/xvfb start; sleep 3; fi
+
+script: 
+  - if [[ $TRAVIS_PYTHON_VERSION == 3.6 ]]; then py.test test/ -vv --cov=test/; fi
+  - if [[ $TRAVIS_PYTHON_VERSION > 3.6 ]]; then py.test test/ -vv; fi
+
+after_success:
+  - if [[ $TRAVIS_PYTHON_VERSION == 3.6 ]];
+    then coveralls;
+    fi
+
+notifications:
+  email: false
