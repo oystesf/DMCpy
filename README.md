@@ -5,7 +5,7 @@ Python software packaged designed for reduction of neutron powder diffraction da
 ## Installation
 This package is to be install through the Python Package Manager by issuing 
 
-```shell
+```
 pip install DMCpy
 ```
 
