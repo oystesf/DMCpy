@@ -28,11 +28,9 @@ class DataFile(object):
             if isinstance(filePath,DataFile): # Copy everything from provided file
                 # Copy all file settings
                 self.updateProperty(filePath.__dict__)
-                print('A DataFile Object was provided')
 
             elif os.path.exists(filePath): # load file from disk
                 self.loadFile(filePath)
-                print('file exists!')
 
 
             else:
