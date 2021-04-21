@@ -1,4 +1,6 @@
 build/
+dist/*
+
 *.xmind
 *.pyc
 .vscode/settings.json
@@ -7,9 +9,7 @@ build/
 */.cache/
 */*/__pycache__/
 */*/.cache/
-lastfailed
-MJOLNIR.xmind
-tester.py
+
 *.aux
 *.bbl
 *.blg
@@ -17,32 +17,12 @@ tester.py
 *.out
 *.gz
 
-Normalization/*_pixels
-Normalization/Raw
-TestData/*_pixels
-TestData/Raw
-TestData/1024/1_pixels
-TestData/1024/3_pixels
-TestData/1024/8_pixels
-TestData/1024/Raw
-TestData/1024/Inspection/
-TestData/1024/
-TestData/ManuallyChangedData
-CommandLineScripts/.settings
-
 *.calib
 
 .*/
-dist/*
-MJOLNIR.egg-info/*
-TestData/A4/*
-
-Tutorials/*.nxs
-Report/
+DMCpy.egg-info/*
 
 .coverage*
 */.coverage*
 
 coverage_html_report
-samlpedata/*
-docs/Commissioning/*
