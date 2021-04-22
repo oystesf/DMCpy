@@ -41,4 +41,30 @@ class DataSet(object):
         
 
     def __eq__(self,other):
+        """Check equality to another object. If they are of the same class (DataSet) and have the same attribute keys, the compare equal"""
         return np.logical_and(set(self.__dict__.keys()) == set(other.__dict__.keys()),self.__class__ == other.__class__)
+
+
+    def __getitem__(self,index):
+        try:
+            return self.dataFiles[index]
+        except IndexError:
+            raise IndexError('Provided index {} is out of bounds for DataSet with length {}.'.format(index,len(self)))
+
+    def __len__(self):
+        return len(self.dataFiles)
+    
+    def __iter__(self):
+        self._index=0
+        return self
+    
+    def __next__(self):
+        if self._index >= len(self):
+            raise StopIteration
+        result = self.dataFiles[self._index]
+        self._index += 1
+        return result
+
+    def next(self):
+        return self.__next__()
+    
