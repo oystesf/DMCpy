@@ -1,13 +1,14 @@
 from DMCpy import DataSet
 from DMCpy import DataFile
 import os.path
+import matplotlib.pyplot as plt
 
 def test_init():
     ds = DataSet.DataSet()
 
     assert(len(ds)==0)
 
-    df = DataFile.DataFile('DEBUG')
+    df = DataFile.DataFile(os.path.join('data','dmc2018n{:06d}.hdf'.format(402)))
 
     ds2 = DataSet.DataSet([df])
     assert(len(ds2)==1)
@@ -36,3 +37,15 @@ def test_load():
     assert(len(ds2) == 1)
     assert(ds2[0].fileName == os.path.split(dataFiles[-1])[-1])
     assert(ds2[0] == ds[-1])
+
+
+def test_plot():
+
+    fileNumbers = range(401,411)
+    dataFiles = [os.path.join('data','dmc2018n{:06d}.hdf'.format(no)) for no in fileNumbers]
+
+
+    ds = DataSet.DataSet(dataFiles)
+    fig,ax = plt.subplots()
+
+    Ax = ds.plotTwoTheta()

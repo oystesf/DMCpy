@@ -1,6 +1,7 @@
 from DMCpy import DataFile
 import os.path
 import numpy as np
+import matplotlib.pyplot as plt
 
 def test_init():
     df = DataFile.DataFile()
@@ -42,3 +43,12 @@ def test_load():
     # If detector is assumed to be flat, twoTheta and correctedTwoTheta are the same
     assert(np.all(np.isclose(testDF.correctedTwoTheta,testDF.twoTheta,atol=1e-4)))
 
+
+def test_plot():
+    dataFile = os.path.join('data','dmc2018n{:06d}.hdf'.format(401))
+
+
+    df = DataFile.DataFile(dataFile)
+    fig,ax = plt.subplots()
+
+    Ax = df.plotTwoTheta()
