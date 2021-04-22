@@ -55,7 +55,11 @@ class h5pyReader:
             
                 
         if hasattr(h5obj,'dtype'):
-            obj.__dict__[name[0]] = np.array(h5obj)
+            attributeName = name[0]
+            if attributeName == 'lambda':
+                attributeName = 'Lambda' # lambda is a key word in python
+                
+            obj.__dict__[attributeName] = np.array(h5obj)
 
 
 class DataFile(object):
