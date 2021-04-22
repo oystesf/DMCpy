@@ -190,6 +190,16 @@ class DataFile(object):
         return dif
 
     def plotTwoTheta(self,ax=None,**kwargs):
+        """Plot intensity as function of twoTheta (and vertical position of pixel in 2D)
+
+        Kwargs:
+
+            - ax (axis): Matplotlib axis into which data is plotted (default None - generates new)
+
+            - All other key word arguments are passed on to plotting routine
+
+        """
+
         if ax is None:
             fig, ax = plt.subplots()
         else:
