@@ -116,6 +116,43 @@ class DataFile(object):
 
         self.updateProperty(bulkData.__dict__)
 
+        # copy important paramters to correct position
+        if hasattr(self,'DMC'):
+            if hasattr(self.DMC,'DMC_BF3_Detector'): # if this is true, old DMC file
+
+                if self.DMC.DMC_BF3_Detector.counts.shape == (400,1): # old data file
+                    
+                    self.radius = 1.5 # m
+
+                    self.counts = self.DMC.DMC_BF3_Detector.counts.reshape(400,1)
+                    self.twoTheta = self.DMC.DMC_BF3_Detector.two_theta.reshape(400,1)
+
+                    self.pixelPosition = self.radius*np.array([np.cos(np.deg2rad(self.twoTheta)),
+                                                np.sin(np.deg2rad(self.twoTheta)),
+                                                np.zeros_like(self.twoTheta)])
+                else: # Hacked update data file
+                    self.radius = 0.8
+                    self.counts = self.DMC.DMC_BF3_Detector.counts.reshape(400,-1)
+                    self.twoTheta = self.DMC.DMC_BF3_Detector.two_theta.reshape(400)
+
+                    repeats = self.counts.shape[1]
+                    verticalPosition = np.linspace(-0.1,0.1,repeats)
+                    
+                    self.twoTheta, z = np.meshgrid(self.twoTheta,verticalPosition,indexing='ij')
+
+                    self.pixelPosition = np.array([self.radius*np.cos(np.deg2rad(self.twoTheta)),
+                                                   self.radius*np.sin(np.deg2rad(self.twoTheta)),
+                                                   z])
+
+                
+                self.monitor = self.DMC.DMC_BF3_Detector.Monitor[0]
+                self.waveLength = self.DMC.Monochromator.Lambda[0]
+                self.correctedTwoTheta = np.rad2deg(np.arccos(self.pixelPosition[0]/(np.linalg.norm(self.pixelPosition,axis=0))))
+        else:
+            raise NotImplementedError("Expected data file to originate from DMC...")
+
+
+
 
     def updateProperty(self,dictionary):
         """Update self with key and values from provided dictionary. Overwrites any properties already present."""
@@ -151,3 +188,46 @@ class DataFile(object):
             elif not np.all(self.__dict__[key]==other.__dict__[key]):
                 dif.append(key)
         return dif
+
+    def plotTwoTheta(self,ax=None,**kwargs):
+        if ax is None:
+            fig, ax = plt.subplots()
+        else:
+            fig = ax.get_figure()
+
+        
+        intensity = self.counts/self.monitor
+
+        count_err = np.sqrt(self.counts)
+        intensity_err = count_err/self.monitor
+
+        
+        
+ 
+        # If data is one dimensional
+        if self.twoTheta.shape[1] == 1:
+            if not 'fmt' in kwargs:
+                kwargs['fmt'] = '.-'
+
+            ax._err = ax.errorbar(self.twoTheta,intensity,intensity_err[:,0],**kwargs)
+            ax.set_xlabel(r'$2\theta$ corrected [deg]')
+            ax.set_ylabel(r'Counts/mon [arb]')
+        else: # plot a 2D image with twoTheta vs z
+
+            if 'colorbar' in kwargs:
+                colorbar = kwargs['colorbar']
+                del kwargs['colorbar']
+            else:
+                colorbar = False
+            limits = [self.twoTheta[0][0],self.twoTheta[-1][0],self.pixelPosition[2][0,0],self.pixelPosition[2][0,-1]]
+            ax._im = ax.imshow(intensity.T,extent=limits, aspect='auto')
+
+            if colorbar:
+                ax._col = fig.colorbar(ax._im)
+                ax._col.set_label('Intensity [cts/Monitor]')
+                
+
+            ax.set_xlabel(r'$2\theta$ corrected [deg]')
+            ax.set_ylabel(r'z [m]')
+
+        return ax
