@@ -120,7 +120,7 @@ class DataFile(object):
         if hasattr(self,'DMC'):
             if hasattr(self.DMC,'DMC_BF3_Detector'): # if this is true, old DMC file
 
-                if self.DMC.DMC_BF3_Detector.counts.shape == (400,1): # old data file
+                if self.DMC.DMC_BF3_Detector.counts.shape == (400,): # old data file
                     
                     self.radius = 1.5 # m
 
