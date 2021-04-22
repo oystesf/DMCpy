@@ -8,6 +8,56 @@ import os.path
 
 import copy
 
+
+class entry:
+    """Dummy class for h5py group entries"""
+    def __init__(self):
+        pass
+
+class h5pyReader:
+    """Custom class used to traverse hdf file and extract all data
+    
+    This object traverses the HDF file structure and creates a dummy
+    entry object for each layer. As H5PY do not traverse links already
+    visited, special care is to be taken!"""
+    def __init__(self,exclude=None):
+        """Initialize a reader with custom exclude
+        
+        Kwargs: 
+            - exclude (str): Exclude this first name (default None)"""
+        if exclude is None:
+            self.exclude = None
+        else:
+            self.exclude = exclude
+
+    def __call__(self, name, h5obj):
+        """Called by the hdf5 visititmes method"""
+        if name == self.exclude:
+            return
+        
+        
+        # Split names by '/' and replace - with _
+        name = name.replace('-','_').split('/')
+        if name[0] == self.exclude:
+            name = name[1:]
+        if len(name) == 0:
+            return 
+        
+        # Reverse name order to enable the use of pop
+        name = name[::-1]
+        # Find correct depth in object
+        obj = self
+        while len(name) != 1:
+            currentName = name.pop()
+            if not hasattr(obj,currentName):
+                obj.__dict__[currentName] = entry()
+            obj = getattr(obj,currentName)
+            
+                
+        if hasattr(h5obj,'dtype'):
+            obj.__dict__[name[0]] = np.array(h5obj)
+
+
 class DataFile(object):
     def __init__(self, filePath=None):
         """DataFile object holding all data from a single DMC powder scan file
@@ -49,6 +99,18 @@ class DataFile(object):
             raise FileNotFoundError('Provided file path "{}" not found.'.format(filePath))
 
         self.folder, self.fileName = os.path.split(filePath)
+
+        # Open file in reading mode
+        with hdf.File(filePath,mode='r') as f:
+            bulkData = h5pyReader(exclude='entry1')
+            f.visititems(bulkData) 
+
+            if 'entry1/data1' in f: # data1 is not included as it only contains soft links
+                data1 = h5pyReader()
+                f['entry1/data1'].visititems(data1)
+                bulkData.data1 = data1
+
+        self.updateProperty(bulkData.__dict__)
 
 
     def updateProperty(self,dictionary):
