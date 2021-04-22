@@ -13,9 +13,8 @@ def test_init():
     testDF = DataFile.DataFile('DEBUG')
     assert(testDF._debugging == True)
 
-    df = DataFile.DataFile(filePath=__file__) # load self as file - only temporary check
-    import os.path
-    path,name = os.path.split(__file__)
+    df = DataFile.DataFile(filePath=r'data\dmc2018n000401.hdf') 
+    path,name = os.path.split(r'data\dmc2018n000401.hdf')
 
     assert(df.folder == path)
     assert(df.fileName == name)
