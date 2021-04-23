@@ -43,7 +43,7 @@ def test_load():
     # If detector is assumed to be flat, twoTheta and correctedTwoTheta are the same
     assert(np.all(np.isclose(testDF.correctedTwoTheta,testDF.twoTheta,atol=1e-4)))
 
-    testDF = DataFile.DataFile(os.path.join('data','dmc2018n000401 - copy.hdf'))
+    testDF = DataFile.DataFile(os.path.join('data','dmc2018n000401 - Copy.hdf'))
 
     assert(testDF.twoTheta.shape == (400,100))
     assert(testDF.counts.shape == (400,100))
@@ -60,7 +60,7 @@ def test_plot():
 
     Ax = df.plotDetector()
 
-    dataFile = os.path.join('data','dmc2018n{:06d} - copy.hdf'.format(401))
+    dataFile = os.path.join('data','dmc2018n{:06d} - Copy.hdf'.format(401))
 
     df = DataFile.DataFile(dataFile)
     fig,ax = plt.subplots()
@@ -78,7 +78,7 @@ def test_masking_2D():
     except RuntimeError:
         assert True
 
-    df = DataFile.DataFile(os.path.join('data','dmc2018n000401 - copy.hdf'))
+    df = DataFile.DataFile(os.path.join('data','dmc2018n000401 - Copy.hdf'))
 
     df.generateMask(maxAngle=90) # No points are masked
     assert(np.all(df.mask==np.ones_like(df.counts,dtype=bool)))

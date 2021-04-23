@@ -54,7 +54,7 @@ def test_plot():
 
 def test_2d():
     fileNumbers = range(401,411)
-    dataFiles = [os.path.join('data','dmc2018n{:06d} - copy.hdf'.format(no)) for no in fileNumbers]
+    dataFiles = [os.path.join('data','dmc2018n{:06d} - Copy.hdf'.format(no)) for no in fileNumbers]
 
     ds = DataSet.DataSet(dataFiles=dataFiles)
 
