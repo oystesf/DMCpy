@@ -43,12 +43,50 @@ def test_load():
     # If detector is assumed to be flat, twoTheta and correctedTwoTheta are the same
     assert(np.all(np.isclose(testDF.correctedTwoTheta,testDF.twoTheta,atol=1e-4)))
 
+    testDF = DataFile.DataFile(os.path.join('data','dmc2018n000401 - copy.hdf'))
+
+    assert(testDF.twoTheta.shape == (400,100))
+    assert(testDF.counts.shape == (400,100))
+    assert(testDF.correctedTwoTheta.shape == (400,100))
+
+    # If detector is assumed to be flat, twoTheta and correctedTwoTheta are the same
+    
 
 def test_plot():
     dataFile = os.path.join('data','dmc2018n{:06d}.hdf'.format(401))
 
+    df = DataFile.DataFile(dataFile)
+    fig,ax = plt.subplots()
+
+    Ax = df.plotDetector()
+
+    dataFile = os.path.join('data','dmc2018n{:06d} - copy.hdf'.format(401))
 
     df = DataFile.DataFile(dataFile)
     fig,ax = plt.subplots()
 
-    Ax = df.plotTwoTheta()
+    Ax = df.plotDetector()
+
+
+def test_masking_2D():
+    df = DataFile.DataFile()
+
+    # An empty data file raises error on making a mask
+    try:
+        df.generateMask()
+        assert False
+    except RuntimeError:
+        assert True
+
+    df = DataFile.DataFile(os.path.join('data','dmc2018n000401 - copy.hdf'))
+
+    df.generateMask(maxAngle=90) # No points are masked
+    assert(np.all(df.mask==np.ones_like(df.counts,dtype=bool)))
+
+    df.generateMask(maxAngle=-1) # All points are masked
+    assert(np.all(df.mask==np.zeros_like(df.counts,dtype=bool)))
+
+    df.generateMask(maxAngle=7) # All points are masked
+    total = np.size(df.counts)
+    maskTotal = np.sum(df.mask)
+    assert(total>maskTotal)

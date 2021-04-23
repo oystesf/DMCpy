@@ -62,6 +62,19 @@ class h5pyReader:
             obj.__dict__[attributeName] = np.array(h5obj)
 
 
+def maskFunction(phi,maxAngle=10.0):
+    """Mask all phi angles outside plus/minus maxAngle
+
+    Args:
+
+        - phi (array): Numpy array of phi angles to be masked
+
+    Kwargs:
+
+        - maxAngle (float): Mask points greater than this or less than -maxAngle in degrees (default 10)
+    """
+    return np.abs(phi)<maxAngle
+
 class DataFile(object):
     def __init__(self, filePath=None):
         """DataFile object holding all data from a single DMC powder scan file
@@ -148,11 +161,49 @@ class DataFile(object):
                 self.monitor = self.DMC.DMC_BF3_Detector.Monitor[0]
                 self.waveLength = self.DMC.Monochromator.Lambda[0]
                 self.correctedTwoTheta = np.rad2deg(np.arccos(self.pixelPosition[0]/(np.linalg.norm(self.pixelPosition,axis=0))))
+                self.alpha = np.rad2deg(np.arctan2(self.pixelPosition[2],self.radius))
+
+                Ki = 2*np.pi/self.waveLength # length of ki
+                self.ki = np.array([Ki,0.0,0.0]) # aling ki with x
+                self.ki.shape = (3,1,1)
+
+                self.kf = Ki * np.array([np.cos(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
+                                         np.sin(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
+                                         np.sin(np.deg2rad(self.alpha))])
+                
+                self.q = self.ki-self.kf
+                
+                self.Q = np.linalg.norm(self.q,axis=0)
+
+                self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
+
+                self.generateMask(maskingFunction=None)
+                 # Create a mask only containing False as to signify all points are allowed
         else:
             raise NotImplementedError("Expected data file to originate from DMC...")
 
+    def generateMask(self,maskingFunction = maskFunction, **pars):
+        """Generate maks to applied to data in data file
+        
+        Kwargs:
 
+            - maskingFunction (function): Function called on self.phi to generate mask (default maskFunction)
 
+        All other arguments are passed to the masking function.
+
+        """
+
+        # check if counts attribute is available
+
+        if not hasattr(self,'counts'):
+            raise RuntimeError('DataFile does not contain any counts. Look for self.counts but found nothing.')
+
+        if maskingFunction is None:
+            self.mask = np.ones_like(self.counts,dtype=bool)
+        else:
+            self.mask = maskingFunction(self.phi,**pars)
+        
+        
 
     def updateProperty(self,dictionary):
         """Update self with key and values from provided dictionary. Overwrites any properties already present."""
@@ -189,7 +240,9 @@ class DataFile(object):
                 dif.append(key)
         return dif
 
-    def plotTwoTheta(self,ax=None,**kwargs):
+
+
+    def plotDetector(self,ax=None,**kwargs):
         """Plot intensity as function of twoTheta (and vertical position of pixel in 2D)
 
         Kwargs:
@@ -211,18 +264,20 @@ class DataFile(object):
         count_err = np.sqrt(self.counts)
         intensity_err = count_err/self.monitor
 
-        
-        
  
+
+
         # If data is one dimensional
         if self.twoTheta.shape[1] == 1:
             if not 'fmt' in kwargs:
                 kwargs['fmt'] = '.-'
 
-            ax._err = ax.errorbar(self.twoTheta,intensity,intensity_err[:,0],**kwargs)
-            ax.set_xlabel(r'$2\theta$ corrected [deg]')
+            ax._err = ax.errorbar(self.twoTheta[self.mask],intensity[self.mask],intensity_err[self.mask],**kwargs)
+            ax.set_xlabel(r'$2\theta$ [deg]')
             ax.set_ylabel(r'Counts/mon [arb]')
         else: # plot a 2D image with twoTheta vs z
+            # Set all masked out points to Nan
+            intensity[np.logical_not(self.mask)] = np.nan
 
             if 'colorbar' in kwargs:
                 colorbar = kwargs['colorbar']
@@ -237,7 +292,7 @@ class DataFile(object):
                 ax._col.set_label('Intensity [cts/Monitor]')
                 
 
-            ax.set_xlabel(r'$2\theta$ corrected [deg]')
+            ax.set_xlabel(r'$2\theta$ [deg]')
             ax.set_ylabel(r'z [m]')
 
         return ax
