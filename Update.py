@@ -64,4 +64,4 @@ with open('test/init.py','w') as f:
 
 os.system("git add DMCpy/__init__.py test/init.py setup.py")
 os.system('git commit -m "Update to version {}"'.format(version))
-os.system('git tag -l "{}"'.format(version))
+os.system('git tag -a {} -m "{}"'.format(version,version))
