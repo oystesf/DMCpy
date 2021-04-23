@@ -11,6 +11,36 @@ python:
   - 3.7
   - 3.8
   - 3.9
+matrix:
+  include:   
+    - name: "Python 3.8 on macOS 10.15.5"
+      os: osx
+      osx_image: xcode11.6  # Python 3.8 running on macOS 10.15.5
+      language: shell       # 'language: python' is an error on Travis CI macOS
+      before_install:
+        - python3 --version
+        - sleep 3 # give xvfb some time to start
+        - pip3 install -U pip
+        - pip install pytest>=3.6 pycodestyle python-coveralls pytest-cov>=2.5 coveralls
+        - pip install .
+        - wget -UseBasicParsing 'https://www.dropbox.com/s/3o751l0eadjkryy/DataDMC.zip'
+        - mkdir data
+        - unzip DataDMC.zip -d data
+      script: py.test test/ -vv
+    - name: "Python 3.8.5 on Windows"
+      os: windows           # Windows 10.0.17134 N/A Build 17134
+      language: shell       # 'language: python' is an error on Travis CI Windows
+      before_install:
+        - choco install python --version 3.8.5
+        - python --version
+        - sleep 3 # give xvfb some time to start
+        - python -m pip install --upgrade pip
+        - pip3 install pytest>=3.6 pycodestyle python-coveralls pytest-cov>=2.5 coveralls
+        - python setup.py sdist
+        - pip3 install .
+        - curl -o DataDMC.zip https://www.dropbox.com/s/3o751l0eadjkryy/DataDMC.zip
+        - 7z e DataDMC.zip "-odata"
+      env: PATH=/c/Python38:/c/Python38/Scripts:$PATH  
 before_install:
   - pip install pytest>=3.6 pycodestyle python-coveralls pytest-cov>=2.5 coveralls
   - pip install --upgrade pip
