@@ -56,7 +56,7 @@ with open('test/init.py') as f:
 	for l in lines:
 		if l.find("__version__")!=-1:
 			idx = l.find('__version__==')
-			l = l[:idx] + "__version__=='"+version+"'\n"
+			l = l[:idx] + "__version__=='"+version+"')\n"
 		writeLines+=l
         
 with open('test/init.py','w') as f:
