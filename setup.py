@@ -16,7 +16,7 @@ pythonPath =  os.path.relpath(os.path.join(installFolder,'DMCpy'),sys.base_prefi
 
 setup(
     name='DMCpy',
-    version='0.0.1',
+    version='0.1.3',
     description=('Python software packaged designed for reduction of neutron powder diffraction data from DMC at PSI.'),
     long_description=long_description,
     author='Jakob Lass',

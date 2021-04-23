@@ -1,5 +1,6 @@
 build/
 dist/*
+data/*
 
 *.xmind
 *.pyc
@@ -16,7 +17,7 @@ dist/*
 *.log
 *.out
 *.gz
-
+*.zip
 *.calib
 
 .*/
