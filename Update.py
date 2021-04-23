@@ -50,3 +50,18 @@ with open('DMCpy/__init__.py','w') as f:
 	f.write(writeLines)
 
 
+with open('test/init.py') as f:
+	lines = f.readlines()
+	writeLines = ''
+	for l in lines:
+		if l.find("__version__")!=-1:
+			idx = l.find('__version__==')
+			l = l[:idx] + "__version__=='"+version+"'\n"
+		writeLines+=l
+        
+with open('test/init.py','w') as f:
+	f.write(writeLines)
+
+os.system("git add DMCpy/__init__.py test/init.py setup.py")
+os.system('git commit -m "Update to version {}"'.format(version))
+os.system('git tag -l "{}"'.format(version))
