@@ -49,3 +49,17 @@ def test_plot():
     fig,ax = plt.subplots()
 
     Ax = ds.plotTwoTheta()
+
+    Ax = ds.plotTwoTheta(corrected=False)
+
+def test_2d():
+    fileNumbers = range(401,411)
+    dataFiles = [os.path.join('data','dmc2018n{:06d} - copy.hdf'.format(no)) for no in fileNumbers]
+
+    ds = DataSet.DataSet(dataFiles=dataFiles)
+
+    files = len(fileNumbers)
+    assert(ds.counts.shape == (files,400,100))
+
+    ax1 = ds.plotTwoTheta(corrected=False)
+    ax2 = ds.plotTwoTheta(corrected=True)
