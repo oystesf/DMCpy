@@ -4,7 +4,7 @@ import pickle as pickle
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from DMCpy import DataFile
+from DMCpy import DataFile, _tools
 
 
 class DataSet(object):
@@ -89,6 +89,7 @@ class DataSet(object):
             d.generateMask(maskingFunction,**pars)
         self._getData()
 
+    @_tools.KwargChecker()
     def sumDetector(self,twoThetaBins=None,applyNormalization=True,correctedTwoTheta=True):
         """Find intensity as function of either twoTheta or correctedTwoTheta
 
@@ -143,6 +144,7 @@ class DataSet(object):
         return twoThetaBins, normalizedIntensity, normalizedIntensityError
     
 
+    @_tools.KwargChecker(function=plt.errorbar,include=_tools.MPLKwargs)
     def plotTwoTheta(self,ax=None,twoThetaBins=None,applyNormalization=True,correctedTwoTheta=True,**kwargs):
         """Plot intensity as function of correctedTwoTheta or twoTheta
 

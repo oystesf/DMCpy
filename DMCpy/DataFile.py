@@ -7,7 +7,7 @@ import DMCpy
 import os.path
 
 import copy
-
+from DMCpy import _tools
 
 class entry:
     """Dummy class for h5py group entries"""
@@ -61,7 +61,7 @@ class h5pyReader:
                 
             obj.__dict__[attributeName] = np.array(h5obj)
 
-
+@_tools.KwargChecker()
 def maskFunction(phi,maxAngle=10.0):
     """Mask all phi angles outside plus/minus maxAngle
 
@@ -75,7 +75,7 @@ def maskFunction(phi,maxAngle=10.0):
     """
     return np.abs(phi)<maxAngle
 
-
+@_tools.KwargChecker()
 def findCalibration(fileName):
     """Find detector calibration for specified file
 
@@ -123,6 +123,7 @@ def findCalibration(fileName):
     return calibration,calibrationName
 
 class DataFile(object):
+    @_tools.KwargChecker()
     def __init__(self, filePath=None):
         """DataFile object holding all data from a single DMC powder scan file
 
@@ -157,7 +158,7 @@ class DataFile(object):
 
 
 
-        
+    @_tools.KwargChecker()
     def loadFile(self,filePath):
         if not os.path.exists(filePath):
             raise FileNotFoundError('Provided file path "{}" not found.'.format(filePath))
@@ -299,7 +300,7 @@ class DataFile(object):
         return dif
 
 
-
+    @_tools.KwargChecker(function=plt.errorbar,include=_tools.MPLKwargs)
     def plotDetector(self,ax=None,applyNormalization=True,**kwargs):
         """Plot intensity as function of twoTheta (and vertical position of pixel in 2D)
 

@@ -73,3 +73,27 @@ def test_2d():
 
     ax1 = ds.plotTwoTheta(correctedTwoTheta=False)
     ax2 = ds.plotTwoTheta(correctedTwoTheta=True)
+
+
+def test_kwargs():
+    
+    fileNumbers = range(401,402)
+    dataFiles = [os.path.join('data','dmc2018n{:06d} - Copy.hdf'.format(no)) for no in fileNumbers]
+
+    ds = DataSet.DataSet(dataFiles=dataFiles)
+
+    try:
+        _ = ds.sumDetector(corrected=False)
+        assert(False)
+    except AttributeError as e:
+        assert(e.args[0] == 'Key-word argument "corrected" not understood. Did you mean "correctedTwoTheta"?')
+
+    ds = DataSet.DataSet(dataFiles=dataFiles)
+
+    try:
+        _ = ds.plotTwoTheta(corrected=False,fmt='.-')
+        assert(False)
+    except AttributeError as e:
+        assert(e.args[0] == 'Key-word argument "corrected" not understood. Did you mean "correctedTwoTheta"?')
+
+    

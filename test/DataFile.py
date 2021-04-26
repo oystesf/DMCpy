@@ -91,6 +91,19 @@ def test_masking_2D():
     maskTotal = np.sum(df.mask)
     assert(total>maskTotal)
 
+    try:
+        df.generateMask(MaxAngle=7)
+        assert(False)
+    except AttributeError as e:
+        assert(e.args[0] == 'Key-word argument "MaxAngle" not understood. Did you mean "maxAngle"?')
+
+    try:
+        ax = df.plotDetector(aplynormalization=True)
+        assert(False)
+    except AttributeError as e:
+        assert(e.args[0] == 'Key-word argument "aplynormalization" not understood. Did you mean "applyNormalization"?')
+        
+
 
 def test_calibration():
     fileName = 'dmc2018n000250.hdf' # no calibration exists
