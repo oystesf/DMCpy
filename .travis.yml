@@ -21,8 +21,8 @@ matrix:
         - python3 --version
         - sleep 3 # give xvfb some time to start
         - pip3 install --user pip
-        - pip install pytest>=3.6 pycodestyle python-coveralls pytest-cov>=2.5 coveralls
-        - pip install .
+        - pip3 install pytest>=3.6 pycodestyle python-coveralls pytest-cov>=2.5 coveralls
+        - pip3 install .
         - wget -UseBasicParsing 'https://www.dropbox.com/s/lic0944jgyke7ck/DataDMC.zip?dl=1'
         - mkdir data
         - unzip DataDMC.zip?dl=1 -d data
