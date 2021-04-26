@@ -226,6 +226,17 @@ class DataFile(object):
 
                 self.generateMask(maskingFunction=None)
                  # Create a mask only containing False as to signify all points are allowed
+
+                # Load calibration
+                try:
+                    self.normalization, self.normalizationFile = findCalibration(self.fileName)
+                except ValueError:
+                    self.normalizationFile = 'None'
+
+                if self.normalizationFile == 'None':
+                    self.normalization = np.ones_like(self.counts,dtype=float)
+                else:
+                    self.normalization.shape = self.counts.shape
         else:
             raise NotImplementedError("Expected data file to originate from DMC...")
 
@@ -289,12 +300,14 @@ class DataFile(object):
 
 
 
-    def plotDetector(self,ax=None,**kwargs):
+    def plotDetector(self,ax=None,applyNormalization=True,**kwargs):
         """Plot intensity as function of twoTheta (and vertical position of pixel in 2D)
 
         Kwargs:
 
             - ax (axis): Matplotlib axis into which data is plotted (default None - generates new)
+
+            - applyNormalization (bool): If true, take detector efficiency into account (default True)
 
             - All other key word arguments are passed on to plotting routine
 
@@ -307,10 +320,13 @@ class DataFile(object):
 
         
         intensity = self.counts/self.monitor
+        if applyNormalization:
+            intensity*=1.0/self.normalization
 
         count_err = np.sqrt(self.counts)
         intensity_err = count_err/self.monitor
-
+        if applyNormalization:
+            intensity_err*=1.0/self.normalization
  
 
 
