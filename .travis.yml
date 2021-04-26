@@ -26,7 +26,7 @@ matrix:
         - wget -UseBasicParsing 'https://www.dropbox.com/s/lic0944jgyke7ck/DataDMC.zip?dl=1'
         - mkdir data
         - unzip DataDMC.zip?dl=1 -d data
-      script: python -m pytest -vv
+      script: python3 -m pytest -vv
     - name: "Python 3.8.5 on Windows"
       os: windows           # Windows 10.0.17134 N/A Build 17134
       language: shell       # 'language: python' is an error on Travis CI Windows
