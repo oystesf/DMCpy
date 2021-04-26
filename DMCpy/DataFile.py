@@ -3,7 +3,7 @@ import numpy as np
 import pickle as pickle
 import matplotlib.pyplot as plt
 import pandas as pd
-
+import DMCpy
 import os.path
 
 import copy
@@ -74,6 +74,53 @@ def maskFunction(phi,maxAngle=10.0):
         - maxAngle (float): Mask points greater than this or less than -maxAngle in degrees (default 10)
     """
     return np.abs(phi)<maxAngle
+
+
+def findCalibration(fileName):
+    """Find detector calibration for specified file
+
+    Args:
+
+        - fileName (str): Name of file for which calibration is needed
+
+    Returns:
+
+        - calibration (array): Detector efficiency
+
+        - calibrationName (str): Name of calibration file used
+
+    Raises:
+
+        - fileNotFoundError
+
+    """
+
+    # Extract only actual file name if path is provided    
+    fileName = os.path.split(fileName)[-1]
+
+    # Split name in 'dmcyyyynxxxxxx.hdf'
+    year,fileNo = [int(x) for x in fileName[3:].replace('.hdf','').split('n')]
+
+    calibrationDict = DMCpy.calibrationDict
+
+    # Calibration files do not cover the wanted year
+    if not year in calibrationDict.keys():
+        raise FileNotFoundError('Calibration files for year {} (extracted from file name "{}") is'.format(year,fileName)+\
+            ' not covered in calibration tables. Please update to newest version by invoking "pip install --upgrade DMCpy"')
+
+    yearCalib = calibrationDict[year]
+    
+    limits = yearCalib['limits']
+    
+    # Calibration name is index of the last limit below file number
+    idx = np.sum([fileNo>limits])-1
+    
+    idx = np.max([idx,0]) # ensure that idx is not negative
+    
+    # Calibration is saved in yearCalib with name of calibration file
+    calibrationName = yearCalib['names'][idx]
+    calibration = yearCalib[calibrationName]
+    return calibration,calibrationName
 
 class DataFile(object):
     def __init__(self, filePath=None):

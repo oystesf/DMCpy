@@ -90,3 +90,31 @@ def test_masking_2D():
     total = np.size(df.counts)
     maskTotal = np.sum(df.mask)
     assert(total>maskTotal)
+
+
+def test_calibration():
+    fileName = 'dmc2018n000250.hdf' # no calibration exists
+
+    calibData,calibName = DataFile.findCalibration(fileName)
+    assert(calibName == 'None')
+    assert(calibData is None)
+
+    fileName = 'dmc2018n036099.hdf' # calibration deteff_18c.dat
+
+    calibData,calibName = DataFile.findCalibration(fileName)
+    assert(calibName == 'deteff_18c.dat')
+    assert(calibData.shape == (400,))
+
+    # Test when full data file path is provided
+    fileName = os.path.join("fictive","folder","to","data",'dmc2002n000099.hdf') # calibration deteff_02c.dat
+    calibData,calibName = DataFile.findCalibration(fileName)
+    assert(calibName == 'deteff_02c.dat')
+    assert(calibData.shape == (400,))
+
+    # year not covered in calibration data
+    fileName = 'dmc2019n000250.hdf'
+    try:
+        calibData,calibName = DataFile.findCalibration(fileName)
+        assert(False)
+    except FileNotFoundError:
+        assert True
