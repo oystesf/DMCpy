@@ -2,6 +2,7 @@ from DMCpy import DataSet
 from DMCpy import DataFile
 import os.path
 import matplotlib.pyplot as plt
+import numpy as np
 
 def test_init():
     ds = DataSet.DataSet()
@@ -48,9 +49,18 @@ def test_plot():
     ds = DataSet.DataSet(dataFiles)
     fig,ax = plt.subplots()
 
-    Ax = ds.plotTwoTheta()
+    Ax, bins, intensity, error = ds.plotTwoTheta()
 
-    Ax = ds.plotTwoTheta(corrected=False)
+    Ax,*_ = ds.plotTwoTheta(correctedTwoTheta=False)
+
+    # Calculate bins, intensity, error without plotting
+
+    bins2, intensity2, error2 = ds.sumDetector()
+
+    assert(np.all(np.isclose(bins,bins2)))
+    assert(np.all(np.isclose(intensity,intensity2)))
+    assert(np.all(np.isclose(error,error2)))
+    
 
 def test_2d():
     fileNumbers = range(401,411)
@@ -61,5 +71,5 @@ def test_2d():
     files = len(fileNumbers)
     assert(ds.counts.shape == (files,400,100))
 
-    ax1 = ds.plotTwoTheta(corrected=False)
-    ax2 = ds.plotTwoTheta(corrected=True)
+    ax1 = ds.plotTwoTheta(correctedTwoTheta=False)
+    ax2 = ds.plotTwoTheta(correctedTwoTheta=True)

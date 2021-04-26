@@ -37,7 +37,7 @@ class DataSet(object):
 
     def _getData(self):
         # Collect parameters listed below across data files into self
-        for parameter in ['counts','monitor','twoTheta','correctedTwoTheta','fileName','pixelPosition','waveLength','mask']:
+        for parameter in ['counts','monitor','twoTheta','correctedTwoTheta','fileName','pixelPosition','waveLength','mask','normalization','normalizationFile']:
             setattr(self,parameter,np.array([getattr(d,parameter) for d in self]))
 
 
@@ -89,18 +89,16 @@ class DataSet(object):
             d.generateMask(maskingFunction,**pars)
         self._getData()
 
-    def sumDetector(self,thetaStart=None,thetaStop=None,dTheta=0.1,corrected=True):
+    def sumDetector(self,twoThetaBins=None,applyNormalization=True,correctedTwoTheta=True):
         """Find intensity as function of either twoTheta or correctedTwoTheta
 
         Kwargs:
 
-            - thetaStart (float): Start of twoTheta plot in degrees (default minimum of all two thetas)
+            - twoThetaBins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.1)
 
-            - thetaStop (float): Stop of twoTheta plot in degrees (default maximum of all two thetas)
+            - applyNormalization (bool): If true, take detector efficiency into account (default True)
 
-            - dTheta (float): Step size in twoTheta in degrees (default 0.1)
-
-            - corrected (bool): If true, use corrected two theta, otherwise sum vertically on detector (default True)
+            - correctedTwoTheta (bool): If true, use corrected two theta, otherwise sum vertically on detector (default True)
 
         Returns:
 
@@ -112,37 +110,30 @@ class DataSet(object):
 
         """
 
-        if corrected:
+        if correctedTwoTheta:
             twoTheta = self.correctedTwoTheta
         else:
             twoTheta = self.twoTheta
 
 
-        if thetaStart is None:
+        if twoThetaBins is None:
             anglesMin = np.min(twoTheta)
-        else:
-            anglesMin = thetaStart
-
-        if thetaStart is None:
             anglesMax = np.max(twoTheta)
-        else:
-            anglesMax = thetaStop
-            
-        
+            dTheta = 0.1
+            twoThetaBins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
 
-        error = np.sqrt(self.counts)
+        
 
         monitorRepeated = np.repeat(np.repeat(self.monitor[:,np.newaxis,np.newaxis],400,axis=1),self.counts.shape[2],axis=2)
 
-
-        intensity = self.counts/monitorRepeated
-
-        twoThetaBins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
+        
 
         summedRawIntenisty, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=self.counts[self.mask])
-        summedIntensity, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=intensity[self.mask])
-        summedMonitor, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=monitorRepeated[self.mask])
-        
+
+        if applyNormalization:
+            summedMonitor, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=monitorRepeated[self.mask]*self.normalization[self.mask])
+        else:
+            summedMonitor, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=monitorRepeated[self.mask])
 
         inserted, _  = np.histogram(twoTheta[self.mask],bins=twoThetaBins)
 
@@ -152,20 +143,18 @@ class DataSet(object):
         return twoThetaBins, normalizedIntensity, normalizedIntensityError
     
 
-    def plotTwoTheta(self,ax=None,thetaStart=None,thetaStop=None,dTheta=0.1,corrected=True,**kwargs):
+    def plotTwoTheta(self,ax=None,twoThetaBins=None,applyNormalization=True,correctedTwoTheta=True,**kwargs):
         """Plot intensity as function of correctedTwoTheta or twoTheta
 
         Kwargs:
 
             - ax (axis): Matplotlib axis into which data is plotted (default None - generates new)
 
-            - thetaStart (float): Start of twoTheta plot in degrees (default minimum of all two thetas)
+            - twoThetaBins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.1)
 
-            - thetaStop (float): Stop of twoTheta plot in degrees (default maximum of all two thetas)
+            - applyNormalization (bool): If true, take detector efficiency into account (default True)
 
-            - dTheta (float): Step size in twoTheta in degrees (default 0.1)
-
-            - corrected (bool): If true, use corrected two theta, otherwise sum vertically on detector (default True)
+            - correctedTwoTheta (bool): If true, use corrected two theta, otherwise sum vertically on detector (default True)
 
             - All other key word arguments are passed on to plotting routine
 
@@ -173,10 +162,17 @@ class DataSet(object):
 
             - ax: Matplotlib axis into which data was plotted
 
+            - twoThetaBins
+            
+            - normalizedIntensity
+            
+            - normalizedIntensityError
+
         """
         
         
-        twoThetaBins, normalizedIntensity, normalizedIntensityError = self.sumDetector(thetaStart=thetaStart,thetaStop=thetaStop,dTheta=dTheta,corrected=corrected)
+        twoThetaBins, normalizedIntensity, normalizedIntensityError = self.sumDetector(twoThetaBins=twoThetaBins,applyNormalization=applyNormalization,\
+                                                                                       correctedTwoTheta=correctedTwoTheta)
 
         TwoThetaPositions = 0.5*(twoThetaBins[:-1]+twoThetaBins[1:])
 
@@ -190,4 +186,4 @@ class DataSet(object):
         ax.set_xlabel(r'$2\theta$ [deg]')
         ax.set_ylabel(r'Intensity [arb]')
 
-        return ax
+        return ax,twoThetaBins, normalizedIntensity, normalizedIntensityError
