@@ -238,6 +238,15 @@ class DataFile(object):
                     self.normalization = np.ones_like(self.counts,dtype=float)
                 else:
                     self.normalization.shape = self.counts.shape
+
+
+                # If no temperature is saved in sample.sample_temperature
+                if not hasattr(self.sample,'sample_temperature'):
+                    #print('No temperature... Adding zero then')
+                    self.sample.sample_temperature = np.array([0])
+                #else:
+                #    print('Well all is good?')
+                
         else:
             raise NotImplementedError("Expected data file to originate from DMC...")
 

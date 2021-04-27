@@ -40,6 +40,10 @@ class DataSet(object):
         for parameter in ['counts','monitor','twoTheta','correctedTwoTheta','fileName','pixelPosition','waveLength','mask','normalization','normalizationFile']:
             setattr(self,parameter,np.array([getattr(d,parameter) for d in self]))
 
+        # Collect parameters from sample into self
+        for parameter in ['sample_temperature','sample_name']:
+            setattr(self,parameter,np.array([getattr(d.sample,parameter) for d in self]))
+
 
     def __len__(self):
         """return number of DataFiles in self"""
