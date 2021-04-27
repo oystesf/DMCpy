@@ -246,7 +246,7 @@ class DataFile(object):
                     self.sample.sample_temperature = np.array([0])
                 #else:
                 #    print('Well all is good?')
-                
+                self.time = self.DMC.DMC_BF3_Detector.time
         else:
             raise NotImplementedError("Expected data file to originate from DMC...")
 
