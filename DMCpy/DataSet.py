@@ -37,7 +37,7 @@ class DataSet(object):
 
     def _getData(self):
         # Collect parameters listed below across data files into self
-        for parameter in ['counts','monitor','twoTheta','correctedTwoTheta','fileName','pixelPosition','waveLength','mask','normalization','normalizationFile']:
+        for parameter in ['counts','monitor','twoTheta','correctedTwoTheta','fileName','pixelPosition','waveLength','mask','normalization','normalizationFile','time']:
             setattr(self,parameter,np.array([getattr(d,parameter) for d in self]))
 
         # Collect parameters from sample into self
@@ -113,6 +113,8 @@ class DataSet(object):
             
             - Normalized Intensity Error
 
+            - Total Monitor
+
         """
 
         if correctedTwoTheta:
@@ -145,7 +147,7 @@ class DataSet(object):
         normalizedIntensity = summedRawIntenisty/summedMonitor
         normalizedIntensityError =  np.sqrt(summedRawIntenisty)/summedMonitor
 
-        return twoThetaBins, normalizedIntensity, normalizedIntensityError
+        return twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor
     
 
     @_tools.KwargChecker(function=plt.errorbar,include=_tools.MPLKwargs)
@@ -177,7 +179,7 @@ class DataSet(object):
         """
         
         
-        twoThetaBins, normalizedIntensity, normalizedIntensityError = self.sumDetector(twoThetaBins=twoThetaBins,applyNormalization=applyNormalization,\
+        twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor = self.sumDetector(twoThetaBins=twoThetaBins,applyNormalization=applyNormalization,\
                                                                                        correctedTwoTheta=correctedTwoTheta)
 
         TwoThetaPositions = 0.5*(twoThetaBins[:-1]+twoThetaBins[1:])
@@ -192,4 +194,4 @@ class DataSet(object):
         ax.set_xlabel(r'$2\theta$ [deg]')
         ax.set_ylabel(r'Intensity [arb]')
 
-        return ax,twoThetaBins, normalizedIntensity, normalizedIntensityError
+        return ax,twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor

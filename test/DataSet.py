@@ -49,17 +49,18 @@ def test_plot():
     ds = DataSet.DataSet(dataFiles)
     fig,ax = plt.subplots()
 
-    Ax, bins, intensity, error = ds.plotTwoTheta()
+    Ax, bins, intensity, error, monitor = ds.plotTwoTheta()
 
     Ax,*_ = ds.plotTwoTheta(correctedTwoTheta=False)
 
     # Calculate bins, intensity, error without plotting
 
-    bins2, intensity2, error2 = ds.sumDetector()
+    bins2, intensity2, error2, monitor2 = ds.sumDetector()
 
     assert(np.all(np.isclose(bins,bins2)))
     assert(np.all(np.isclose(intensity,intensity2)))
     assert(np.all(np.isclose(error,error2)))
+    assert(np.all(np.isclose(monitor,monitor2)))
     
 
 def test_2d():
