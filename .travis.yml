@@ -45,7 +45,7 @@ matrix:
 before_install:
   - pip install pytest>=3.6 pycodestyle python-coveralls pytest-cov>=2.5 coveralls
   - pip install --upgrade pip
-  - pip install .
+  - pip install --user .
   - wget 'https://www.dropbox.com/s/lic0944jgyke7ck/DataDMC.zip?dl=1' 
   - mkdir data
   - unzip DataDMC.zip?dl=1 -d data
