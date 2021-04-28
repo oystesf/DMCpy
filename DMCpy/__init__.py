@@ -28,5 +28,5 @@ except FileNotFoundError:
             if name in files:
                 return os.path.join(root, name)
 
-    find('calibrationDict.dat',os.path.join(installFolder,'..','..','..','..','..','..'))
+    print(find('calibrationDict.dat',os.path.join(installFolder,'..','..','..','..','..','..')))
     raise FileNotFoundError
