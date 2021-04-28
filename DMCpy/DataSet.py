@@ -78,6 +78,15 @@ class DataSet(object):
     def next(self):
         return self.__next__()
 
+    def append(self,item):
+        try:
+            if isinstance(item,(str,DataFile.DataFile)): # A file path or DataFile has been provided
+                item = [item]
+            [self.dataFiles.append(f) for f in item]
+        except Exception as e:
+            raise(e)
+        self._getData
+
 
     def generateMask(self,maskingFunction = DataFile.maskFunction, **pars):
         """Generate maks to applied to data in data file
