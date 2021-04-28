@@ -20,3 +20,4 @@ except FileNotFoundError:
     else:
         print('Contents of data path is: {}'.format(os.listdir(os.path.join(installFolder,'data'))))
     print('Content of parent folder is: {}'.format(os.listdir(os.path.join(installFolder,'..'))))
+    raise FileNotFoundError
