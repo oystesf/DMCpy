@@ -20,4 +20,13 @@ except FileNotFoundError:
     print('Content of parent folder is: {}'.format(os.listdir(os.path.join(installFolder,'..','..','..','..'))))
     print('Content of parent folder is: {}'.format(os.listdir(os.path.join(installFolder,'..','..','..','..','..'))))
     print('Content of parent folder is: {}'.format(os.listdir(os.path.join(installFolder,'..','..','..','..','..','..'))))
+
+    
+
+    def find(name, path):
+        for root, dirs, files in os.walk(path):
+            if name in files:
+                return os.path.join(root, name)
+
+    find('calibrationDict.dat',os.path.join(installFolder,'..','..','..','..','..','..'))
     raise FileNotFoundError
