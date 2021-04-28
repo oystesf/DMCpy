@@ -17,4 +17,7 @@ except FileNotFoundError:
     print('Content of parent folder is: {}'.format(os.listdir(os.path.join(installFolder,'..'))))
     print('Content of parent folder is: {}'.format(os.listdir(os.path.join(installFolder,'..','..'))))
     print('Content of parent folder is: {}'.format(os.listdir(os.path.join(installFolder,'..','..','..'))))
+    print('Content of parent folder is: {}'.format(os.listdir(os.path.join(installFolder,'..','..','..','..'))))
+    print('Content of parent folder is: {}'.format(os.listdir(os.path.join(installFolder,'..','..','..','..','..'))))
+    print('Content of parent folder is: {}'.format(os.listdir(os.path.join(installFolder,'..','..','..','..','..','..'))))
     raise FileNotFoundError
