@@ -8,7 +8,7 @@ __author__ = 'Jakob Lass'
 # installFolder = os.path.abspath(os.path.split(__file__)[0])
 # calibrationFile =  os.path.join(installFolder,'calibrationDict.dat')
 
-installFolder = os.path.relpath(os.path.join(os.path.split(pickle.__file__)[0],'..'),sys.base_prefix)
+installFolder = os.path.abspath(os.path.join(os.path.split(__file__)[0],'..'))
 calibrationFile =  os.path.join(installFolder,'DMCpy','calibrationDict.dat')
 
 try:
