@@ -39,6 +39,20 @@ def test_load():
     assert(ds2[0].fileName == os.path.split(dataFiles[-1])[-1])
     assert(ds2[0] == ds[-1])
 
+    # Find length before appending
+    length = len(ds)
+    ds.append(dataFiles)
+
+    # Length is supposed to be both
+    assert(len(ds)==length+len(dataFiles))
+
+    # Also works for adding data files directly (both in list and as object)
+    df = ds2[0]
+    ds.append([df])
+    assert(len(ds)==length+len(dataFiles)+1)
+    ds.append(df)
+    assert(len(ds)==length+len(dataFiles)+2)
+    
 
 def test_plot():
 

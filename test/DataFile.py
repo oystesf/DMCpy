@@ -131,3 +131,12 @@ def test_calibration():
         assert(False)
     except FileNotFoundError:
         assert True
+
+
+def test_decoding():
+    dataFile = os.path.join('data','dmc2018n{:06d}.hdf'.format(401))
+
+    df = DataFile.DataFile(dataFile)
+
+    assert(isinstance(df.sample.sample_name,str)) # Originally byte array
+    
