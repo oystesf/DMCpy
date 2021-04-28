@@ -14,6 +14,14 @@ class entry:
     def __init__(self):
         pass
 
+def decode(item):
+    """Test and decode item to utf8"""
+    if hasattr(item,'__len__'):
+        if hasattr(item[0],'decode'):
+            item = item[0].decode('utf8')
+                    
+    return item
+
 class h5pyReader:
     """Custom class used to traverse hdf file and extract all data
     
@@ -276,8 +284,14 @@ class DataFile(object):
     def updateProperty(self,dictionary):
         """Update self with key and values from provided dictionary. Overwrites any properties already present."""
         if isinstance(dictionary,dict):
-            for key in dictionary.keys():
-                self.__setattr__(key,copy.deepcopy(dictionary[key]))
+            for key,item in dictionary.items():
+                if isinstance(item,entry):
+                    for key2,item2 in item.__dict__.items():
+                        item.__dict__[key2] = decode(item2)
+                else:
+                    item = decode(item)
+                    
+                self.__setattr__(key,copy.deepcopy(item))
         else:
             raise AttributeError('Provided argument is not of type dictionary. Recieved instance of type {}'.format(type(dictionary)))
 
