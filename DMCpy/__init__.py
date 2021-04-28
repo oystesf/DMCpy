@@ -8,5 +8,15 @@ __author__ = 'Jakob Lass'
 
 installFolder = os.path.abspath(os.path.split(__file__)[0])
 calibrationFile = os.path.join(installFolder,'data','calibrationDict.dat')
-with open(calibrationFile,'rb') as f:
-    calibrationDict = pickle.load(f)
+try:
+    with open(calibrationFile,'rb') as f:
+        calibrationDict = pickle.load(f)
+except FileNotFoundError:
+    import glob
+
+    print("Contents of local folder is: {}".format(glob.glob(installFolder)))
+    if not os.path.exists(os.path.join(installFolder,'data')):
+        print('The data path does not exist..')
+    else:
+        print('Contents of data path is: {}'.format(glob.glob(os.path.exists(os.path.join(installFolder,'data'))))
+    print('Content of parent folder is: {}'.format(glob.glob(os.path.exists(os.path.join(installFolder,'..'))))
