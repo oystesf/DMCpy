@@ -24,9 +24,11 @@ except FileNotFoundError:
     
 
     def find(name, path):
+        result = []
         for root, dirs, files in os.walk(path):
             if name in files:
-                return os.path.join(root, name)
+                result.append(os.path.join(root, name))
+        return result
 
-    print(find('calibrationDict.dat',os.path.join(installFolder,'..','..','..','..','..','..')))
+    print(find('calibrationDict.dat',os.path.abspath(os.path.join(installFolder,'..','..','..','..','..','..'))))
     raise FileNotFoundError
