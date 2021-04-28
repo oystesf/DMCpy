@@ -18,5 +18,5 @@ except FileNotFoundError:
     if not os.path.exists(os.path.join(installFolder,'data')):
         print('The data path does not exist..')
     else:
-        print('Contents of data path is: {}'.format(glob.glob(os.path.exists(os.path.join(installFolder,'data'))))
-    print('Content of parent folder is: {}'.format(glob.glob(os.path.exists(os.path.join(installFolder,'..'))))
+        print('Contents of data path is: {}'.format(glob.glob(os.path.exists(os.path.join(installFolder,'data')))))
+    print('Content of parent folder is: {}'.format(glob.glob(os.path.exists(os.path.join(installFolder,'..')))))
