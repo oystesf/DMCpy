@@ -14,9 +14,9 @@ try:
 except FileNotFoundError:
     import glob
 
-    print("Contents of local folder is: {}".format(glob.glob(installFolder)))
+    print("Contents of local folder is: {}".format(os.listdir(installFolder)))
     if not os.path.exists(os.path.join(installFolder,'data')):
         print('The data path does not exist..')
     else:
-        print('Contents of data path is: {}'.format(glob.glob(os.path.exists(os.path.join(installFolder,'data')))))
-    print('Content of parent folder is: {}'.format(glob.glob(os.path.exists(os.path.join(installFolder,'..')))))
+        print('Contents of data path is: {}'.format(os.listdir(os.path.join(installFolder,'data'))))
+    print('Content of parent folder is: {}'.format(os.listdir(os.path.join(installFolder,'..'))))
