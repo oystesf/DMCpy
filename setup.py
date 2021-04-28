@@ -13,6 +13,7 @@ with open(os.path.join(_here, 'README.md'), encoding='utf-8') as f:
 
 installFolder = os.path.abspath(os.path.join(os.path.split(setuptools.__file__)[0],'..'))
 pythonPath =  os.path.relpath(os.path.join(installFolder,'DMCpy'),sys.base_prefix)
+
 setup(
     name='DMCpy',
     version='0.1.4',
@@ -22,7 +23,7 @@ setup(
     author_email='jakob.lass@psi.ch',
     url='https://www.psi.ch/en/sinq/dmc/',
     license='MPL-2.0',
-    data_files = [(pythonPath, ["LICENSE.txt"]),(pythonPath,["DMCpy/calibrationDict.dat"])],
+    data_files = [(pythonPath, ["LICENSE.txt"]),((os.path.join(pythonPath),["DMCpy/calibrationDict.dat"]))],
     packages=['DMCpy','DMCpy/CommandLineScripts'],
     entry_points = {
         "console_scripts": []#'MJOLNIRHistory = MJOLNIR.CommandLineScripts.MJOLNIRHistory:main',

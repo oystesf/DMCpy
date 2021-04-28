@@ -5,11 +5,14 @@ import pickle
 __version__ = '0.1.4'
 __author__ = 'Jakob Lass'
 
-installFolder = os.path.abspath(os.path.split(__file__)[0])
-pythonPath =  os.path.join(installFolder,'calibrationDict.dat')
+# installFolder = os.path.abspath(os.path.split(__file__)[0])
+# calibrationFile =  os.path.join(installFolder,'calibrationDict.dat')
+
+installFolder = os.path.relpath(os.path.join(os.path.split(pickle.__file__)[0],'..'),sys.base_prefix)
+calibrationFile =  os.path.join(installFolder,'DMCpy','calibrationDict.dat')
 
 try:
-    with open(pythonPath,'rb') as f:
+    with open(calibrationFile,'rb') as f:
         calibrationDict = pickle.load(f)
 except FileNotFoundError:
     print('Current folder is '+__file__)
