@@ -23,8 +23,8 @@ setup(
     author_email='jakob.lass@psi.ch',
     url='https://www.psi.ch/en/sinq/dmc/',
     license='MPL-2.0',
-    data_files = [(pythonPath, ["LICENSE.txt"]),(os.path.join(pythonPath,'data'),["DMCpy/data/calibrationDict.dat"])],
-    packages=['DMCpy','DMCpy/CommandLineScripts','DMCpy/data'],
+    data_files = [(pythonPath, ["LICENSE.txt"]),(os.path.join(pythonPath),["DMCpy/data/calibrationDict.dat"])],
+    packages=['DMCpy','DMCpy/CommandLineScripts'],
     entry_points = {
         "console_scripts": []#'MJOLNIRHistory = MJOLNIR.CommandLineScripts.MJOLNIRHistory:main',
         },
