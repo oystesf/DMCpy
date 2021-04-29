@@ -356,7 +356,7 @@ class DataSet(object):
             elif event.button=='down':
                 decreaseAxis(self)
         # Connect function calls to slots
-        fig.canvas.mpl_connect('key_press_event',lambda event: onkeypress(fig.gca(),event) )
-        fig.canvas.mpl_connect('scroll_event',lambda event: onscroll(fig.gca(),event) )
+        fig.canvas.mpl_connect('key_press_event',lambda event: onkeypress(ax,event) )
+        fig.canvas.mpl_connect('scroll_event',lambda event: onscroll(ax,event) )
         
         return ax
