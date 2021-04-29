@@ -211,3 +211,152 @@ class DataSet(object):
         ax.set_ylabel(r'Intensity [arb]')
 
         return ax,twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor
+
+    def plotInteractive(self,ax=None,masking=True,**kwargs):
+        """Generate an interactive plot of data.
+
+        Kwargs:
+
+            - ax (axis): Matplotlib axis into which the plot is to be performed (default None -> new)
+
+            - masking (bool): If true, the current mask in self.mask is applied (default True)
+
+            - Kwargs: Passed on to errorbar or imshow depending on data dimensionality
+
+        Returns:
+
+            - ax: Interactive matplotlib axis
+
+        """
+        if ax is None:
+            fig,ax = plt.subplots()
+        else:
+            fig = ax.get_figure()
+        
+        twoTheta = self.twoTheta
+
+        # Find intensity
+        intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,np.newaxis,np.newaxis])
+        
+
+        if masking is True: # If masking, apply self.mask
+            intensityMatrix[np.logical_not(self.mask)] = np.nan
+
+        # Find plotting limits (For 2D pixel limits found later)
+        thetaLimits = [f(twoTheta) for f in [np.min,np.max]]
+        intLimits = [f(intensityMatrix) for f in [np.nanmin,np.nanmax]]
+
+        # Copy relevant data to the axis
+        ax.intensityMatrix = intensityMatrix
+        ax.intLimits = intLimits
+        ax.twoTheta = twoTheta
+        ax.twoThetaLimits = thetaLimits
+        ax.titles = [df.fileName for df in self]
+
+        if ax.intensityMatrix.shape[-1] == 1: # Data is 1D, plot using errorbar
+            # calculate errorbars
+            ax.errorbarMatrix = np.divide(np.sqrt(self.counts),self.normalization*self.monitor[:,np.newaxis,np.newaxis])
+            def plotSpectrum(ax,index=0,kwargs=kwargs):
+                if kwargs is None:
+                    kwargs = {}
+                if hasattr(ax,'_sc'): # am errprbar has already been plotted, delete ot
+                    ax._sc.remove()
+                    del ax._sc
+                
+                if hasattr(ax,'color'): # use the color from previous plot
+                    kwargs['color']=ax.color
+                    
+                # Plot data
+                ax._sc = ax.errorbar(ax.twoTheta[index],ax.intensityMatrix[index],yerr=ax.errorbarMatrix[index].flatten(),**kwargs)
+                ax.index = index # Update index and color
+                ax.color = ax._sc.lines[0].get_color()
+                # Set plotting limits and title
+                ax.set_xlim(*ax.twoThetaLimits)
+                ax.set_ylim(*ax.intLimits)
+                ax.set_title(ax.titles[index])
+                plt.draw()
+
+            ax.set_ylabel('Inensity [arb]')
+            
+        else:
+            # Find limits for y direction
+            ax.pixelLimits = [f(self.pixelPosition[:,2]) for f in [np.nanmin,np.nanmax]]
+            ax.pixelPosition = self.pixelPosition[:,2,:]
+
+            def plotSpectrum(ax,index=0,kwargs=kwargs):
+                # find color bar limits
+                vmin,vmax = ax.intLimits
+                extent = np.array([[f(dat) for f in [np.nanmin,np.nanmax]] for dat in [ax.twoTheta[index],ax.pixelPosition[index]]]).flatten()
+                
+                if hasattr(ax,'_imshow'):
+                    ax._imshow.set_data(ax.intensityMatrix[index].T)
+                    ax._imshow.set_extent(extent)
+                else:
+                    ax._imshow = ax.imshow(ax.intensityMatrix[index].T,extent=extent,origin='lower',vmin=vmin,vmax=vmax)
+
+                
+                ax.index = index
+                if 'colorbar' in kwargs: # If colorbar attribute is given, use it
+                    if kwargs['colorbar']: fig.colorbar(ax._imshow)
+                # Set limits
+                ax.set_xlim(*ax.twoThetaLimits)
+                ax.set_ylim(*ax.pixelLimits)
+                ax.set_title(ax.titles[index])
+                ax.set_aspect('auto')
+                
+                plt.draw()
+                
+            ax.set_ylabel('Inensity [arb]')
+
+        # For all cases, x axis is two theta in degrees
+        ax.set_xlabel(r'2$\theta$ [deg]')
+        # Add function as method
+        ax.plotSpectrum = lambda index,**kwargs: plotSpectrum(ax,index,**kwargs)
+        
+        # Plot first data point
+        ax.plotSpectrum(0)
+
+        ##### Interactivity #####
+
+        def increaseAxis(self,step=1): # Call function to increase index
+            index = self.index
+            index+=step
+            if index>=len(self.intensityMatrix):
+                index = len(self.intensityMatrix)-1
+            self.plotSpectrum(index)
+            
+        def decreaseAxis(self,step=1): # Call function to decrease index
+            index = self.index
+            index-=step
+            if index<=-1:
+                index = 0
+            self.plotSpectrum(index)
+
+        # Connect functions to key presses
+        def onkeypress(self,event): # pragma: no cover
+            if event.key in ['+','up']:
+                increaseAxis(self)
+            elif event.key in ['-','down']:
+                decreaseAxis(self)
+            elif event.key in ['home']:
+                index = 0
+                self.plotSpectrum(index)
+            elif event.key in ['end']:
+                index = len(self.intensityMatrix)-1
+                self.plotSpectrum(index)
+            elif event.key in ['pageup']: # Pressing pageup or page down performs steps of 10
+                increaseAxis(self,step=10)
+            elif event.key in ['pagedown']:
+                decreaseAxis(self,step=10)
+
+        # Call function for scrolling with mouse wheele
+        def onscroll(self,event): # pragma: no cover
+            if(event.button=='up'):
+                increaseAxis(self)
+            elif event.button=='down':
+                decreaseAxis(self)
+        # Connect function calls to slots
+        fig.canvas.mpl_connect('key_press_event',lambda event: onkeypress(fig.gca(),event) )
+        fig.canvas.mpl_connect('scroll_event',lambda event: onscroll(fig.gca(),event) )
+        
+        return ax
