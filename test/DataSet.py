@@ -52,7 +52,10 @@ def test_load():
     assert(len(ds)==length+len(dataFiles)+1)
     ds.append(df)
     assert(len(ds)==length+len(dataFiles)+2)
-    
+
+    # Deletion
+    del ds[-1]
+    assert(len(ds)==length+len(dataFiles)+1)
 
 def test_plot():
 

@@ -87,6 +87,13 @@ class DataSet(object):
             raise(e)
         self._getData
 
+    def __delitem__(self,index):
+        if index < len(self.dataFiles):
+            del self.dataFiles[index]
+        else:
+            raise IndexError('Provided index {} is out of bounds for DataSet with length {}.'.format(index,len(self.dataFiles)))
+        self._getData
+
 
     def generateMask(self,maskingFunction = DataFile.maskFunction, **pars):
         """Generate maks to applied to data in data file
