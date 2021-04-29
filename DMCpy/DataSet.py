@@ -360,3 +360,39 @@ class DataSet(object):
         fig.canvas.mpl_connect('scroll_event',lambda event: onscroll(ax,event) )
         
         return ax
+
+
+    def plotOverview(self,plotInteractiveKwargs = None, plotTwoThetaKwargs = None,):
+        """Quick plotting of data set with interactive plotter and summed intensity.
+
+        Kwargs:
+
+            - masking (bool): If true, the current mask in self.mask is applied (default True)
+
+            - plotInteractiveKwargs (dict): Kwargs to be used for interactive plot
+
+            - plotTwoThetaKwargs (dict): Kwargs to be used for plotTwoTheta plot
+
+        returns:
+
+            - Ax (list): List of two axis, first containing the interactive plot, second summed two theta
+        
+        """
+
+        fig,Ax = plt.subplots(2,1,sharex=True,figsize=(12,10))
+
+        Ax = Ax.flatten()
+
+        if plotInteractiveKwargs is None:
+            plotInteractiveKwargs = {}
+        if plotTwoThetaKwargs is None:
+            plotTwoThetaKwargs = {'fmt':'.-'}
+
+        ax2,*_= self.plotTwoTheta(ax=Ax[1],**plotTwoThetaKwargs)
+        ax = self.plotInteractive(ax = Ax[0],**plotInteractiveKwargs)
+
+        ax.set_xlabel('')
+        ax2.set_title('Integrated Intensity')
+
+        fig.tight_layout()
+        return Ax
