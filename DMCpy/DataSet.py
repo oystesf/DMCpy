@@ -297,7 +297,9 @@ class DataSet(object):
                 
                 ax.index = index
                 if 'colorbar' in kwargs: # If colorbar attribute is given, use it
-                    if kwargs['colorbar']: fig.colorbar(ax._imshow)
+                    if kwargs['colorbar']: 
+                        if not hasattr(ax,'_colorbar'): # If no colorbar is present, create one
+                            ax._colorbar = fig.colorbar(ax._imshow,ax=ax)
                 # Set limits
                 ax.set_xlim(*ax.twoThetaLimits)
                 ax.set_ylim(*ax.pixelLimits)
@@ -390,7 +392,7 @@ class DataSet(object):
         
         """
 
-        fig,Ax = plt.subplots(2,1,sharex=True,figsize=(12,10))
+        fig,Ax = plt.subplots(2,1,figsize=(12,10))
 
         Ax = Ax.flatten()
 
@@ -411,8 +413,11 @@ class DataSet(object):
         if not 'correctedTwoTheta' in kwargs:
             kwargs['correctedTwoTheta']= True
 
+        if not 'colorbar' in kwargs:
+            kwargs['colorbar']= False
+
         plotInteractiveKwargs = {}
-        for key in ['masking','fmt']:
+        for key in ['masking','fmt','colorbar']:
             plotInteractiveKwargs[key] = kwargs[key]
         
         plotTwoThetaKwargs = {}
