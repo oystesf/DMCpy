@@ -85,7 +85,7 @@ class DataSet(object):
             [self.dataFiles.append(f) for f in item]
         except Exception as e:
             raise(e)
-        self._getData
+        self._getData()
 
     def __delitem__(self,index):
         if index < len(self.dataFiles):
@@ -362,20 +362,31 @@ class DataSet(object):
         return ax
 
 
-    def plotOverview(self,plotInteractiveKwargs = None, plotTwoThetaKwargs = None,):
+    def plotOverview(self,**kwargs):
         """Quick plotting of data set with interactive plotter and summed intensity.
 
         Kwargs:
 
             - masking (bool): If true, the current mask in self.mask is applied (default True)
 
-            - plotInteractiveKwargs (dict): Kwargs to be used for interactive plot
-
-            - plotTwoThetaKwargs (dict): Kwargs to be used for plotTwoTheta plot
+            - kwargs (dict): Kwargs to be used for interactive or plotTwoTheta plot
 
         returns:
 
             - Ax (list): List of two axis, first containing the interactive plot, second summed two theta
+
+
+        Kwargs for plotInteractiveKwargs:
+        
+            - masking (bool): Use generated mask for dataset (default True)
+
+        Kwargs for plotTwoThetaKwargs:
+
+            - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.1 Deg)
+            
+            - applyNormalization (bool): Use normalization files (default True)
+            
+            - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
         
         """
 
@@ -383,10 +394,30 @@ class DataSet(object):
 
         Ax = Ax.flatten()
 
-        if plotInteractiveKwargs is None:
-            plotInteractiveKwargs = {}
-        if plotTwoThetaKwargs is None:
-            plotTwoThetaKwargs = {'fmt':'.-'}
+
+        if not 'fmt' in kwargs:
+            kwargs['fmt']='.-'
+
+        if not 'masking' in kwargs:
+            kwargs['masking']= True
+
+        if not 'twoThetaBins' in kwargs:
+            kwargs['twoThetaBins']= None
+
+        if not 'applyNormalization' in kwargs:
+            kwargs['applyNormalization']= True
+
+
+        if not 'correctedTwoTheta' in kwargs:
+            kwargs['correctedTwoTheta']= True
+
+        plotInteractiveKwargs = {}
+        for key in ['masking','fmt']:
+            plotInteractiveKwargs[key] = kwargs[key]
+        
+        plotTwoThetaKwargs = {}
+        for key in ['twoThetaBins','fmt','correctedTwoTheta','applyNormalization']:
+            plotTwoThetaKwargs[key] = kwargs[key]
 
         ax2,*_= self.plotTwoTheta(ax=Ax[1],**plotTwoThetaKwargs)
         ax = self.plotInteractive(ax = Ax[0],**plotInteractiveKwargs)
