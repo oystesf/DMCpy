@@ -23,7 +23,7 @@ except FileNotFoundError:
         return result
 
     
-    foundFile = str(find('calibrationDict.dat',os.path.abspath(os.path.join(installFolder,'..','..','..','..','..','..'))))
+    foundFile = str(find('calibrationDict.dat',os.path.abspath(os.path.join(installFolder,'..','..','..','..','..','..')))[0])
 
     with open(foundFile,'rb') as f:
         calibrationDict = pickle.load(f)
