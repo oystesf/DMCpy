@@ -82,7 +82,10 @@ class DataSet(object):
         try:
             if isinstance(item,(str,DataFile.DataFile)): # A file path or DataFile has been provided
                 item = [item]
-            [self.dataFiles.append(f) for f in item]
+            for f in item:
+                if isinstance(f,str):
+                    f = DataFile.DataFile(f)
+                self.dataFiles.append(f)
         except Exception as e:
             raise(e)
         self._getData()
@@ -206,7 +209,7 @@ class DataSet(object):
         if ax is None:
             fig,ax = plt.subplots()
 
-        ax.errorbar(TwoThetaPositions,normalizedIntensity,yerr=normalizedIntensityError,**kwargs)
+        ax._errorbar = ax.errorbar(TwoThetaPositions,normalizedIntensity,yerr=normalizedIntensityError,**kwargs)
         ax.set_xlabel(r'$2\theta$ [deg]')
         ax.set_ylabel(r'Intensity [arb]')
 
@@ -253,23 +256,32 @@ class DataSet(object):
         ax.twoThetaLimits = thetaLimits
         ax.titles = [df.fileName for df in self]
 
+        if not hasattr(kwargs,'fmt'):
+            kwargs['fmt']='.-'
+
         if ax.intensityMatrix.shape[-1] == 1: # Data is 1D, plot using errorbar
             # calculate errorbars
+            if 'colorbar' in kwargs: # Cannot be used for 1D plotting....
+                del kwargs['colorbar']
             ax.errorbarMatrix = np.divide(np.sqrt(self.counts),self.normalization*self.monitor[:,np.newaxis,np.newaxis])
             def plotSpectrum(ax,index=0,kwargs=kwargs):
                 if kwargs is None:
                     kwargs = {}
-                if hasattr(ax,'_sc'): # am errprbar has already been plotted, delete ot
-                    ax._sc.remove()
-                    del ax._sc
+                if hasattr(ax,'_errorbar'): # am errprbar has already been plotted, delete ot
+                    ax._errorbar.remove()
+                    del ax._errorbar
                 
                 if hasattr(ax,'color'): # use the color from previous plot
                     kwargs['color']=ax.color
-                    
+                
+                if hasattr(ax,'fmt'):
+                    kwargs['fmt']=ax.fmt
+
                 # Plot data
-                ax._sc = ax.errorbar(ax.twoTheta[index],ax.intensityMatrix[index],yerr=ax.errorbarMatrix[index].flatten(),**kwargs)
+                ax._errorbar = ax.errorbar(ax.twoTheta[index],ax.intensityMatrix[index],yerr=ax.errorbarMatrix[index].flatten(),**kwargs)
+                ax.fmt = kwargs['fmt']
                 ax.index = index # Update index and color
-                ax.color = ax._sc.lines[0].get_color()
+                ax.color = ax._errorbar.lines[0].get_color()
                 # Set plotting limits and title
                 ax.set_xlim(*ax.twoThetaLimits)
                 ax.set_ylim(*ax.intLimits)
