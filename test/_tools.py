@@ -20,3 +20,17 @@ def test_fileListGenerator():
 
     assert(yearGenerated==year)
     assert(fileStringGenerated == fileString)
+
+
+def test_roundPower():
+    assert(_tools.roundPower(0.0,default=10) == 10) # Default is returnd at 0
+
+    assert(_tools.roundPower(0.1) == 1)
+
+    assert(_tools.roundPower(0.01) == 2)
+
+    assert(_tools.roundPower(0.09) == 2)
+
+    assert(_tools.roundPower(10.09) == -1)
+
+    assert(_tools.roundPower(1.09) == 0)

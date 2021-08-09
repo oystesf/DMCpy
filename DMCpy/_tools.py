@@ -161,3 +161,11 @@ def fileListGenerator(numberString,folder,year=2021, format = None, instrument =
 
         dataFiles.append([os.path.join(folder,format.format(year,x)) for x in numbers])
     return list(np.concatenate(dataFiles))
+
+def roundPower(x,default=4):
+    """Round to nearest 10^x"""
+    if not np.isclose(x,0.0): # Sign to fit with np.round
+        return -int(np.floor(np.log10(np.abs(x))))
+        
+    else:
+        return default
