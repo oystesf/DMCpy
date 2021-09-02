@@ -4,7 +4,7 @@ import pickle as pickle
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from DMCpy import DataFile, _tools
+from DMCpy import DataFile, _tools, Viewer3D
 
 
 class DataSet(object):
@@ -43,6 +43,12 @@ class DataSet(object):
         # Collect parameters from sample into self
         for parameter in ['sample_temperature','sample_name']:
             setattr(self,parameter,np.array([getattr(d.sample,parameter) for d in self]))
+
+        types = [df.scanType for df in self]
+        if len(types)>1:
+            if not np.all([types[0] == t for t in types[1:]]):
+                raise AttributeError('Provided data files have different types!\n'+'\n'.join([df.fileName+': '+df.scanType for df in self]))
+        self.type = types[0]
 
 
     def __len__(self):
@@ -149,8 +155,10 @@ class DataSet(object):
             twoThetaBins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
 
         
-
-        monitorRepeated = np.repeat(np.repeat(self.monitor[:,np.newaxis,np.newaxis],400,axis=1),self.counts.shape[2],axis=2)
+        if self.type.upper() == 'A3':
+            monitorRepeated = np.array([np.ones_like(df.counts)*df.monitor for df in self])
+        else:
+            monitorRepeated = np.repeat(np.repeat(self.monitor[:,np.newaxis,np.newaxis],400,axis=1),self.counts.shape[2],axis=2)
 
         
 
@@ -213,6 +221,20 @@ class DataSet(object):
         ax.set_xlabel(r'$2\theta$ [deg]')
         ax.set_ylabel(r'Intensity [arb]')
 
+        def format_coord(ax,xdata,ydata):
+            if not hasattr(ax,'xfmt'):
+                ax.mean_x_power = _tools.roundPower(np.mean(np.diff(ax._errorbar.get_children()[0].get_data()[0])))
+                ax.xfmt = r'$2\theta$ = {:3.'+str(ax.mean_x_power)+'f} Deg'
+            if not hasattr(ax,'yfmt'):
+                ymin,ymax,ystep = [f(ax._errorbar.get_children()[0].get_data()[1]) for f in [np.min,np.max,len]]
+                
+                ax.mean_y_power = _tools.roundPower((ymax-ymin)/ystep)
+                ax.yfmt = r'Int = {:.'+str(ax.mean_y_power)+'f} cts'
+
+            return ', '.join([ax.xfmt.format(xdata),ax.yfmt.format(ydata)])
+
+        ax.format_coord = lambda format_xdata,format_ydata:format_coord(ax,format_xdata,format_ydata)
+
         return ax,twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor
 
     def plotInteractive(self,ax=None,masking=True,**kwargs):
@@ -238,12 +260,19 @@ class DataSet(object):
         
         twoTheta = self.twoTheta
 
-        # Find intensity
-        intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,np.newaxis,np.newaxis])
-        
+        if self.type.upper() == 'A3':
+            shape = self.counts.shape
+            intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,np.newaxis,np.newaxis,np.newaxis]).reshape(-1,shape[2],shape[3])
+            mask = self.mask.reshape(-1,shape[2],shape[3])
+            ax.titles = np.concatenate([[df.fileName]*len(df.A3) for df in self],axis=0)
+        else:
+            # Find intensity
+            intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,np.newaxis,np.newaxis])
+            mask = self.mask
+            
 
         if masking is True: # If masking, apply self.mask
-            intensityMatrix[np.logical_not(self.mask)] = np.nan
+            intensityMatrix[np.logical_not(mask)] = np.nan
 
         # Find plotting limits (For 2D pixel limits found later)
         thetaLimits = [f(twoTheta) for f in [np.min,np.max]]
@@ -254,12 +283,13 @@ class DataSet(object):
         ax.intLimits = intLimits
         ax.twoTheta = twoTheta
         ax.twoThetaLimits = thetaLimits
-        ax.titles = [df.fileName for df in self]
+        
 
         if not hasattr(kwargs,'fmt'):
             kwargs['fmt']='.-'
 
-        if ax.intensityMatrix.shape[-1] == 1: # Data is 1D, plot using errorbar
+        if self.type.upper() == 'OLD DATA': # Data is 1D, plot using errorbar
+            ax.titles = [df.fileName for df in self]
             # calculate errorbars
             if 'colorbar' in kwargs: # Cannot be used for 1D plotting....
                 del kwargs['colorbar']
@@ -290,7 +320,8 @@ class DataSet(object):
 
             ax.set_ylabel('Inensity [arb]')
             
-        else:
+        elif self.type.upper() == 'POWDER':
+            ax.titles = [df.fileName for df in self]
             # Find limits for y direction
             ax.pixelLimits = [f(self.pixelPosition[:,2]) for f in [np.nanmin,np.nanmax]]
             ax.pixelPosition = self.pixelPosition[:,2,:]
@@ -321,6 +352,42 @@ class DataSet(object):
                 plt.draw()
                 
             ax.set_ylabel('Inensity [arb]')
+
+        elif self.type.upper() == 'A3':
+            
+            ax.pixelLimits = [f(self.pixelPosition[:,2]) for f in [np.nanmin,np.nanmax]]
+            ax.twoThetaLimits = [f(self.twoTheta[:,2]) for f in [np.nanmin,np.nanmax]]
+            ax.A3 = np.concatenate([df.A3 for df in self],axis=0)
+
+            def plotSpectrum(ax,index=0,kwargs=kwargs):
+                # find color bar limits
+                vmin,vmax = ax.intLimits
+                #extent = np.array([[f(dat) for f in [np.nanmin,np.nanmax]] for dat in [ax.twoTheta[index],ax.pixelPosition[index]]]).flatten()
+                extent = [*ax.twoThetaLimits,*ax.pixelLimits]
+                if hasattr(ax,'_imshow'):
+                    ax._imshow.set_data(ax.intensityMatrix[index].T)
+                    ax._imshow.set_extent(extent)
+                else:
+                    ax._imshow = ax.imshow(ax.intensityMatrix[index].T,extent=extent,origin='lower',vmin=vmin,vmax=vmax)
+
+                
+                ax.index = index
+                if 'colorbar' in kwargs: # If colorbar attribute is given, use it
+                    if kwargs['colorbar']: 
+                        if not hasattr(ax,'_colorbar'): # If no colorbar is present, create one
+                            ax._colorbar = fig.colorbar(ax._imshow,ax=ax)
+                # Set limits
+                #ax.set_xlim(*ax.twoThetaLimits)
+                #ax.set_ylim(*ax.pixelLimits)
+                #print(index)
+                ax.set_title(ax.titles[index]+' - A3: {:.2f} [deg]'.format(ax.A3[index]))
+                ax.set_aspect('auto')
+                
+                
+                plt.draw()
+
+            
+            ax.set_ylabel(r'Pixel z position [m]')
 
         # For all cases, x axis is two theta in degrees
         ax.set_xlabel(r'2$\theta$ [deg]')
@@ -404,7 +471,7 @@ class DataSet(object):
         
         """
 
-        fig,Ax = plt.subplots(2,1,figsize=(12,10))
+        fig,Ax = plt.subplots(2,1,figsize=(12,10),sharex=True)
 
         Ax = Ax.flatten()
 
@@ -444,3 +511,45 @@ class DataSet(object):
 
         fig.tight_layout()
         return Ax
+
+    def Viewer3D(self,dqx,dqy,dqz,rlu=False,axis=2, raw=False,  log=False, grid = True, outputFunction=print, 
+                 cmap='viridis'):
+
+        """Generate a 3D view of all data files in the DatSet.
+        
+        Args:
+        
+            - dqx (float): Bin size along first axis in 1/AA
+        
+            - dqy (float): Bin size along second axis in 1/AA
+        
+            - dqz (float): Bin size along third axis in 1/AA
+
+        Kwargs:
+
+            - rlu (bool): Plot using reciprocal lattice units (default False)
+
+            - axis (int): Initial view direction for the viewer (default 2)
+
+            - raw (bool): If True plot counts else plot normalized counts (default False)
+
+            - log (bool): Plot intensity as logarithm of intensity (default False)
+
+            - grid (bool): Plot a grid on the figure (default True)
+
+            - outputFunction (function): Function called when clicking on the figure (default print)
+
+            - cmap (str): Name of color map used for plot (default viridis)
+        
+        """
+        if rlu:
+            raise NotImplementedError('Currently, only plotting using Q space is supported.')
+        pos = np.array(np.concatenate([[q.flatten() for q in df.q] for df in self],axis=-1))
+
+        if not raw:
+            data = np.concatenate([df.intensity.flatten()  for df in self])
+        else:
+            data = np.concatenate([df.counts.flatten()  for df in self])
+        Data,bins = _tools.binData3D(dqx,dqy,dqz,pos=pos,data=data)
+
+        return Viewer3D.Viewer3D(Data,bins,axis=axis, grid=grid, log=log, outputFunction=outputFunction, cmap=cmap)
