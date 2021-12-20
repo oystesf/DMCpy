@@ -191,136 +191,126 @@ class DataFile(object):
 
         # Open file in reading mode
         with hdf.File(filePath,mode='r') as f:
-            bulkData = h5pyReader(exclude='entry1')
+            bulkData = h5pyReader(exclude='entry')
             f.visititems(bulkData) 
 
-            if 'entry1/data1' in f: # data1 is not included as it only contains soft links
+            if 'entry/data' in f: # data1 is not included as it only contains soft links
                 data1 = h5pyReader()
-                f['entry1/data1'].visititems(data1)
+                f['entry/data'].visititems(data1)
                 bulkData.data1 = data1
 
         self.updateProperty(bulkData.__dict__)
 
         # copy important paramters to correct position
-        if hasattr(self,'DMC'):
-            self.scanType = None
-            if hasattr(self.DMC,'DMC_BF3_Detector'): # if this is true, old DMC file
-                if hasattr(self.DMC.DMC_BF3_Detector,'Counts'): # Capitalized
-                    self.DMC.DMC_BF3_Detector.counts = self.DMC.DMC_BF3_Detector.Counts
-                if hasattr(self,'Sample'): # Capitalized
-                    self.sample = self.Sample
-                if hasattr(self.DMC.DMC_BF3_Detector,'Time'): # Capitalized
-                    self.DMC.DMC_BF3_Detector.time = self.DMC.DMC_BF3_Detector.Time
+        self.radius = 0.8
+        
+        countShape = self.DMC.detector.data.shape
+        if len(countShape) == 2:
+            self.scanType = 'Powder'
+            self.counts = self.DMC.detector.data
+            
+            self.counts = self.counts.T # Shape is transposed into (1152,128) with axes (twoTheta,z)
+            self.counts.shape = (1,*self.counts.shape)
+            
+            self.twoThetaPosition = self.DMC.detector.detector_position
+            self.twoTheta = np.linspace(0,120,self.counts.shape[1])
+            if not np.isnan(self.twoThetaPosition[0]):
+                self.twoTheta+=self.twoThetaPosition
+            
+            
 
-                if self.DMC.DMC_BF3_Detector.counts.shape == (400,): # old data file
-                    self.scanType = 'Old Data'
-                    self.radius = 1.5 # m
+            repeats = self.counts.shape[2]
+            verticalPosition = np.linspace(-0.1,0.1,repeats)
+            
+            self.twoTheta, z = np.meshgrid(self.twoTheta,verticalPosition,indexing='ij')
+            
+            self.pixelPosition = np.array([self.radius*np.cos(np.deg2rad(self.twoTheta)),
+                                        self.radius*np.sin(np.deg2rad(self.twoTheta)),
+                                        z])
+            try:
+                self.A3 = self.sample.rotation_angle
+            except AttributeError:
+                pass
+        elif len(countShape) == 3: # We have 3D data! Assume A3 scan with shape (step,128,height)
+            self.counts = self.DMC.detector.data
+            self.twoTheta = self.DMC.detector.two_theta
 
-                    self.counts = self.DMC.DMC_BF3_Detector.counts.reshape(400,1)
-                    self.twoTheta = self.DMC.DMC_BF3_Detector.two_theta.reshape(400,1)
+            self.A3 = self.sample.rotation_angle
+            if not len(self.A3) == countShape[0]:
+                raise AttributeError("Scan performed is not an A3 scan... Sorry, I can't work with this....")
+            self.scanType = 'A3'
+            repeats = self.counts.shape[2]
+            verticalPosition = np.linspace(-0.1,0.1,repeats)
+            
+            self.twoTheta, z = np.meshgrid(self.twoTheta,verticalPosition,indexing='ij')
 
-                    self.pixelPosition = self.radius*np.array([np.cos(np.deg2rad(self.twoTheta)),
-                                                np.sin(np.deg2rad(self.twoTheta)),
-                                                np.zeros_like(self.twoTheta)])
-                else: # Hacked update data file
-                    self.radius = 0.8
-
-                    countShape = self.DMC.DMC_BF3_Detector.counts.shape
-                    if len(countShape) == 2:
-                        self.scanType = 'Powder'
-                        self.counts = self.DMC.DMC_BF3_Detector.counts.reshape(400,-1)
-                        self.twoTheta = self.DMC.DMC_BF3_Detector.two_theta.reshape(400)
-
-                        repeats = self.counts.shape[1]
-                        verticalPosition = np.linspace(-0.1,0.1,repeats)
-                        
-                        self.twoTheta, z = np.meshgrid(self.twoTheta,verticalPosition,indexing='ij')
-
-                        self.pixelPosition = np.array([self.radius*np.cos(np.deg2rad(self.twoTheta)),
-                                                    self.radius*np.sin(np.deg2rad(self.twoTheta)),
-                                                    z])
-                        try:
-                            self.A3 = data1.sample_table_rotation
-                        except AttributeError:
-                            pass
-                    elif len(countShape) == 3: # We have 3D data! Assume A3 scan with shape (step,400,height)
-                        self.counts = self.DMC.DMC_BF3_Detector.counts
-                        self.twoTheta = self.DMC.DMC_BF3_Detector.two_theta.reshape(400)
-
-                        self.A3 = self.data1.sample_table_rotation
-                        if not len(self.A3) == countShape[0]:
-                            raise AttributeError("Scan performed is not an A3 scan... Sorry, I can't work with this....")
-                        self.scanType = 'A3'
-                        repeats = self.counts.shape[2]
-                        verticalPosition = np.linspace(-0.1,0.1,repeats)
-                        
-                        self.twoTheta, z = np.meshgrid(self.twoTheta,verticalPosition,indexing='ij')
-
-                        self.pixelPosition = np.array([self.radius*np.cos(np.deg2rad(self.twoTheta)),
-                                                    self.radius*np.sin(np.deg2rad(self.twoTheta)),
-                                                    z])
-                         
-                    else:
-                        raise AttributeError('Data file format not understood. Size of counts is {}...'.format(self.DMC.DMC_BF3_Detector.counts.shape))
-
-                
-                self.monitor = self.DMC.DMC_BF3_Detector.Monitor[0]
-                self.waveLength = self.DMC.Monochromator.Lambda[0]
-                self.correctedTwoTheta = np.rad2deg(np.arccos(self.pixelPosition[0]/(np.linalg.norm(self.pixelPosition,axis=0))))
-                self.alpha = np.rad2deg(np.arctan2(self.pixelPosition[2],self.radius))
-
-                Ki = 2*np.pi/self.waveLength # length of ki
-                self.ki = np.array([Ki,0.0,0.0]) # aling ki with x
-                self.ki.shape = (3,1,1)
-
-                self.kf = Ki * np.array([np.cos(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
-                                         np.sin(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
-                                         np.sin(np.deg2rad(self.alpha))])
-                self.q = self.ki-self.kf   
-                if len(self.DMC.DMC_BF3_Detector.counts.shape) == 3: # A3 Scan
-                    # rotate kf to correct for A3
-                    zero = np.zeros_like(self.A3)
-                    ones = np.ones_like(self.A3)
-                    rotMat = np.array([[np.cos(np.deg2rad(self.A3)),np.sin(np.deg2rad(self.A3)),zero],[-np.sin(np.deg2rad(self.A3)),np.cos(np.deg2rad(self.A3)),zero],[zero,zero,ones]])
-                    q_temp = self.ki-self.kf
-                    self.q = np.einsum('jki,klm->jilm',rotMat,q_temp)
-                    
-                self.Q = np.linalg.norm(self.q,axis=0)
-
-                self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
-
-                if self.scanType.upper() == 'A3':
-                    self.twoTheta = self.twoTheta[np.newaxis].repeat(len(self.A3),axis=0)
-                    self.correctedTwoTheta = self.correctedTwoTheta[np.newaxis].repeat(len(self.A3),axis=0)
-
-                self.generateMask(maskingFunction=None)
-                 # Create a mask only containing False as to signify all points are allowed
-
-                # Load calibration
-                try:
-                    self.normalization, self.normalizationFile = findCalibration(self.fileName)
-                except ValueError:
-                    self.normalizationFile = 'None'
-
-                if self.normalizationFile == 'None':
-                    self.normalization = np.ones_like(self.counts,dtype=float)
-                else:
-                    
-                    if len(self.counts.shape) == 3: # A3 scan
-                        self.normalization = np.repeat(np.repeat(self.normalization[:,np.newaxis],self.counts.shape[-1],axis=-1)[np.newaxis],self.counts.shape[0],axis=0)
-                    else:
-                        self.normalization.shape = self.counts.shape
-
-
-                # If no temperature is saved in sample.sample_temperature
-                if not hasattr(self.sample,'sample_temperature'):
-                    #print('No temperature... Adding zero then')
-                    self.sample.sample_temperature = np.array([0])
-                #else:
-                #    print('Well all is good?')
-                self.time = self.DMC.DMC_BF3_Detector.time
+            self.pixelPosition = np.array([self.radius*np.cos(np.deg2rad(self.twoTheta)),
+                                        self.radius*np.sin(np.deg2rad(self.twoTheta)),
+                                        z])
+            
         else:
-            raise NotImplementedError("Expected data file to originate from DMC...")
+            raise AttributeError('Data file format not understood. Size of counts is {}...'.format(self.DMC.detector.data.shape))
+
+        self.Monitor = self.monitor
+        self.monitor = self.monitor.monitor[0]
+        self.waveLength = self.DMC.monochromator.wavelength[0]
+        self.correctedTwoTheta = np.rad2deg(np.arccos(self.pixelPosition[0]/(np.linalg.norm(self.pixelPosition,axis=0))))
+        self.alpha = np.rad2deg(np.arctan2(self.pixelPosition[2],self.radius))
+
+        Ki = 2*np.pi/self.waveLength # length of ki
+        self.ki = np.array([Ki,0.0,0.0]) # aling ki with x
+        self.ki.shape = (3,1,1)
+
+        self.kf = Ki * np.array([np.cos(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
+                                    np.sin(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
+                                    np.sin(np.deg2rad(self.alpha))])
+        self.q = self.ki-self.kf   
+        if len(self.DMC.detector.data.shape) == 3: # A3 Scan
+            # rotate kf to correct for A3
+            zero = np.zeros_like(self.A3)
+            ones = np.ones_like(self.A3)
+            rotMat = np.array([[np.cos(np.deg2rad(self.A3)),np.sin(np.deg2rad(self.A3)),zero],[-np.sin(np.deg2rad(self.A3)),np.cos(np.deg2rad(self.A3)),zero],[zero,zero,ones]])
+            q_temp = self.ki-self.kf
+            self.q = np.einsum('jki,klm->jilm',rotMat,q_temp)
+            
+        self.Q = np.linalg.norm(self.q,axis=0)
+
+        self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
+
+        if self.scanType.upper() == 'A3':
+            self.twoTheta = self.twoTheta[np.newaxis].repeat(len(self.A3),axis=0)
+            self.correctedTwoTheta = self.correctedTwoTheta[np.newaxis].repeat(len(self.A3),axis=0)
+
+        self.generateMask(maskingFunction=None)
+            # Create a mask only containing False as to signify all points are allowed
+
+        # Load calibration
+        try:
+            self.normalization, self.normalizationFile = findCalibration(self.fileName)
+        except ValueError:
+            self.normalizationFile = 'None'
+
+        if self.normalizationFile == 'None':
+            self.normalization = np.ones_like(self.counts,dtype=float)
+        else:
+            
+            if self.scanType == "A3": # A3 scan
+                self.normalization = np.repeat(np.repeat(self.normalization[:,np.newaxis],self.counts.shape[-1],axis=-1)[np.newaxis],self.counts.shape[0],axis=0)
+            else:
+                self.normalization.shape = self.counts.shape
+
+        if hasattr(self,'sample'):
+            # If no temperature is saved in sample.sample_temperature
+            if not hasattr(self.sample,'sample_temperature'):
+                #print('No temperature... Adding zero then')
+                self.sample.sample_temperature = np.array([0])
+            if not hasattr(self.sample,'sample_name'):
+                self.sample.sample_name = 'UNKNONW'
+            #else:
+            #    print('Well all is good?')
+        self.time = self.Monitor.time
+    #else:
+    #    raise NotImplementedError("Expected data file to originate from DMC...")
 
     def generateMask(self,maskingFunction = maskFunction, **pars):
         """Generate maks to applied to data in data file
@@ -483,4 +473,4 @@ class DataFile(object):
     def InteractiveViewer(self,**kwargs):
         if not self.scanType.lower() in ['a3','powder'] :
             raise AttributeError('Interactive Viewer can only be used for the new data files. Either for powder or for a single crystal A3 scan')
-        return InteractiveViewer.InteractiveViewer(self.intensity,self.twoTheta,self.pixelPosition,self.data1.sample_table_rotation,scanParameter = 'A3',scanValueUnit='deg',colorbar=True,**kwargs)
+        return InteractiveViewer.InteractiveViewer(self.intensity,self.twoTheta,self.pixelPosition,self.A3,scanParameter = 'A3',scanValueUnit='deg',colorbar=True,**kwargs)
