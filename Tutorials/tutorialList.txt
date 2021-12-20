@@ -1,0 +1,2 @@
+C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/Powder\2D_Detector_Plot.rst
+C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials\Testing.rst

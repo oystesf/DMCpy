@@ -16,14 +16,14 @@ pythonPath =  os.path.relpath(os.path.join(installFolder,'DMCpy'),sys.base_prefi
 
 setup(
     name='DMCpy',
-    version='0.1.4',
+    version='0.1.6',
     description=('Python software packaged designed for reduction of neutron powder diffraction data from DMC at PSI.'),
     long_description=long_description,
     author='Jakob Lass',
     author_email='jakob.lass@psi.ch',
     url='https://www.psi.ch/en/sinq/dmc/',
     license='MPL-2.0',
-    data_files = [(pythonPath, ["LICENSE.txt"])],
+    data_files = [(pythonPath, ["LICENSE.txt"]),((os.path.join(pythonPath),["DMCpy/calibrationDict.dat"]))],
     packages=['DMCpy','DMCpy/CommandLineScripts'],
     entry_points = {
         "console_scripts": []#'MJOLNIRHistory = MJOLNIR.CommandLineScripts.MJOLNIRHistory:main',

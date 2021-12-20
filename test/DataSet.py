@@ -2,13 +2,14 @@ from DMCpy import DataSet
 from DMCpy import DataFile
 import os.path
 import matplotlib.pyplot as plt
+import numpy as np
 
 def test_init():
     ds = DataSet.DataSet()
 
     assert(len(ds)==0)
 
-    df = DataFile.DataFile(os.path.join('data','dmc2018n{:06d}.hdf'.format(402)))
+    df = DataFile.DataFile(os.path.join('data','dmc2021n{:06d}.hdf'.format(494)))
 
     ds2 = DataSet.DataSet([df])
     assert(len(ds2)==1)
@@ -23,8 +24,8 @@ def test_init():
 
 def test_load():
 
-    fileNumbers = range(401,411)
-    dataFiles = [os.path.join('data','dmc2018n{:06d}.hdf'.format(no)) for no in fileNumbers]
+    fileNumbers = [494,494,494]
+    dataFiles = [os.path.join('data','dmc2021n{:06d}.hdf'.format(no)) for no in fileNumbers]
 
     ds = DataSet.DataSet(dataFiles)
     
@@ -38,28 +39,82 @@ def test_load():
     assert(ds2[0].fileName == os.path.split(dataFiles[-1])[-1])
     assert(ds2[0] == ds[-1])
 
+    # Find length before appending
+    length = len(ds)
+    ds.append(dataFiles)
+
+    # Length is supposed to be both
+    assert(len(ds)==length+len(dataFiles))
+
+    # Also works for adding data files directly (both in list and as object)
+    df = ds2[0]
+    ds.append([df])
+    assert(len(ds)==length+len(dataFiles)+1)
+    ds.append(df)
+    assert(len(ds)==length+len(dataFiles)+2)
+
+    # Deletion
+    del ds[-1]
+    assert(len(ds)==length+len(dataFiles)+1)
 
 def test_plot():
 
-    fileNumbers = range(401,411)
-    dataFiles = [os.path.join('data','dmc2018n{:06d}.hdf'.format(no)) for no in fileNumbers]
+    fileNumbers = [494]
+    dataFiles = [os.path.join('data','dmc2021n{:06d}.hdf'.format(no)) for no in fileNumbers]
 
 
     ds = DataSet.DataSet(dataFiles)
+    ds.monitor[0] = np.array([1.0])
     fig,ax = plt.subplots()
 
-    Ax = ds.plotTwoTheta()
+    Ax, bins, intensity, error, monitor = ds.plotTwoTheta()
 
-    Ax = ds.plotTwoTheta(corrected=False)
+    Ax,*_ = ds.plotTwoTheta(correctedTwoTheta=False)
+
+    # Calculate bins, intensity, error without plotting
+
+    bins2, intensity2, error2, monitor2 = ds.sumDetector()
+
+    print(np.sum(intensity-intensity2))
+
+    assert(np.all(np.isclose(bins,bins2)))
+    assert(np.all(np.isclose(intensity,intensity2,equal_nan=True)))
+    assert(np.all(np.isclose(error,error2,equal_nan=True)))
+    assert(np.all(np.isclose(monitor,monitor2)))
+    
 
 def test_2d():
-    fileNumbers = range(401,411)
-    dataFiles = [os.path.join('data','dmc2018n{:06d} - Copy.hdf'.format(no)) for no in fileNumbers]
+    fileNumbers = [494,494]
+    dataFiles = [os.path.join('data','dmc2021n{:06d}.hdf'.format(no)) for no in fileNumbers]
 
     ds = DataSet.DataSet(dataFiles=dataFiles)
 
     files = len(fileNumbers)
-    assert(ds.counts.shape == (files,400,100))
+    assert(ds.counts.shape == (files,1,1152,128))
 
-    ax1 = ds.plotTwoTheta(corrected=False)
-    ax2 = ds.plotTwoTheta(corrected=True)
+    ax1 = ds.plotTwoTheta(correctedTwoTheta=False)
+    ax2 = ds.plotTwoTheta(correctedTwoTheta=True)
+
+
+def test_kwargs():
+    
+    fileNumbers = [494,494]
+    dataFiles = [os.path.join('data','dmc2021n{:06d}.hdf'.format(no)) for no in fileNumbers]
+
+    ds = DataSet.DataSet(dataFiles=dataFiles)
+
+    try:
+        _ = ds.sumDetector(corrected=False)
+        assert(False)
+    except AttributeError as e:
+        assert(e.args[0] == 'Key-word argument "corrected" not understood. Did you mean "correctedTwoTheta"?')
+
+    ds = DataSet.DataSet(dataFiles=dataFiles)
+
+    try:
+        _ = ds.plotTwoTheta(corrected=False,fmt='.-')
+        assert(False)
+    except AttributeError as e:
+        assert(e.args[0] == 'Key-word argument "corrected" not understood. Did you mean "correctedTwoTheta"?')
+
+    
