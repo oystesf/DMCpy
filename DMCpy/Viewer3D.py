@@ -265,6 +265,8 @@ class Viewer3D(object):
         
 
         masked_array = np.ma.array (self.Data, mask=np.isnan(self.Data)).transpose(axes)
+        self.emptyData = masked_array[:,:,0].T.flatten().copy()
+        self._axesChanged = True
         upperLim = self.Data.shape[axis]-1
         self.label = label
         self.X = X
@@ -302,9 +304,17 @@ class Viewer3D(object):
     
     def plot(self):
         self.text.set_text(self.stringValue())
-        self.im.remove()
-        self.im = self.ax.pcolormesh(self.X[:,:,self.value].T,self.Y[:,:,self.value].T,self.masked_array[:,:,self.value].T,zorder=10,shading=self.shading,edgecolors='face',cmap=self.cmap)
-        
+        try:
+            self.im.set_array(self.emptyData)
+        except TypeError:
+            pass
+        if self._axesChanged:
+            tempData = np.ma.array(self.im.get_array().T)
+            tempData.mask = np.zeros_like(tempData,dtype=bool)
+            self.im.set_array(tempData)
+            self._axesChanged = False
+        else:
+            self.im.set_array(self.masked_array[:,:,self.value].T.flatten())
         self.im.set_clim(self.caxis)
         self.ax.set_position(self.figpos)
         

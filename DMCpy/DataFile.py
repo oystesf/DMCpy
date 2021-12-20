@@ -213,7 +213,7 @@ class DataFile(object):
             self.counts.shape = (1,*self.counts.shape)
             
             self.twoThetaPosition = self.DMC.detector.detector_position
-            self.twoTheta = np.linspace(0,120,self.counts.shape[1])
+            self.twoTheta = np.linspace(0,132,self.counts.shape[1])
             if not np.isnan(self.twoThetaPosition[0]):
                 self.twoTheta+=self.twoThetaPosition
             
