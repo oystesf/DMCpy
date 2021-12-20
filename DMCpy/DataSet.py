@@ -158,10 +158,11 @@ class DataSet(object):
         if self.type.upper() == 'A3':
             monitorRepeated = np.array([np.ones_like(df.counts)*df.monitor for df in self])
         else:
-            monitorRepeated = np.repeat(np.repeat(self.monitor[:,np.newaxis,np.newaxis],400,axis=1),self.counts.shape[2],axis=2)
+            monitorRepeated = np.repeat(np.repeat(self.monitor[:,np.newaxis,np.newaxis],self.counts.shape[-2],axis=1),self.counts.shape[-1],axis=2)
+            monitorRepeated.shape = self.counts.shape
 
         
-
+        
         summedRawIntenisty, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=self.counts[self.mask])
 
         if applyNormalization:

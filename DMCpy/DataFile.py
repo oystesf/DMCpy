@@ -20,8 +20,10 @@ class entry:
 def decode(item):
     """Test and decode item to utf8"""
     if hasattr(item,'__len__'):
-        if hasattr(item[0],'decode'):
-            item = item[0].decode('utf8')
+        if len(item)>0:
+            if hasattr(item[0],'decode'):
+                item = item[0].decode('utf8')
+            
                     
     return item
 
@@ -220,7 +222,7 @@ class DataFile(object):
             
 
             repeats = self.counts.shape[2]
-            verticalPosition = np.linspace(-0.1,0.1,repeats)
+            verticalPosition = np.linspace(-0.1,0.1,repeats,endpoint=True)
             
             self.twoTheta, z = np.meshgrid(self.twoTheta,verticalPosition,indexing='ij')
             
@@ -240,7 +242,7 @@ class DataFile(object):
                 raise AttributeError("Scan performed is not an A3 scan... Sorry, I can't work with this....")
             self.scanType = 'A3'
             repeats = self.counts.shape[2]
-            verticalPosition = np.linspace(-0.1,0.1,repeats)
+            verticalPosition = np.linspace(-0.1,0.1,repeats,endpoint=True)
             
             self.twoTheta, z = np.meshgrid(self.twoTheta,verticalPosition,indexing='ij')
 
@@ -277,9 +279,9 @@ class DataFile(object):
 
         self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
 
-        if self.scanType.upper() == 'A3':
-            self.twoTheta = self.twoTheta[np.newaxis].repeat(len(self.A3),axis=0)
-            self.correctedTwoTheta = self.correctedTwoTheta[np.newaxis].repeat(len(self.A3),axis=0)
+        #if self.scanType.upper() == 'A3':
+        self.twoTheta = self.twoTheta[np.newaxis].repeat(len(self.A3),axis=0)
+        self.correctedTwoTheta = self.correctedTwoTheta[np.newaxis].repeat(len(self.A3),axis=0)
 
         self.generateMask(maskingFunction=None)
             # Create a mask only containing False as to signify all points are allowed
@@ -440,7 +442,7 @@ class DataFile(object):
                 del kwargs['colorbar']
             else:
                 colorbar = False
-            limits = [self.twoTheta[0][0],self.twoTheta[-1][0],self.pixelPosition[2][0,0],self.pixelPosition[2][0,-1]]
+            limits = [self.twoTheta[0][0][0],self.twoTheta[0][-1][0],self.pixelPosition[2][0,0],self.pixelPosition[2][0,-1]]
             ax._im = ax.imshow(intensity.T,extent=limits, aspect='auto')
 
             if colorbar:

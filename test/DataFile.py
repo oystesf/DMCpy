@@ -15,15 +15,15 @@ def test_init():
     testDF = DataFile.DataFile('DEBUG')
     assert(testDF._debugging == True)
 
-    df = DataFile.DataFile(filePath=os.path.join('data','dmc2018n000401.hdf'))
-    path,name = os.path.split(os.path.join('data','dmc2018n000401.hdf'))
+    df = DataFile.DataFile(filePath=os.path.join('data','dmc2021n000494.hdf'))
+    path,name = os.path.split(os.path.join('data','dmc2021n000494.hdf'))
 
     assert(df.folder == path)
     assert(df.fileName == name)
 
 
 def test_copy(): # Test the ability to copy from one data file to another
-    testDF = DataFile.DataFile(os.path.join('data','dmc2018n000401.hdf'))
+    testDF = DataFile.DataFile(os.path.join('data','dmc2021n000494.hdf'))
 
     testDFDict = testDF.__dict__
 
@@ -34,33 +34,27 @@ def test_copy(): # Test the ability to copy from one data file to another
     assert(dfCopy==testDF)
 
 def test_load():
-    testDF = DataFile.DataFile(os.path.join('data','dmc2018n000401.hdf'))
+    testDF = DataFile.DataFile(os.path.join('data','dmc2021n000494.hdf'))
 
-    assert(testDF.twoTheta.shape == (400,1))
-    assert(testDF.counts.shape == (400,1))
-    assert(testDF.correctedTwoTheta.shape == (400,1))
+    assert(testDF.twoTheta.shape == (1,128*9,128))
+    assert(testDF.counts.shape == (1,128*9,128))
+    assert(testDF.correctedTwoTheta.shape == (1,128*9,128))
 
-    # If detector is assumed to be flat, twoTheta and correctedTwoTheta are the same
-    assert(np.all(np.isclose(testDF.correctedTwoTheta,testDF.twoTheta,atol=1e-4)))
+    # If detector is assumed to be flat, twoTheta and correctedTwoTheta are the same at middle
+    
+    assert(np.all(np.isclose(np.mean(testDF.correctedTwoTheta[0,:,[63,64]],axis=0),testDF.twoTheta[0,:,63],atol=0.06)))
 
-    testDF = DataFile.DataFile(os.path.join('data','dmc2018n000401 - Copy.hdf'))
+    #testDF = DataFile.DataFile(os.path.join('data','dmc2018n000401 - Copy.hdf'))
 
-    assert(testDF.twoTheta.shape == (400,100))
-    assert(testDF.counts.shape == (400,100))
-    assert(testDF.correctedTwoTheta.shape == (400,100))
+    #assert(testDF.twoTheta.shape == (400,100))
+    #assert(testDF.counts.shape == (400,100))
+    #assert(testDF.correctedTwoTheta.shape == (400,100))
 
     # If detector is assumed to be flat, twoTheta and correctedTwoTheta are the same
     
 
 def test_plot():
-    dataFile = os.path.join('data','dmc2018n{:06d}.hdf'.format(401))
-
-    df = DataFile.DataFile(dataFile)
-    fig,ax = plt.subplots()
-
-    Ax = df.plotDetector()
-
-    dataFile = os.path.join('data','dmc2018n{:06d} - Copy.hdf'.format(401))
+    dataFile = os.path.join('data','dmc2021n{:06d}.hdf'.format(494))
 
     df = DataFile.DataFile(dataFile)
     fig,ax = plt.subplots()
@@ -78,7 +72,7 @@ def test_masking_2D():
     except RuntimeError:
         assert True
 
-    df = DataFile.DataFile(os.path.join('data','dmc2018n000401 - Copy.hdf'))
+    df = DataFile.DataFile(os.path.join('data','dmc2021n{:06d}.hdf'.format(494)))
 
     df.generateMask(maxAngle=90) # No points are masked
     assert(np.all(df.mask==np.ones_like(df.counts,dtype=bool)))
@@ -134,7 +128,7 @@ def test_calibration():
 
 
 def test_decoding():
-    dataFile = os.path.join('data','dmc2018n{:06d}.hdf'.format(401))
+    dataFile = os.path.join('data','dmc2021n{:06d}.hdf'.format(494))
 
     df = DataFile.DataFile(dataFile)
 

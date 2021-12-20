@@ -9,7 +9,7 @@ def test_init():
 
     assert(len(ds)==0)
 
-    df = DataFile.DataFile(os.path.join('data','dmc2018n{:06d}.hdf'.format(402)))
+    df = DataFile.DataFile(os.path.join('data','dmc2021n{:06d}.hdf'.format(494)))
 
     ds2 = DataSet.DataSet([df])
     assert(len(ds2)==1)
@@ -24,8 +24,8 @@ def test_init():
 
 def test_load():
 
-    fileNumbers = range(401,411)
-    dataFiles = [os.path.join('data','dmc2018n{:06d}.hdf'.format(no)) for no in fileNumbers]
+    fileNumbers = [494,494,494]
+    dataFiles = [os.path.join('data','dmc2021n{:06d}.hdf'.format(no)) for no in fileNumbers]
 
     ds = DataSet.DataSet(dataFiles)
     
@@ -59,11 +59,12 @@ def test_load():
 
 def test_plot():
 
-    fileNumbers = range(401,411)
-    dataFiles = [os.path.join('data','dmc2018n{:06d}.hdf'.format(no)) for no in fileNumbers]
+    fileNumbers = [494]
+    dataFiles = [os.path.join('data','dmc2021n{:06d}.hdf'.format(no)) for no in fileNumbers]
 
 
     ds = DataSet.DataSet(dataFiles)
+    ds.monitor[0] = np.array([1.0])
     fig,ax = plt.subplots()
 
     Ax, bins, intensity, error, monitor = ds.plotTwoTheta()
@@ -74,20 +75,22 @@ def test_plot():
 
     bins2, intensity2, error2, monitor2 = ds.sumDetector()
 
+    print(np.sum(intensity-intensity2))
+
     assert(np.all(np.isclose(bins,bins2)))
-    assert(np.all(np.isclose(intensity,intensity2)))
-    assert(np.all(np.isclose(error,error2)))
+    assert(np.all(np.isclose(intensity,intensity2,equal_nan=True)))
+    assert(np.all(np.isclose(error,error2,equal_nan=True)))
     assert(np.all(np.isclose(monitor,monitor2)))
     
 
 def test_2d():
-    fileNumbers = range(401,411)
-    dataFiles = [os.path.join('data','dmc2018n{:06d} - Copy.hdf'.format(no)) for no in fileNumbers]
+    fileNumbers = [494,494]
+    dataFiles = [os.path.join('data','dmc2021n{:06d}.hdf'.format(no)) for no in fileNumbers]
 
     ds = DataSet.DataSet(dataFiles=dataFiles)
 
     files = len(fileNumbers)
-    assert(ds.counts.shape == (files,400,100))
+    assert(ds.counts.shape == (files,1,1152,128))
 
     ax1 = ds.plotTwoTheta(correctedTwoTheta=False)
     ax2 = ds.plotTwoTheta(correctedTwoTheta=True)
@@ -95,8 +98,8 @@ def test_2d():
 
 def test_kwargs():
     
-    fileNumbers = range(401,402)
-    dataFiles = [os.path.join('data','dmc2018n{:06d} - Copy.hdf'.format(no)) for no in fileNumbers]
+    fileNumbers = [494,494]
+    dataFiles = [os.path.join('data','dmc2021n{:06d}.hdf'.format(no)) for no in fileNumbers]
 
     ds = DataSet.DataSet(dataFiles=dataFiles)
 
