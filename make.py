@@ -132,5 +132,6 @@ elif args.task.lower() == 'version':
     os.system("git push --tags")
 
 else:
+    print("git tag -a {0} -m \'{0}\'".format(getCurrentVersion()))
     print('Provided argument not understood. Recieved',args.task,'\n\n')
     callHelp()
