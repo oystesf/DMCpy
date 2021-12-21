@@ -29,7 +29,7 @@ setup(
         "console_scripts": []#'MJOLNIRHistory = MJOLNIR.CommandLineScripts.MJOLNIRHistory:main',
         },
     python_requires='>=3.6',
-    install_requires=['matplotlib>=3,<3.4','numpy>=1.14','h5py>=2.5','scipy','datetime','pandas','future',
+    install_requires=['matplotlib>=3','numpy>=1.14','h5py>=2.5','scipy','datetime','pandas','future',
                     'pip>=20'],
     classifiers=[
         'Development Status :: 3 - Alpha',
