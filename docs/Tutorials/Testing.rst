@@ -16,6 +16,6 @@ Showcasing functionality
 ------------------------
 This should be the showcasing...An example is shown in the above code generating the figure below:
  .. figure:: TEST.png
-  :width: 30%
+  :width: 50%
   :align: center
 

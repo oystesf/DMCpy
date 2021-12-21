@@ -18,7 +18,7 @@ introText = 'This is a simple test script to check that all is working as expect
 
 outroText = 'Showcasing functionality\n'+len('Showcasing functionality')*'-'+'\nThis should be the showcasing...'\
 +'An example is shown in the above code generating the figure below:'\
-+'\n .. figure:: TEST.png\n  :width: 30%\n  :align: center\n\n'
++'\n .. figure:: TEST.png\n  :width: 50%\n  :align: center\n\n'
 
 introText = title+'\n'+'^'*len(title)+'\n'+introText
 

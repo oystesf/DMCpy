@@ -1,4 +1,5 @@
-
+import sys
+sys.path.append(r'C:\Users\lass_j\Documents\Software\DMCpy')
 from Tutorial_Class import Tutorial
 
 
@@ -26,7 +27,7 @@ def Tester():
     
 title = 'Detector Overview Powder'
 
-introText = 'The simplets data set on the DMC beam line is that of a powder measured with only one setting. This resluts '\
+introText = 'The simplets data set on the DMC beam line is that of a powder measured with only one setting. This results '\
    + 'in a \'one shot\' data set where scattering intensity is measured as a function of scattering angle and position '\
    + 'out of plane. This can be visualized in the frame of reference of the instrument by the following code:'
 
