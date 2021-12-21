@@ -32,9 +32,9 @@ tutorials and guides on how to make use of DMCpy.
    +---------------------------+
    |   |pypiPython|            |
    +---------------------------+
+   |    |doi|                  |
+   +---------------------------+
 
-..   +------------+
-..   |    |doi|   |
 ..   |  |travis|  |
 ..   +------------+
 ..   | |coverall| |
@@ -52,8 +52,9 @@ tutorials and guides on how to make use of DMCpy.
     :target: https://pypi.org/project/DMCpy/   
 
 
-.. .. |doi| image:: https://zenodo.org/badge/117703167.svg
-..    :target: https://zenodo.org/badge/latestdoi/117703167
+.. |doi| image:: https://zenodo.org/badge/360167173.svg
+    :target: https://zenodo.org/badge/latestdoi/360167173
+
 
 .. |version| image:: https://img.shields.io/github/v/release/Jakob-Lass/DMCpy   
     :alt: GitHub release (latest by date)
