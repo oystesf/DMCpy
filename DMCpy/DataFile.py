@@ -214,7 +214,10 @@ class DataFile(object):
             self.counts = self.counts.T # Shape is transposed into (1152,128) with axes (twoTheta,z)
             self.counts.shape = (1,*self.counts.shape)
             
-            self.twoThetaPosition = self.DMC.detector.detector_position
+            try:
+                self.twoThetaPosition = self.DMC.detector.detector_position
+            except AttributeError:
+                self.twoThetaPosition = np.array([0.0])
             self.twoTheta = np.linspace(0,132,self.counts.shape[1])
             if not np.isnan(self.twoThetaPosition[0]):
                 self.twoTheta+=self.twoThetaPosition
