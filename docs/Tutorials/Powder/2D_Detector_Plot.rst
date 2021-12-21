@@ -1,6 +1,6 @@
 Detector Overview Powder
 ^^^^^^^^^^^^^^^^^^^^^^^^
-The simplets data set on the DMC beam line is that of a powder measured with only one setting. This resluts in a 'one shot' data set where scattering intensity is measured as a function of scattering angle and position out of plane. This can be visualized in the frame of reference of the instrument by the following code:
+The simplets data set on the DMC beam line is that of a powder measured with only one setting. This results in a 'one shot' data set where scattering intensity is measured as a function of scattering angle and position out of plane. This can be visualized in the frame of reference of the instrument by the following code:
 
 .. code-block:: python
    :linenos:
@@ -9,7 +9,7 @@ The simplets data set on the DMC beam line is that of a powder measured with onl
    import numpy as np
    import DMCpy
    
-   file = r'Path\To\Data\Folder'
+   file = r'Path\To\Data\Folder\dmc2021n000494.hdf'
    
    calib2021 = {'limits':np.array([1]),
         'names':np.array(['Mockup']),

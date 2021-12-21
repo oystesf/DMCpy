@@ -41,13 +41,10 @@ def formatCode(text,indentChar = '   ', skipHeader=1):
         if (line.find(os.path.sep)!=-1 or line.find(os.path.altsep)!=-1) and line.find('DMC')!=-1:
             matches = re.findall(r'(\/.*?\.[\w:]+)',line)
             for match in matches:
-                line = line.replace(match,os.path.join('Path','To','Data','Folder')).replace('C:','')
-            
-
-        elif (line.find(os.path.sep)!=-1 or line.find(os.path.altsep)!=-1) and line.find('save')!=-1:
-            matches = re.findall(r'(\/.*?\.[\w:]+)',line)
-            for match in matches:
-                line = line.replace(match,os.path.join('Path','To','Save','Folder')).replace('C:','')
+                match
+                fileName = os.path.split(match)[-1]
+                line = line.replace(match,os.path.join('Path','To','Data','Folder',fileName)).replace('C:','')
+        
             
         newText.append(line)
             

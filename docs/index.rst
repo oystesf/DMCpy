@@ -10,17 +10,18 @@ instrument DMC located at the Paul Scherrer Institute, Villigen Switzerland.
 
 Table of contents
 -----------------
-Below is an overview of the provided documentation containing everything from physical/mathematical explanations of different concets through code specific references to 
+Below is an overview of the provided documentation containing everything from physical/mathematical explanations of different concepts through code specific references to 
 tutorials and guides on how to make use of DMCpy.
 
 .. toctree::
    :maxdepth: 1
 
+   introduction
    Tutorials/Tutorials
    
 
 
-.. table:: Current informations
+.. table:: Current information
    :widths: grid
    :align: left
 

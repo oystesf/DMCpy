@@ -39,7 +39,7 @@ for folder in ['.cache','.pyteste_cache','__pycache']:
 # Generate correct tutorials.rst file
 tutorialFile = os.path.join('docs','Tutorials','Tutorials.rst')
 
-mainText = """.. :Tutorials:
+mainText = """.. _Tutorials:
 
 Tutorials
 ---------
@@ -54,7 +54,7 @@ with open(os.path.join('Tutorials','tutorialList.txt'),'r') as f:
             
 tutorialText = []
 for tut in tutorials:
-    common = os.path.commonpath([tut,os.path.abspath(tutorialFile)])
+    common = os.path.commonpath([tut,os.path.abspath(tutorialFile)]).strip()
     tutorialText.append(str(os.path.relpath(tut,common)).replace('\\','/'))
 
 
