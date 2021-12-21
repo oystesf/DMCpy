@@ -2,7 +2,7 @@ import sys,os
 sys.path.append('.')
 import pickle,numpy as np
 
-__version__ = '0.1.7'
+__version__ = '0.1.10'
 __author__ = 'Jakob Lass'
 
 # installFolder = os.path.abspath(os.path.split(__file__)[0])
