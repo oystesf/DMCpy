@@ -123,6 +123,8 @@ elif args.task.lower() == 'version':
                 os.path.join('docs','Tutorials','*'),
                 os.path.join('docs','index.rst'),
                 os.path.join('DMCpy','__init__.py'),
+                os.path.join('test','init.py'),
+                'setup.py',
                 ]
     os.system("git add {}".format(' '.join(addFiles)))
     os.system("git commit -m 'Update version'")
