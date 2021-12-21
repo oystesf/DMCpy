@@ -89,8 +89,9 @@ class InteractiveViewer(object):
             self.scanValueFormat = self.scanValueFormat + ' (step {})'
         # Copy two theta, and create array holding edges between values, including outer most values (length is 1 larger than twoTheta)
         self.twoTheta = twoTheta
-        self.twoThetaStep = np.mean(np.diff(twoTheta[:,0]))
-        self.twoThetaExtended = np.arange(self.twoTheta[0,0]-self.twoThetaStep*0.5,self.twoTheta[-1,0]+self.twoThetaStep*0.6,self.twoThetaStep)
+        self.twoThetaStep = np.mean(np.diff(twoTheta[0,:,0]))
+        
+        self.twoThetaExtended = np.arange(self.twoTheta[0,0,0]-self.twoThetaStep*0.5,self.twoTheta[0,-1,0]+self.twoThetaStep*0.6,self.twoThetaStep)
         
         # Repeat for pixel position
         self.pixelPosition = pixelPosition[2]
@@ -216,8 +217,8 @@ class InteractiveViewer(object):
         else:
             twoThetaSumfmt = self.ylabel + ' = {:.3f} '
             
-        self.format_coord_alphaSum = lambda x,y: (alphaSumfmt + self.yformat + ' scanStep={:d}' ).format(x,(self.toScanValue(y)),int(np.round(y)))
-        self.format_coord_twoThetaSum = lambda x,y: (twoThetaSumfmt + self.yformat + ' scanStep={:d}').format(x,(self.toScanValue(y)),int(np.round(y)))
+        self.format_coord_alphaSum = lambda x,y: (alphaSumfmt + self.yformat + ' scanStep={:.0f}' ).format(x,(self.toScanValue(y)),int(np.round(y)))
+        self.format_coord_twoThetaSum = lambda x,y: (twoThetaSumfmt + self.yformat + ' scanStep={:.0f}').format(x,(self.toScanValue(y)),int(np.round(y)))
 
         self.format_coord_data = lambda x,y: (alphaSumfmt + twoThetaSumfmt).format(x,y)
         
