@@ -9,17 +9,9 @@ The simplets data set on the DMC beam line is that of a powder measured with onl
    import numpy as np
    import DMCpy
    
-   file = r'Path\To\Data\Folder\dmc2021n000494.hdf'
-   
-   calib2021 = {'limits':np.array([1]),
-        'names':np.array(['Mockup']),
-        'Mockup':np.ones((1152,128))}
-   # The shape of the mochup data is given by the detector (128*9, 128)
-   
-   DMCpy.calibrationDict[2021] = calib2021
+   file = r'Path\To\Data\Folder\dmc2021n000565.hdf'
    
    df = DataFile.DataFile(file)
-   df.monitor = 1.0
    
    ax = df.plotDetector()
    
@@ -32,4 +24,4 @@ At the current stage, a normalization file for the 2D detector is not present an
   :width: 30%
   :align: center
 
- At some point a more impressive data set is to be plotted...
+ 

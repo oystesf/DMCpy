@@ -2,5 +2,5 @@ import DMCpy
 
 
 def test_initialization():
-    assert(DMCpy.__version__=='0.1.11')
+    assert(DMCpy.__version__=='0.1.13')
     assert(DMCpy.__author__=='Jakob Lass')

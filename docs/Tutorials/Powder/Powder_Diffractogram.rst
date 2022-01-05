@@ -9,11 +9,10 @@ When a powder has been measured, in one or more settings, these can be combined 
    import numpy as np
    import DMCpy
    
-   file = r'Path\To\Data\Folder\dmc2021n000494.hdf'
+   file = r'Path\To\Data\Folder\dmc2021n000565.hdf'
    
    
    ds = DataSet.DataSet(file)
-   ds.monitor = np.array([1.0])
    
    # Generate a two theta plot utilizing the corrected 2Theta values
    ax,bins,Int,Int_err,monitor = ds.plotTwoTheta()

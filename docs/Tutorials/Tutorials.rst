@@ -11,6 +11,8 @@ Main text about the tutorials below..
 
    Powder/Powder_Diffractogram.rst
 
+   View3D/Viewer3D.rst
+
    Testing.rst
 
 
