@@ -8,17 +8,9 @@ def Tester():
     import numpy as np
     import DMCpy
     
-    file = r'C:/Users/lass_j/Documents/DMC_2021/dmc2021n000494.hdf'
-    
-    calib2021 = {'limits':np.array([1]),
-             'names':np.array(['Mockup']),
-             'Mockup':np.ones((1152,128))}
-    # The shape of the mochup data is given by the detector (128*9, 128)
-
-    DMCpy.calibrationDict[2021] = calib2021
+    file = r'C:/Users/lass_j/Documents/DMC_2021/dmc2021n000565.hdf'
     
     df = DataFile.DataFile(file)
-    df.monitor = 1.0
     
     ax = df.plotDetector()
     
@@ -34,7 +26,7 @@ introText = 'The simplets data set on the DMC beam line is that of a powder meas
 
 outroText = 'At the current stage, a normalization file for the 2D detector is not present and thus a dummy is created. '\
     +'Running the above code generates the following images showing neutron intensity as function of 2Theta and out of plane position:'\
-+'\n .. figure:: Plot2DPowderDetector.png\n  :width: 30%\n  :align: center\n\n At some point a more impressive data set is to be plotted...'
++'\n .. figure:: Plot2DPowderDetector.png\n  :width: 30%\n  :align: center\n\n '
 
 introText = title+'\n'+'^'*len(title)+'\n'+introText
 

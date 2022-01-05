@@ -8,11 +8,10 @@ def Tester():
     import numpy as np
     import DMCpy
     
-    file = r'C:/Users/lass_j/Documents/DMC_2021/dmc2021n000494.hdf'
+    file = r'C:/Users/lass_j/Documents/DMC_2021/dmc2021n000565.hdf'
     
     
     ds = DataSet.DataSet(file)
-    ds.monitor = np.array([1.0])
     
     # Generate a two theta plot utilizing the corrected 2Theta values
     ax,bins,Int,Int_err,monitor = ds.plotTwoTheta()
