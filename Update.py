@@ -49,6 +49,18 @@ with open('DMCpy/__init__.py') as f:
 with open('DMCpy/__init__.py','w') as f:
 	f.write(writeLines)
 
+with open('docs/conf.py') as f:
+	lines = f.readlines()
+	writeLines = ''
+	for l in lines:
+		if l.find("version = u'")!=-1:
+			l = "version = u'"+version+"'\n"
+		elif l.find("release = u'")!=-1:
+			l = "release = u'"+version+"'\n"
+		writeLines+=l
+			
+with open('docs/conf.py','w') as f:
+	f.write(writeLines)
 
 with open('test/init.py') as f:
 	lines = f.readlines()

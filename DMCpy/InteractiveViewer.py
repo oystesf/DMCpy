@@ -89,14 +89,14 @@ class InteractiveViewer(object):
             self.scanValueFormat = self.scanValueFormat + ' (step {})'
         # Copy two theta, and create array holding edges between values, including outer most values (length is 1 larger than twoTheta)
         self.twoTheta = twoTheta
-        self.twoThetaStep = np.mean(np.diff(twoTheta[0,:,0]))
+        self.twoThetaStep = np.mean(np.diff(twoTheta[0,:]))
         
-        self.twoThetaExtended = np.arange(self.twoTheta[0,0,0]-self.twoThetaStep*0.5,self.twoTheta[0,-1,0]+self.twoThetaStep*0.6,self.twoThetaStep)
+        self.twoThetaExtended = np.arange(self.twoTheta[0,0]-self.twoThetaStep*0.5,self.twoTheta[0,-1]+self.twoThetaStep*0.6,self.twoThetaStep)
         
         # Repeat for pixel position
         self.pixelPosition = pixelPosition[2]
-        self.pixelPositionStep = np.mean(np.diff(self.pixelPosition[0]))
-        self.pixelPositionExtended = np.arange(self.pixelPosition[0,0]-self.pixelPositionStep*0.5,self.pixelPosition[0,-1]+self.pixelPositionStep*0.6,self.pixelPositionStep)
+        self.pixelPositionStep = np.mean(np.diff(self.pixelPosition[:,0]))
+        self.pixelPositionExtended = np.arange(self.pixelPosition[0,0]-self.pixelPositionStep*0.5,self.pixelPosition[-1,0]+self.pixelPositionStep*0.6,self.pixelPositionStep)
         
         
         self.scanSteps = len(self.scanValues)
@@ -146,8 +146,8 @@ class InteractiveViewer(object):
         self.ax_thetaIntegrated.set_xlabel(self.ylabel)
         
         # Sum over two theta and alpha(out of plane)
-        self.IThetaIntegrated = self.data.sum(axis=2)
-        self.IAlphaIntegrated = self.data.sum(axis=1)
+        self.IThetaIntegrated = self.data.sum(axis=1)
+        self.IAlphaIntegrated = self.data.sum(axis=2)
         
         if vmin is None:
             vmin = np.nanmin(self.data)
@@ -157,10 +157,11 @@ class InteractiveViewer(object):
         self.initialLimits = [vmin,vmax]
         
         # Plotting limits across all steps
-
+        
         # plot theta and alpha integrated intensities
-        self.ax_alphaIntegrated.pcolormesh(self.twoThetaExtended,self.scanStepExtended,self.IAlphaIntegrated,cmap=self.cmap)#,vmin=vmin,vmax=vmax)
-        self.ax_thetaIntegrated.pcolormesh(self.pixelPositionExtended,self.scanStepExtended,self.IThetaIntegrated,cmap=self.cmap)#,vmin=vmin,vmax=vmax)
+
+        self.ax_alphaIntegrated._pcolormesh = self.ax_alphaIntegrated.pcolormesh(self.twoThetaExtended,self.scanStepExtended,self.IAlphaIntegrated,cmap=self.cmap)#,vmin=vmin,vmax=vmax)
+        self.ax_thetaIntegrated._pcolormesh = self.ax_thetaIntegrated.pcolormesh(self.pixelPositionExtended,self.scanStepExtended,self.IThetaIntegrated,cmap=self.cmap)#,vmin=vmin,vmax=vmax)
         
         #self.ax_alphaIntegrated.axis('auto')
         #self.ax_thetaIntegrated.axis('auto')
@@ -238,10 +239,10 @@ class InteractiveViewer(object):
         #extent = np.array([[f(dat) for f in [np.nanmin,np.nanmax]] for dat in [ax.twoTheta[index],ax.pixelPosition[index]]]).flatten()
         
         if hasattr(self.ax_singleStep,'_pcolormesh'):
-            self.ax_singleStep._pcolormesh.set_array(self.data[index])
+            self.ax_singleStep._pcolormesh.set_array(self.data[index].T)
             self.ax_singleStep.redraw_in_frame()
         else:
-            self.ax_singleStep._pcolormesh = self.ax_singleStep.pcolormesh(self.twoThetaExtended,self.pixelPositionExtended,self.data[index],vmin=vmin,vmax=vmax,cmap=self.cmap)
+            self.ax_singleStep._pcolormesh = self.ax_singleStep.pcolormesh(self.twoThetaExtended,self.pixelPositionExtended,self.data[index].T,vmin=vmin,vmax=vmax,cmap=self.cmap)
             plt.draw()
     
         
@@ -342,4 +343,10 @@ class InteractiveViewer(object):
     format_coord_twoThetaSum = property(format_coord_twoThetaSum_getter, format_coord_twoThetaSum_setter)
     format_coord_data = property(format_coord_data_getter, format_coord_data_setter)
     
+
+    def set_all_clim(self,vmin,vmax):
+        for pc in [self.ax_alphaIntegrated,self.ax_thetaIntegrated,self.ax_singleStep]:
+            pc._pcolormesh.set_clim(vmin,vmax)
     
+    def set_clim(self,vmin,vmax):
+        self.ax_singleStep._pcolormesh.set_clim(vmin,vmax)

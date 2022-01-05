@@ -15,7 +15,7 @@ def test_init():
     testDF = DataFile.DataFile('DEBUG')
     assert(testDF._debugging == True)
 
-    df = DataFile.DataFile(filePath=os.path.join('data','dmc2021n000494.hdf'))
+    df = DataFile.DataFile(file=os.path.join('data','dmc2021n000494.hdf'))
     path,name = os.path.split(os.path.join('data','dmc2021n000494.hdf'))
 
     assert(df.folder == path)
@@ -36,13 +36,13 @@ def test_copy(): # Test the ability to copy from one data file to another
 def test_load():
     testDF = DataFile.DataFile(os.path.join('data','dmc2021n000494.hdf'))
 
-    assert(testDF.twoTheta.shape == (1,128*9,128))
-    assert(testDF.counts.shape == (1,128*9,128))
-    assert(testDF.correctedTwoTheta.shape == (1,128*9,128))
+    assert(testDF.twoTheta.shape == (128,128*9))
+    assert(testDF.counts.shape == (1,128,128*9))
+    assert(testDF.correctedTwoTheta.shape == (1,128,128*9))
 
     # If detector is assumed to be flat, twoTheta and correctedTwoTheta are the same at middle
     
-    assert(np.all(np.isclose(np.mean(testDF.correctedTwoTheta[0,:,[63,64]],axis=0),testDF.twoTheta[0,:,63],atol=0.06)))
+    assert(np.all(np.isclose(np.mean(testDF.correctedTwoTheta[0,[63,64],:],axis=0),testDF.twoTheta[63,:],atol=0.06)))
 
     #testDF = DataFile.DataFile(os.path.join('data','dmc2018n000401 - Copy.hdf'))
 

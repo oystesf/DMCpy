@@ -41,7 +41,7 @@ After the initial installation, try running one of the :ref:`Tutorials` to check
 IPython
 ^^^^^^^
 
-The MJOLNIR software package makes use of many features of the interactive part of matplotlib. Thus, if the code/tutorials are run through an IPython kernel, these might be absent. However, including the following code snippet to the top of the scripts changes the IPython matplotlib back-end to be interactive:
+The DMCpy software package makes use of many features of the interactive part of matplotlib. Thus, if the code/tutorials are run through an IPython kernel, these might be absent. However, including the following code snippet to the top of the scripts changes the IPython matplotlib back-end to be interactive:
 
 .. code-block:: python
 

@@ -149,13 +149,29 @@ def findCalibration(fileName):
     return calibration,calibrationName
 
 class DataFile(object):
-    @_tools.KwargChecker()
-    def __init__(self, filePath=None):
+    @_tools.KwargChecker(include=['radius','data','twoThetaPosition','A3','verticalPosition','Monitor','waveLength'])
+    def __init__(self, file=None,**kwargs):
         """DataFile object holding all data from a single DMC powder scan file
 
         Kwargs:
 
             - file (string or object): File path or file object (default None)
+
+            - other kwargs will be used to overwrite values otherwise loaded from file. Following are possible to overwrite:
+
+                - radius (float)
+
+                - data (int shaped (n,128,1152))
+
+                - twoThetaPosition (float shaped (1), i.e. np.array([0.0]))
+
+                - A3 (float shaped (n))
+
+                - verticalPosition (float shaped (128))
+
+                - Monitor (float shaped (n))
+
+                - waveLength (float)
 
         If a file path is given data is loaded into this object. If an existing DataFile object
         is provided, its data is copied into the new object.
@@ -163,20 +179,20 @@ class DataFile(object):
         """
 
         self._debugging = False
+        self.kwargs = kwargs
 
-        if not filePath is None: 
-
-            if isinstance(filePath,DataFile): # Copy everything from provided file
+        if not file is None: 
+            if isinstance(file,DataFile): # Copy everything from provided file
                 # Copy all file settings
-                self.updateProperty(filePath.__dict__)
+                self.updateProperty(file.__dict__)
 
-            elif os.path.exists(filePath): # load file from disk
-                self.loadFile(filePath)
+            elif os.path.exists(file): # load file from disk
+                self.loadFile(file)
 
 
             else:
-                if not filePath == 'DEBUG': # If testing is activated load a dummy data file
-                    raise FileNotFoundError('Provided file path "{}" not found.'.format(filePath))
+                if not file == 'DEBUG': # If testing is activated load a dummy data file
+                    raise FileNotFoundError('Provided file path "{}" not found.'.format(file))
 
                 self._debugging = True
                 self.folder = None
@@ -204,87 +220,103 @@ class DataFile(object):
         self.updateProperty(bulkData.__dict__)
 
         # copy important paramters to correct position
-        self.radius = 0.8
+        self.radius = self.kwargs.get('radius',0.8)
         
         countShape = self.DMC.detector.data.shape
         if len(countShape) == 2:
             self.scanType = 'Powder'
-            self.counts = self.DMC.detector.data
+            self.counts = self.kwargs.get('data',self.DMC.detector.data)
             
-            self.counts = self.counts.T # Shape is transposed into (1152,128) with axes (twoTheta,z)
             self.counts.shape = (1,*self.counts.shape)
             
             try:
-                self.twoThetaPosition = self.DMC.detector.detector_position
+                self.twoThetaPosition = self.kwargs.get('twoThetaPosition',self.DMC.detector.detector_position)
             except AttributeError:
                 self.twoThetaPosition = np.array([0.0])
-            self.twoTheta = np.linspace(0,132,self.counts.shape[1])
+            self.twoTheta = np.linspace(0,132,self.counts.shape[2])
             if not np.isnan(self.twoThetaPosition[0]):
                 self.twoTheta+=self.twoThetaPosition
             
-            
-
-            repeats = self.counts.shape[2]
-            verticalPosition = np.linspace(-0.1,0.1,repeats,endpoint=True)
-            
-            self.twoTheta, z = np.meshgrid(self.twoTheta,verticalPosition,indexing='ij')
-            
-            self.pixelPosition = np.array([self.radius*np.cos(np.deg2rad(self.twoTheta)),
-                                        self.radius*np.sin(np.deg2rad(self.twoTheta)),
-                                        z])
             try:
-                self.A3 = self.sample.rotation_angle
+                self.A3 = self.kwargs.get('A3',self.sample.rotation_angle)
             except AttributeError:
                 pass
-        elif len(countShape) == 3: # We have 3D data! Assume A3 scan with shape (step,128,height)
-            self.counts = self.DMC.detector.data
-            self.twoTheta = self.DMC.detector.two_theta
+        elif len(countShape) == 3: # We have 3D data! Assume A3 scan with shape (step,128*9,height)
+            self.counts = self.kwargs.get('data',self.DMC.detector.data)
+            self.A3 = self.kwargs.get('A3',self.sample.rotation_angle)
 
-            self.A3 = self.sample.rotation_angle
             if not len(self.A3) == countShape[0]:
-                raise AttributeError("Scan performed is not an A3 scan... Sorry, I can't work with this....")
-            self.scanType = 'A3'
-            repeats = self.counts.shape[2]
-            verticalPosition = np.linspace(-0.1,0.1,repeats,endpoint=True)
-            
-            self.twoTheta, z = np.meshgrid(self.twoTheta,verticalPosition,indexing='ij')
+                self.A3 = self.A3[:-1]
 
-            self.pixelPosition = np.array([self.radius*np.cos(np.deg2rad(self.twoTheta)),
-                                        self.radius*np.sin(np.deg2rad(self.twoTheta)),
-                                        z])
+                #raise AttributeError("Scan performed is not an A3 scan... Sorry, I can't work with this....")
+
+            if np.diff(self.A3).mean()>0:
+                self.scanType = 'A3'
+            else:
+                raise AttributeError('Scan is not A3!')
+
+            try:
+                self.twoThetaPosition = self.kwargs.get('twoThetaPosition',self.DMC.detector.detector_position)
+            except AttributeError:
+                self.twoThetaPosition = self.kwargs.get('twoThetaPosition',np.array([0.0]))
+
+            self.twoThetaPosition = self.twoThetaPosition[0]
+            self.twoTheta = np.linspace(0,132,self.counts.shape[2])+self.twoThetaPosition
+            
             
         else:
             raise AttributeError('Data file format not understood. Size of counts is {}...'.format(self.DMC.detector.data.shape))
 
-        self.Monitor = self.monitor
+        
+        repeats = self.counts.shape[1]
+        verticalPosition = self.kwargs.get('verticalPosition',np.linspace(-0.1,0.1,repeats,endpoint=True))
+        
+        
+        self.twoTheta, z = np.meshgrid(self.twoTheta.flatten(),verticalPosition,indexing='xy')
+        
+
+        
+        self.pixelPosition = np.array([self.radius*np.cos(np.deg2rad(self.twoTheta)),
+                                    -self.radius*np.sin(np.deg2rad(self.twoTheta)),
+                                    z]).reshape(3,*self.counts.shape[1:])
+        
+        
+        self.Monitor = self.kwargs.get('Monitor',self.monitor)
         self.monitor = self.monitor.monitor[0]
-        self.waveLength = self.DMC.monochromator.wavelength[0]
-        self.correctedTwoTheta = np.rad2deg(np.arccos(self.pixelPosition[0]/(np.linalg.norm(self.pixelPosition,axis=0))))
+        if self.monitor == np.array([0]): # error mode from commissioning
+            self.monitor = np.ones(self.counts.shape[0])
+        self.waveLength = self.kwargs.get('waveLength',self.DMC.monochromator.wavelength[0])
+        #self.correctedTwoTheta = np.rad2deg(np.arccos(self.pixelPosition[0]/(np.linalg.norm(self.pixelPosition,axis=0))))
         self.alpha = np.rad2deg(np.arctan2(self.pixelPosition[2],self.radius))
 
         Ki = 2*np.pi/self.waveLength # length of ki
-        self.ki = np.array([Ki,0.0,0.0]) # aling ki with x
+        self.ki = np.array([Ki,0.0,0.0]) # along ki with x
         self.ki.shape = (3,1,1)
 
         self.kf = Ki * np.array([np.cos(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
-                                    np.sin(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
+                                    -np.sin(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
                                     np.sin(np.deg2rad(self.alpha))])
         self.q = self.ki-self.kf   
+        
         if len(self.DMC.detector.data.shape) == 3: # A3 Scan
             # rotate kf to correct for A3
             zero = np.zeros_like(self.A3)
             ones = np.ones_like(self.A3)
             rotMat = np.array([[np.cos(np.deg2rad(self.A3)),np.sin(np.deg2rad(self.A3)),zero],[-np.sin(np.deg2rad(self.A3)),np.cos(np.deg2rad(self.A3)),zero],[zero,zero,ones]])
             q_temp = self.ki-self.kf
-            self.q = np.einsum('jki,klm->jilm',rotMat,q_temp)
-            
-        self.Q = np.linalg.norm(self.q,axis=0)
 
+            self.q = np.einsum('jki,k...->ji...',rotMat,q_temp)
+            
+        
+
+        self.Q = np.linalg.norm(self.q,axis=0)
+        
+
+        self.correctedTwoTheta = 2.0*np.rad2deg(np.arcsin(self.waveLength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
+        
         self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
 
-        #if self.scanType.upper() == 'A3':
-        self.twoTheta = self.twoTheta[np.newaxis].repeat(len(self.A3),axis=0)
-        self.correctedTwoTheta = self.correctedTwoTheta[np.newaxis].repeat(len(self.A3),axis=0)
+        
 
         self.generateMask(maskingFunction=None)
             # Create a mask only containing False as to signify all points are allowed
@@ -300,7 +332,8 @@ class DataFile(object):
         else:
             
             if self.scanType == "A3": # A3 scan
-                self.normalization = np.repeat(np.repeat(self.normalization[:,np.newaxis],self.counts.shape[-1],axis=-1)[np.newaxis],self.counts.shape[0],axis=0)
+                self.normalization = np.repeat(self.normalization[np.newaxis],self.counts.shape[0],axis=0)
+                self.normalization = self.normalization.transpose(0,2,1)
             else:
                 self.normalization.shape = self.counts.shape
 
@@ -345,6 +378,9 @@ class DataFile(object):
         if isinstance(dictionary,dict):
             for key,item in dictionary.items():
                 if key == 'exclude': continue
+                if key == 'kwargs': # copy kwargs directly and continue
+                    self.kwargs = item
+                    continue
                 if isinstance(item,entry):
                     for key2,item2 in item.__dict__.items():
                         item.__dict__[key2] = decode(item2)
@@ -353,7 +389,7 @@ class DataFile(object):
                     
                 self.__setattr__(key,copy.deepcopy(item))
         else:
-            raise AttributeError('Provided argument is not of type dictionary. Recieved instance of type {}'.format(type(dictionary)))
+            raise AttributeError('Provided argument is not of type dictionary. Received instance of type {}'.format(type(dictionary)))
 
 
     def __eq__(self,other):
@@ -403,12 +439,12 @@ class DataFile(object):
             fig = ax.get_figure()
 
         
-        intensity = self.counts/self.monitor
+        intensity = self.counts/self.monitor.reshape(-1,1,1)
         if applyNormalization:
             intensity*=1.0/self.normalization
 
         count_err = np.sqrt(self.counts)
-        intensity_err = count_err/self.monitor
+        intensity_err = count_err/self.monitor.reshape(-1,1,1)
         if applyNormalization:
             intensity_err*=1.0/self.normalization
  
@@ -445,11 +481,11 @@ class DataFile(object):
                 del kwargs['colorbar']
             else:
                 colorbar = False
-            limits = [self.twoTheta[0][0][0],self.twoTheta[0][-1][0],self.pixelPosition[2][0,0],self.pixelPosition[2][0,-1]]
-            ax._im = ax.imshow(intensity.T,extent=limits, aspect='auto')
+            
+            ax._pcolormesh = ax.pcolormesh(self.twoTheta,self.pixelPosition[2],np.sum(intensity,axis=0),shading='auto')
 
             if colorbar:
-                ax._col = fig.colorbar(ax._im)
+                ax._col = fig.colorbar(ax._pcolormesh)
                 ax._col.set_label('Intensity [cts/Monitor]')
                 
 

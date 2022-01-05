@@ -103,6 +103,12 @@ def numberStringGenerator(fileNames,instrumentName='dmc'):
                     else:
                         groups.append(str(group[0]))
             files = ','.join(groups)
+    else:
+        splitting = fileNames[0].split('n')
+        InstrumentYear = 'n'.join(splitting[:-1])
+        fileNumbers = splitting[-1]
+        files = str(int(fileNumbers.split('.')[0]))
+        year = int(InstrumentYear[-4:])
     return year,files
 
 @KwargChecker()

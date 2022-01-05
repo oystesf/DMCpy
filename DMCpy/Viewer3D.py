@@ -327,6 +327,38 @@ class Viewer3D(object):
     def set_title(self,title):
         self.ax.set_title(title)
 
+    def changeAxis(self,axis):
+        axis = int(axis)
+        if axis in [0]:
+            if self.axis!=0:
+                reloadslider(self,0)
+
+                self.im = self.ax.pcolormesh(self.X[:,:,0].T,self.Y[:,:,0].T,self.masked_array[:,:,self.value].T,zorder=10,shading=self.shading,cmap=self.cmap)
+                self.im.set_clim(self.caxis)
+                self.Energy_slider.set_val(0)
+                self.plot()
+                self.ax.set_xlim([np.min(self.X),np.max(self.X)])
+                self.ax.set_ylim([np.min(self.Y),np.max(self.Y)])
+        if axis in [1]:
+            if self.axis!=1:
+                reloadslider(self,1)
+                self.im = self.ax.pcolormesh(self.X[:,:,0].T,self.Y[:,:,0].T,self.masked_array[:,:,self.value].T,zorder=10,shading=self.shading,cmap=self.cmap)
+                self.im.set_clim(self.caxis)
+                self.Energy_slider.set_val(0)
+                self.plot()
+                self.ax.set_xlim([np.min(self.X),np.max(self.X)])
+                self.ax.set_ylim([np.min(self.Y),np.max(self.Y)])
+        if axis in [2]:
+            if self.axis!=2:
+                reloadslider(self,2)
+
+                self.im = self.ax.pcolormesh(self.X[:,:,0].T,self.Y[:,:,0].T,self.masked_array[:,:,self.value].T,zorder=10,shading=self.shading,cmap=self.cmap)
+                self.im.set_clim(self.caxis)
+                self.Energy_slider.set_val(0)
+                self.plot()
+                self.ax.set_xlim([np.min(self.X),np.max(self.X)])
+                self.ax.set_ylim([np.min(self.Y),np.max(self.Y)])
+
 
 def eventdecorator(function,self,event,*args,**kwargs):# pragma: no cover
     if event.xdata is not None and self.ax.in_axes(event):
@@ -388,35 +420,9 @@ def onkeypress(event,self): # pragma: no cover
     elif event.key in ['end']:
         self.Energy_slider.set_val(self.Energy_slider.valmax)
 
-    elif event.key in ['0']:
-        if self.axis!=0:
-            reloadslider(self,0)
+    elif event.key in ['0','1','2']:
+        self.changeAxis(event.key)
 
-            self.im = self.ax.pcolormesh(self.X[:,:,0].T,self.Y[:,:,0].T,self.masked_array[:,:,self.value].T,zorder=10,shading=self.shading,cmap=self.cmap)
-            self.im.set_clim(self.caxis)
-            self.Energy_slider.set_val(0)
-            self.plot()
-            self.ax.set_xlim([np.min(self.X),np.max(self.X)])
-            self.ax.set_ylim([np.min(self.Y),np.max(self.Y)])
-    elif event.key in ['1']:
-        if self.axis!=1:
-            reloadslider(self,1)
-            self.im = self.ax.pcolormesh(self.X[:,:,0].T,self.Y[:,:,0].T,self.masked_array[:,:,self.value].T,zorder=10,shading=self.shading,cmap=self.cmap)
-            self.im.set_clim(self.caxis)
-            self.Energy_slider.set_val(0)
-            self.plot()
-            self.ax.set_xlim([np.min(self.X),np.max(self.X)])
-            self.ax.set_ylim([np.min(self.Y),np.max(self.Y)])
-    elif event.key in ['2']:
-        if self.axis!=2:
-            reloadslider(self,2)
-
-            self.im = self.ax.pcolormesh(self.X[:,:,0].T,self.Y[:,:,0].T,self.masked_array[:,:,self.value].T,zorder=10,shading=self.shading,cmap=self.cmap)
-            self.im.set_clim(self.caxis)
-            self.Energy_slider.set_val(0)
-            self.plot()
-            self.ax.set_xlim([np.min(self.X),np.max(self.X)])
-            self.ax.set_ylim([np.min(self.Y),np.max(self.Y)])
 
 
 def reloadslider(self,axis): # pragma: no cover
