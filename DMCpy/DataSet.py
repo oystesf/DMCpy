@@ -29,9 +29,9 @@ class DataSet(object):
             if isinstance(dataFiles,(str,DataFile.DataFile)): # If either string or DataFile instance wrap in a list
                 dataFiles = [dataFiles]
             try:
-                self.dataFiles = [DataFile.DataFile(dF) for dF in dataFiles]
+                self.dataFiles = [DataFile.DataFile(dF) if isinstance(dF,(str)) else dF for dF in dataFiles]
             except TypeError:
-                raise AttributeError('Provided dataFiles attribute is not itterable, filepath, or of type DataFile. Got {}'.format(dataFiles))
+                raise AttributeError('Provided dataFiles attribute is not iterable, filepath, or of type DataFile. Got {}'.format(dataFiles))
             
             self._getData()
 
@@ -124,7 +124,7 @@ class DataSet(object):
 
         Kwargs:
 
-            - twoThetaBins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.1)
+            - twoThetaBins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.5)
 
             - applyNormalization (bool): If true, take detector efficiency into account (default True)
 
@@ -145,18 +145,20 @@ class DataSet(object):
         if correctedTwoTheta:
             twoTheta = self.correctedTwoTheta
         else:
-            twoTheta = self.twoTheta
-
+            if len(self.twoTheta.shape) == 3: # shape is (df,z,twoTheta), needs to be passed as (df,n,z,twoTheta)
+                twoTheta = self.twoTheta[:,np.newaxis].repeat(self.counts.shape[1],axis=1) # n = scan steps
+            else:
+                twoTheta = self.twoTheta
 
         if twoThetaBins is None:
             anglesMin = np.min(twoTheta)
             anglesMax = np.max(twoTheta)
-            dTheta = 0.1
+            dTheta = 0.5
             twoThetaBins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
 
         
         if self.type.upper() == 'A3':
-            monitorRepeated = np.array([np.ones_like(df.counts)*df.monitor for df in self])
+            monitorRepeated = np.array([np.ones_like(df.counts)*df.monitor.reshape(-1,1,1) for df in self])
         else:
             monitorRepeated = np.repeat(np.repeat(self.monitor[:,np.newaxis,np.newaxis],self.counts.shape[-2],axis=1),self.counts.shape[-1],axis=2)
             monitorRepeated.shape = self.counts.shape
@@ -203,6 +205,8 @@ class DataSet(object):
             - normalizedIntensity
             
             - normalizedIntensityError
+
+            - summedMonitor
 
         """
         
@@ -261,9 +265,10 @@ class DataSet(object):
         
         twoTheta = self.twoTheta
 
-        if self.type.upper() == 'A3':
+        if self.type.upper() in ['A3','POWDER']:
             shape = self.counts.shape
-            intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,np.newaxis,np.newaxis,np.newaxis]).reshape(-1,shape[2],shape[3])
+            
+            intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,:,np.newaxis,np.newaxis]).reshape(-1,shape[2],shape[3])
             mask = self.mask.reshape(-1,shape[2],shape[3])
             ax.titles = np.concatenate([[df.fileName]*len(df.A3) for df in self],axis=0)
         else:
@@ -319,24 +324,74 @@ class DataSet(object):
                 ax.set_title(ax.titles[index])
                 plt.draw()
 
-            ax.set_ylabel('Inensity [arb]')
+                ax.set_ylabel('Inensity [arb]')
             
         elif self.type.upper() == 'POWDER':
             ax.titles = [df.fileName for df in self]
             # Find limits for y direction
-            ax.pixelLimits = [f(self.pixelPosition[:,2]) for f in [np.nanmin,np.nanmax]]
-            ax.pixelPosition = self.pixelPosition[:,2,:]
+            
+            ax.twoTheta = np.array([df.twoTheta for df in self])
+            ax.idxSpans = np.cumsum([len(df.A3) for df in self]) # limits of indices corresponding to data file limits
+            ax.IDX = -1 # index of current data file
+            ax.twoThetaLimits = [f(ax.twoTheta) for f in [np.nanmin,np.nanmax]]
+            ax.pixelLimits = [-0.1,0.1]
 
             def plotSpectrum(ax,index=0,kwargs=kwargs):
                 # find color bar limits
                 vmin,vmax = ax.intLimits
-                extent = np.array([[f(dat) for f in [np.nanmin,np.nanmax]] for dat in [ax.twoTheta[index],ax.pixelPosition[index]]]).flatten()
+
+                newIDX = np.sum(index>=ax.idxSpans)
+                if newIDX != ax.IDX:
+                    ax.IDX = newIDX
+                    if hasattr(ax,'_pcolormesh'):
+                        ax.cla()
+                    ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
                 
-                if hasattr(ax,'_imshow'):
-                    ax._imshow.set_data(ax.intensityMatrix[index].T)
-                    ax._imshow.set_extent(extent)
+                elif hasattr(ax,'_pcolormesh'):
+                    ax._pcolormesh.set_array(ax.intensityMatrix[index])
                 else:
-                    ax._imshow = ax.imshow(ax.intensityMatrix[index].T,extent=extent,origin='lower',vmin=vmin,vmax=vmax)
+                    ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
+
+                ax.index = index
+                if 'colorbar' in kwargs: # If colorbar attribute is given, use it
+                    if kwargs['colorbar']: 
+                        if not hasattr(ax,'_colorbar'): # If no colorbar is present, create one
+                            ax._colorbar = fig.colorbar(ax._pcolormesh,ax=ax)
+                # Set limits
+                ax.set_xlim(*ax.twoThetaLimits)
+                ax.set_ylim(*ax.pixelLimits)
+                ax.set_title(ax.titles[index])
+                ax.set_aspect('auto')
+                
+                plt.draw()
+                
+                ax.set_ylabel('Intensity [arb]')
+
+        elif self.type.upper() == 'A3':
+            
+            
+            ax.A3 = np.concatenate([df.A3 for df in self],axis=0)
+            ax.twoTheta = np.array([df.twoTheta for df in self])
+            ax.idxSpans = np.cumsum([len(df.A3) for df in self]) # limits of indices corresponding to data file limits
+            ax.IDX = -1 # index of current data file
+            ax.twoThetaLimits = [f(ax.twoTheta) for f in [np.nanmin,np.nanmax]]
+            ax.pixelLimits = [-0.1,0.1]
+
+            def plotSpectrum(ax,index=0,kwargs=kwargs):
+                # find color bar limits
+                vmin,vmax = ax.intLimits
+
+                newIDX = np.sum(index>=ax.idxSpans)
+                if newIDX != ax.IDX:
+                    ax.IDX = newIDX
+                    if hasattr(ax,'_pcolormesh'):
+                        ax.cla()
+                    ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
+                
+                elif hasattr(ax,'_pcolormesh'):
+                    ax._pcolormesh.set_array(ax.intensityMatrix[index])
+                else:
+                    ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
 
                 
                 ax.index = index
@@ -347,39 +402,6 @@ class DataSet(object):
                 # Set limits
                 ax.set_xlim(*ax.twoThetaLimits)
                 ax.set_ylim(*ax.pixelLimits)
-                ax.set_title(ax.titles[index])
-                ax.set_aspect('auto')
-                
-                plt.draw()
-                
-            ax.set_ylabel('Inensity [arb]')
-
-        elif self.type.upper() == 'A3':
-            
-            ax.pixelLimits = [f(self.pixelPosition[:,2]) for f in [np.nanmin,np.nanmax]]
-            ax.twoThetaLimits = [f(self.twoTheta[:,2]) for f in [np.nanmin,np.nanmax]]
-            ax.A3 = np.concatenate([df.A3 for df in self],axis=0)
-
-            def plotSpectrum(ax,index=0,kwargs=kwargs):
-                # find color bar limits
-                vmin,vmax = ax.intLimits
-                #extent = np.array([[f(dat) for f in [np.nanmin,np.nanmax]] for dat in [ax.twoTheta[index],ax.pixelPosition[index]]]).flatten()
-                extent = [*ax.twoThetaLimits,*ax.pixelLimits]
-                if hasattr(ax,'_imshow'):
-                    ax._imshow.set_data(ax.intensityMatrix[index].T)
-                    ax._imshow.set_extent(extent)
-                else:
-                    ax._imshow = ax.imshow(ax.intensityMatrix[index].T,extent=extent,origin='lower',vmin=vmin,vmax=vmax)
-
-                
-                ax.index = index
-                if 'colorbar' in kwargs: # If colorbar attribute is given, use it
-                    if kwargs['colorbar']: 
-                        if not hasattr(ax,'_colorbar'): # If no colorbar is present, create one
-                            ax._colorbar = fig.colorbar(ax._imshow,ax=ax)
-                # Set limits
-                #ax.set_xlim(*ax.twoThetaLimits)
-                #ax.set_ylim(*ax.pixelLimits)
                 #print(index)
                 ax.set_title(ax.titles[index]+' - A3: {:.2f} [deg]'.format(ax.A3[index]))
                 ax.set_aspect('auto')
@@ -472,7 +494,7 @@ class DataSet(object):
         
         """
 
-        fig,Ax = plt.subplots(2,1,figsize=(12,10),sharex=True)
+        fig,Ax = plt.subplots(2,1,figsize=(11,9),sharex=True)
 
         Ax = Ax.flatten()
 
@@ -545,7 +567,7 @@ class DataSet(object):
         """
         if rlu:
             raise NotImplementedError('Currently, only plotting using Q space is supported.')
-        pos = np.array(np.concatenate([[q.flatten() for q in df.q] for df in self],axis=-1))
+        pos = np.array(np.concatenate([df.q.reshape(3,-1) for df in self],axis=-1))
 
         if not raw:
             data = np.concatenate([df.intensity.flatten()  for df in self])

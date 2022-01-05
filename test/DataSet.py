@@ -90,7 +90,7 @@ def test_2d():
     ds = DataSet.DataSet(dataFiles=dataFiles)
 
     files = len(fileNumbers)
-    assert(ds.counts.shape == (files,1,1152,128))
+    assert(ds.counts.shape == (files,1,128,1152))
 
     ax1 = ds.plotTwoTheta(correctedTwoTheta=False)
     ax2 = ds.plotTwoTheta(correctedTwoTheta=True)
