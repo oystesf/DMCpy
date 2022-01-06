@@ -41,7 +41,7 @@ class DataSet(object):
             setattr(self,parameter,np.array([getattr(d,parameter) for d in self]))
 
         # Collect parameters from sample into self
-        for parameter in ['sample_temperature','sample_name']:
+        for parameter in ['sample_temperature']:
             setattr(self,parameter,np.array([getattr(d.sample,parameter) for d in self]))
 
         types = [df.scanType for df in self]
