@@ -1,5 +1,6 @@
 import h5py as hdf
 import datetime
+from h5py._hl import attrs
 import numpy as np
 import pickle as pickle
 import matplotlib.pyplot as plt
@@ -100,7 +101,7 @@ def maskFunction(phi,maxAngle=10.0):
 
         - maxAngle (float): Mask points greater than this or less than -maxAngle in degrees (default 10)
     """
-    return np.abs(phi)<maxAngle
+    return np.abs(phi)>maxAngle
 
 @_tools.KwargChecker()
 def findCalibration(fileName):
@@ -223,31 +224,32 @@ class DataFile(object):
         # copy important paramters to correct position
         self.radius = self.kwargs.get('radius',0.8)
         
+        if 'twoThetaPosition' in self.kwargs:
+            self.twoThetaPosition = self.kwargs['twoThetaPosition']
+
         countShape = self.DMC.detector.data.shape
         if len(countShape) == 2:
             self.scanType = 'Powder'
-            self.counts = self.kwargs.get('data',self.DMC.detector.data)
+            if 'data' in self.kwargs:
+                self.counts = self.kwargs['data']
             
             self.counts.shape = (1,*self.counts.shape)
             
-            try:
-                self.twoThetaPosition = self.kwargs.get('twoThetaPosition',self.DMC.detector.detector_position)
-            except AttributeError:
-                self.twoThetaPosition = np.array([0.0])
+            
             self.twoTheta = np.linspace(0,132,self.counts.shape[2])
             if not np.isnan(self.twoThetaPosition[0]):
                 self.twoTheta+=self.twoThetaPosition
             
-            try:
-                self.A3 = self.kwargs.get('A3',self.sample.rotation_angle)
-            except AttributeError:
-                pass
+            
         elif len(countShape) == 3: # We have 3D data! Assume A3 scan with shape (step,128*9,height)
-            self.counts = self.kwargs.get('data',self.DMC.detector.data)
-            self.A3 = self.kwargs.get('A3',self.sample.rotation_angle)
+            if 'data' in self.kwargs:
+                self.counts = self.kwargs['data']
+            
+            if 'A3' in self.kwargs:
+                self.sample.rotation_angle = self.kwargs['A3']
 
             if not len(self.A3) == countShape[0]:
-                self.A3 = self.A3[:-1]
+                self.sample.rotation_angle = self.sample.rotation_angle[:-1]
 
                 #raise AttributeError("Scan performed is not an A3 scan... Sorry, I can't work with this....")
 
@@ -256,10 +258,6 @@ class DataFile(object):
             else:
                 raise AttributeError('Scan is not A3!')
 
-            try:
-                self.twoThetaPosition = self.kwargs.get('twoThetaPosition',self.DMC.detector.detector_position)
-            except AttributeError:
-                self.twoThetaPosition = self.kwargs.get('twoThetaPosition',np.array([0.0]))
 
             self.twoThetaPosition = self.twoThetaPosition[0]
             self.twoTheta = np.linspace(0,132,self.counts.shape[2])+self.twoThetaPosition
@@ -286,38 +284,15 @@ class DataFile(object):
         self.monitor = self.monitor.monitor[0]
         if self.monitor == np.array([0]): # error mode from commissioning
             self.monitor = np.ones(self.counts.shape[0])
-        self.waveLength = self.kwargs.get('waveLength',self.DMC.monochromator.wavelength[0])
-        #self.correctedTwoTheta = np.rad2deg(np.arccos(self.pixelPosition[0]/(np.linalg.norm(self.pixelPosition,axis=0))))
+        
         self.alpha = np.rad2deg(np.arctan2(self.pixelPosition[2],self.radius))
-
-        Ki = 2*np.pi/self.waveLength # length of ki
-        self.ki = np.array([Ki,0.0,0.0]) # along ki with x
-        self.ki.shape = (3,1,1)
-
-        self.kf = Ki * np.array([np.cos(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
-                                    -np.sin(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
-                                    np.sin(np.deg2rad(self.alpha))])
-        self.q = self.ki-self.kf   
-        
-        if len(self.DMC.detector.data.shape) == 3: # A3 Scan
-            # rotate kf to correct for A3
-            zero = np.zeros_like(self.A3)
-            ones = np.ones_like(self.A3)
-            rotMat = np.array([[np.cos(np.deg2rad(self.A3)),np.sin(np.deg2rad(self.A3)),zero],[-np.sin(np.deg2rad(self.A3)),np.cos(np.deg2rad(self.A3)),zero],[zero,zero,ones]])
-            q_temp = self.ki-self.kf
-
-            self.q = np.einsum('jki,k...->ji...',rotMat,q_temp)
-            
-        
-
-        self.Q = np.linalg.norm(self.q,axis=0)
+        self.waveLength = self.kwargs.get('waveLength',self.DMC.monochromator.wavelength[0])
+        # Above line makes an implicit call to the self.calculateQ method!
         
 
         self.correctedTwoTheta = 2.0*np.rad2deg(np.arcsin(self.waveLength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
         
         self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
-
-        
 
         self.generateMask(maskingFunction=None)
             # Create a mask only containing False as to signify all points are allowed
@@ -349,6 +324,109 @@ class DataFile(object):
     #else:
     #    raise NotImplementedError("Expected data file to originate from DMC...")
 
+    @property
+    def A3(self):
+        return self.sample.rotation_angle
+
+    @A3.getter
+    def A3(self):
+        if not hasattr(self.sample,'rotation_angle'):
+            self.sample.rotation_angle = np.array([0.0]*len(self.monitor))
+        return self.sample.rotation_angle
+        
+
+    @A3.setter
+    def A3(self,A3):
+        if A3 is None:
+            self.sample.rotation_angle = np.array([0.0]*len(self.monitor))
+        else:
+            self.sample.rotation_angle = A3
+        if hasattr(self,'ki'):
+            self.calculateQ()
+    
+    @property
+    def counts(self):
+        return self.DMC.detector.data
+
+    @counts.getter
+    def counts(self):
+        return self.DMC.detector.data
+
+    @counts.setter
+    def counts(self,data):
+        if data is None:
+            raise AttributeError('Data cannot be set to None')
+        else:
+            self.DMC.detector.data = data
+
+
+    @property
+    def twoThetaPosition(self):
+        return self.DMC.detector.detector_position
+
+    @twoThetaPosition.getter
+    def twoThetaPosition(self):
+        return self.DMC.detector.detector_position
+
+    @twoThetaPosition.setter
+    def twoThetaPosition(self,twoTheta):
+        if twoTheta is None:
+            self.DMC.detector.detector_position = np.array([0.0]*len(self.monitor))
+        else:
+            self.DMC.detector.detector_position = twoTheta
+        self.twoTheta = np.linspace(0,132,1152) + self.DMC.detector.detector_position
+        if hasattr(self,'_Ki'):
+            self.calculateQ()
+
+    @property
+    def Ki(self):
+        return self._Ki
+
+    @Ki.getter
+    def Ki(self):
+        return self._Ki
+
+    @Ki.setter
+    def Ki(self,Ki):
+        self._Ki = Ki
+        self.DMC.monochromator.wavelength = np.full_like(self.DMC.monochromator.wavelength,2*np.pi/Ki)
+        self.calculateQ()
+
+    @property
+    def waveLength(self):
+        return self.DMC.monochromator.wavelength[0]
+
+    @waveLength.getter
+    def waveLength(self):
+        return self.DMC.monochromator.wavelength[0]
+
+    @waveLength.setter
+    def waveLength(self,waveLength):
+        self.DMC.monochromator.wavelength = np.full_like(self.DMC.monochromator.wavelength,waveLength)
+        self._Ki = 2*np.pi/waveLength
+        self.calculateQ()
+
+    def calculateQ(self):
+        """Calculate Q and qx,qy,qz using the current A3 values"""
+
+        self.ki = np.array([self.Ki,0.0,0.0]) # along ki=2pi/lambda with x
+        self.ki.shape = (3,1,1)
+
+        self.kf = self.Ki * np.array([np.cos(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
+                                    -np.sin(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
+                                    np.sin(np.deg2rad(self.alpha))])
+        self.q = self.ki-self.kf   
+        if len(self.DMC.detector.data.shape) == 3: # A3 Scan
+            # rotate kf to correct for A3
+            zero = np.zeros_like(self.A3)
+            ones = np.ones_like(self.A3)
+            rotMat = np.array([[np.cos(np.deg2rad(self.A3)),np.sin(np.deg2rad(self.A3)),zero],[-np.sin(np.deg2rad(self.A3)),np.cos(np.deg2rad(self.A3)),zero],[zero,zero,ones]])
+            q_temp = self.ki-self.kf
+
+            self.q = np.einsum('jki,k...->ji...',rotMat,q_temp)
+
+        self.Q = np.linalg.norm(self.q,axis=0)
+
     def generateMask(self,maskingFunction = maskFunction, **pars):
         """Generate mask to applied to data in data file
         
@@ -366,7 +444,7 @@ class DataFile(object):
             raise RuntimeError('DataFile does not contain any counts. Look for self.counts but found nothing.')
 
         if maskingFunction is None:
-            self.mask = np.ones_like(self.counts,dtype=bool)
+            self.mask = np.zeros_like(self.counts,dtype=bool)
         else:
             self.mask = maskingFunction(self.phi,**pars)
         
@@ -389,33 +467,6 @@ class DataFile(object):
                 self.__setattr__(key,copy.deepcopy(item))
         else:
             raise AttributeError('Provided argument is not of type dictionary. Received instance of type {}'.format(type(dictionary)))
-
-
-    def __eq__(self,other):
-        return len(self.difference(other))==0
-
-
-    def difference(self,other,keys = set(['fileName','folder'])):
-        """Return the difference between two data files by keys"""
-        dif = []
-        if not set(self.__dict__.keys()) == set(other.__dict__.keys()): # Check if same generation and type (hdf or nxs)
-            return list(set(self.__dict__.keys())-set(other.__dict__.keys()))
-
-        comparisonKeys = keys
-        for key in comparisonKeys:
-            skey = self.__dict__[key]
-            okey = other.__dict__[key]
-            if isinstance(skey,np.ndarray):
-                try:
-                    if not np.all(np.isclose(skey,okey)):
-                        if not np.all(np.isnan(skey),np.isnan(okey)):
-                            dif.append(key)
-                except (TypeError, AttributeError,ValueError):
-                    if np.all(skey!=okey):
-                        dif.append(key)
-            elif not np.all(self.__dict__[key]==other.__dict__[key]):
-                dif.append(key)
-        return dif
 
 
     @_tools.KwargChecker(function=plt.errorbar,include=_tools.MPLKwargs)
@@ -454,7 +505,7 @@ class DataFile(object):
             if not 'fmt' in kwargs:
                 kwargs['fmt'] = '.-'
 
-            ax._err = ax.errorbar(self.twoTheta[self.mask],intensity[self.mask],intensity_err[self.mask],**kwargs)
+            ax._err = ax.errorbar(self.twoTheta[np.logical_not(self.mask)],intensity[np.logical_not(self.mask)],intensity_err[np.logical_not(self.mask)],**kwargs)
             ax.set_xlabel(r'$2\theta$ [deg]')
             ax.set_ylabel(r'Counts/mon [arb]')
 
@@ -473,7 +524,7 @@ class DataFile(object):
             ax.format_coord = lambda format_xdata,format_ydata:format_coord(ax,format_xdata,format_ydata)
         else: # plot a 2D image with twoTheta vs z
             # Set all masked out points to Nan
-            intensity[np.logical_not(self.mask)] = np.nan
+            intensity[self.mask] = np.nan
 
             if 'colorbar' in kwargs:
                 colorbar = kwargs['colorbar']
@@ -637,8 +688,8 @@ class DataFile(object):
             okey = other
             while '.' in key:
                 baseKey,*keys = key.split('.')
-                skey = skey.__dict__[baseKey]
-                okey = okey.__dict__[baseKey]
+                skey = getattr(skey,baseKey)
+                okey = getattr(okey,baseKey)
                 key = '.'.join(keys)
             if isinstance(skey,np.ndarray):
                 try:
@@ -648,7 +699,7 @@ class DataFile(object):
                 except (TypeError, AttributeError,ValueError):
                     if np.all(skey!=okey):
                         dif.append(key)
-            elif not np.all(skey.__dict__[key]==okey.__dict__[key]):
+            elif not np.all(getattr(skey,key)==getattr(okey,key)):
                 dif.append(key)
         return dif
 
