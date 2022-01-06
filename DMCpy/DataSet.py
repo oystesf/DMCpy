@@ -17,7 +17,7 @@ class DataSet(object):
 
         Raises:
 
-            - NotImplemetedError
+            - NotImplementedError
 
             - AttributeError
 
@@ -105,7 +105,7 @@ class DataSet(object):
 
 
     def generateMask(self,maskingFunction = DataFile.maskFunction, **pars):
-        """Generate maks to applied to data in data file
+        """Generate mask to applied to data in data file
         
         Kwargs:
 
@@ -165,7 +165,7 @@ class DataSet(object):
 
         
         
-        summedRawIntenisty, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=self.counts[self.mask])
+        summedRawIntensity, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=self.counts[self.mask])
 
         if applyNormalization:
             summedMonitor, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=monitorRepeated[self.mask]*self.normalization[self.mask])
@@ -174,8 +174,8 @@ class DataSet(object):
 
         inserted, _  = np.histogram(twoTheta[self.mask],bins=twoThetaBins)
 
-        normalizedIntensity = summedRawIntenisty/summedMonitor
-        normalizedIntensityError =  np.sqrt(summedRawIntenisty)/summedMonitor
+        normalizedIntensity = summedRawIntensity/summedMonitor
+        normalizedIntensityError =  np.sqrt(summedRawIntensity)/summedMonitor
 
         return twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor
     
@@ -303,7 +303,7 @@ class DataSet(object):
             def plotSpectrum(ax,index=0,kwargs=kwargs):
                 if kwargs is None:
                     kwargs = {}
-                if hasattr(ax,'_errorbar'): # am errprbar has already been plotted, delete ot
+                if hasattr(ax,'_errorbar'): # am errorbar has already been plotted, delete ot
                     ax._errorbar.remove()
                     del ax._errorbar
                 
@@ -437,7 +437,7 @@ class DataSet(object):
             self.plotSpectrum(index)
 
         # Connect functions to key presses
-        def onkeypress(self,event): # pragma: no cover
+        def onKeyPress(self,event): # pragma: no cover
             if event.key in ['+','up']:
                 increaseAxis(self)
             elif event.key in ['-','down']:
@@ -448,20 +448,20 @@ class DataSet(object):
             elif event.key in ['end']:
                 index = len(self.intensityMatrix)-1
                 self.plotSpectrum(index)
-            elif event.key in ['pageup']: # Pressing pageup or page down performs steps of 10
+            elif event.key in ['pageup']: # Pressing page up or page down performs steps of 10
                 increaseAxis(self,step=10)
             elif event.key in ['pagedown']:
                 decreaseAxis(self,step=10)
 
-        # Call function for scrolling with mouse wheele
-        def onscroll(self,event): # pragma: no cover
+        # Call function for scrolling with mouse wheel
+        def onScroll(self,event): # pragma: no cover
             if(event.button=='up'):
                 increaseAxis(self)
             elif event.button=='down':
                 decreaseAxis(self)
         # Connect function calls to slots
-        fig.canvas.mpl_connect('key_press_event',lambda event: onkeypress(ax,event) )
-        fig.canvas.mpl_connect('scroll_event',lambda event: onscroll(ax,event) )
+        fig.canvas.mpl_connect('key_press_event',lambda event: onKeyPress(ax,event) )
+        fig.canvas.mpl_connect('scroll_event',lambda event: onScroll(ax,event) )
         
         return ax
 
