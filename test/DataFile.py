@@ -179,4 +179,22 @@ def test_changeOfParameters():
     df2 = DataFile.DataFile(dataFile)
     df2.twoThetaPosition = np.array([1])
     assert(df==df2)
+
+
+    splitted = dataFile.split('.')
+    splitted[-2] = splitted[-2] +'new'
+    saveFileName = '.'.join(splitted)
+    if os.path.exists(saveFileName):
+        os.remove(saveFileName)
+        
+    ## Change all parameters and save to check reproducibility
+    df.Ki = 2
+    df.twoThetaPosition = np.array([20.0])
+    
+    df.save(saveFileName)
+    df2 = DataFile.DataFile(saveFileName)
+    assert(df==df2)
+
+    if os.path.exists(saveFileName):
+        os.remove(saveFileName)
     
