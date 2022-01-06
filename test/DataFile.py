@@ -132,5 +132,25 @@ def test_decoding():
 
     df = DataFile.DataFile(dataFile)
 
-    assert(isinstance(df.sample.sample_name,str)) # Originally byte array
+    assert(isinstance(df.sample.name,str)) # Originally byte array
     
+
+def test_saveLoad():
+    dataFile = dataFile = os.path.join('data','dmc2021n{:06d}.hdf'.format(494))
+    df = DataFile.DataFile(dataFile)
+
+    splitted = dataFile.split('.')
+    splitted[-2] = splitted[-2] +'new'
+    saveFileName = '.'.join(splitted)
+
+
+    if os.path.exists(saveFileName):
+        os.remove(saveFileName)
+        
+    df.save(saveFileName)
+    df2 = DataFile.DataFile(saveFileName)
+    assert(df==df)
+    assert(df==df2)
+
+    if os.path.exists(saveFileName):
+        os.remove(saveFileName)

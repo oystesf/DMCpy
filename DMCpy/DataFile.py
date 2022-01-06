@@ -1,4 +1,5 @@
 import h5py as hdf
+import datetime
 import numpy as np
 import pickle as pickle
 import matplotlib.pyplot as plt
@@ -11,7 +12,7 @@ import copy
 from DMCpy import _tools
 
 scanTypes = ['Old Data','Powder','A3']
-class entry:
+class Entry:
     """Dummy class for h5py group entries"""
     def __init__(self,**kwargs):
         for item,value in kwargs:
@@ -31,7 +32,7 @@ class h5pyReader:
     """Custom class used to traverse hdf file and extract all data
     
     This object traverses the HDF file structure and creates a dummy
-    entry object for each layer. As H5PY do not traverse links already
+    Entry object for each layer. As H5PY do not traverse links already
     visited, special care is to be taken!"""
     def __init__(self,exclude=None):
         """Initialize a reader with custom exclude
@@ -68,17 +69,17 @@ class h5pyReader:
             # add 'DMC' to obj, then 'DMC_BF3_Detector'
             currentName = name.pop()
             if not hasattr(obj,currentName):
-                obj.__dict__[currentName] = entry()
+                obj.__dict__[currentName] = Entry()
             obj = getattr(obj,currentName) # get one level down object
             
         attributeName = name[0]
         if attributeName == 'lambda':
             attributeName = 'Lambda' # lambda is a key word in python
         if hasattr(h5obj,'dtype'): 
-            obj.__dict__[attributeName] = np.array(h5obj)
+            obj.__dict__[attributeName] = np.array(h5obj,dtype=h5obj.dtype)
         
         if not hasattr(obj,attributeName): # Add the group to the data
-            obj.__dict__[attributeName] = entry()
+            obj.__dict__[attributeName] = Entry()
         
         for item,value in dict(h5obj.attrs).items():
             try:
@@ -340,18 +341,16 @@ class DataFile(object):
         if hasattr(self,'sample'):
             # If no temperature is saved in sample.sample_temperature
             if not hasattr(self.sample,'sample_temperature'):
-                #print('No temperature... Adding zero then')
-                self.sample.sample_temperature = np.array([0])
+                self.sample.sample_temperature = np.array([0.0])
             if not hasattr(self.sample,'sample_name'):
-                self.sample.sample_name = 'UNKNONW'
-            #else:
-            #    print('Well all is good?')
+                self.sample.name = 'UNKNOWN'
+
         self.time = self.Monitor.time
     #else:
     #    raise NotImplementedError("Expected data file to originate from DMC...")
 
     def generateMask(self,maskingFunction = maskFunction, **pars):
-        """Generate maks to applied to data in data file
+        """Generate mask to applied to data in data file
         
         Kwargs:
 
@@ -381,7 +380,7 @@ class DataFile(object):
                 if key == 'kwargs': # copy kwargs directly and continue
                     self.kwargs = item
                     continue
-                if isinstance(item,entry):
+                if isinstance(item,Entry):
                     for key2,item2 in item.__dict__.items():
                         item.__dict__[key2] = decode(item2)
                 else:
@@ -495,16 +494,163 @@ class DataFile(object):
         return ax
 
     @_tools.KwargChecker()
-    def save(self,filePath):
+    def save(self,filePath,compression=6):
         """Save data file in hdf format.
         
         Args:
 
             - filePath (path): Path into which file is to be saved
 
+        Kwargs:
+
+            - compression (int): Compression level used by gzip
+
         """
         if os.path.exists(filePath):
             raise AttributeError('File already exists! ({})'.format(filePath))
+
+        
+        # Recursive function to generate a directory with all entries
+        def extractEntries(entry,currentName='',currentDict={},include=[]):
+            for key,item in entry.__dict__.items():
+                
+                if not isinstance(item,Entry):
+                    if len(include)>0:
+                        if not key in include:
+                            continue
+                    currentDict[currentName+'/'*(len(currentName)>0)+key] = item
+                else:
+                    extractEntries(item,currentName+'/'*(len(currentName)>0)+key,currentDict)
+                
+            return currentDict
+
+
+        saveDict = extractEntries(self,include=['proposal_id','start_time','title','NX_class'])
+
+        # replace 'Monitor' with 'monitor'
+        keys = np.array([[x,x.replace('Monitor','monitor')] if 'Monitor' in x else [0,None] for x in list(saveDict.keys())])
+        keys = keys[keys[:,0]!=0]
+
+        for old,new in keys:
+            saveDict[new] = saveDict.pop(old)
+
+        # Function to check if entry contains group with specific name
+        def contains(entry,groupName):
+            splitName = groupName.split('/')
+            for sName in splitName:
+                if not sName in entry:
+                    return False
+                entry = entry.get(sName)
+            return True
+
+
+        # 
+
+        with hdf.File(filePath,'w') as f:
+            
+            # Create correct header info
+            f.attrs['NeXus_Version'] = np.string_('4.4.0')
+            f.attrs['file_name'] = np.string_(filePath)
+            
+            
+            cT = datetime.datetime.now()
+            
+            f.attrs['file_time'] = np.string_('{}-{}-{} {}:{}:{}'.format(cT.year,cT.month,cT.day,cT.hour,cT.minute,cT.second))
+            f.attrs['instrument'] = np.string_('DMC')
+            f.attrs['owner'] = np.string_('Lukas Keller <lukas.keller@psi.ch>')
+
+            entry = f.create_group('entry')
+            entry.attrs['NX_class'] = np.string_('NXentry')
+            entry.attrs['default'] = np.string_('data')
+            for key,value in saveDict.items(): # loop through all pairs
+            
+                ## Generate all groups with corresponding attributes
+                # notice: name under user is not an attribute!
+                if (key.split('/')[-1] in ['name','type','signal'] or key.split('/')[-1][:2] == 'NX') and key!='user/name':
+                    baseName = '/'.join(key.split('/')[:-1])
+                    endName = key.split('/')[-1]
+                    # if group doesn't exist, cerate it
+                    if not contains(entry,baseName):
+                        baseEntry = entry.create_group(baseName)
+                    else:
+                        baseEntry = entry.get(baseName)
+                    
+                    # Add the value to the attribute
+                    baseEntry.attrs[endName] = value
+                        
+                
+                else:# Take care of all data set structures
+                    # Split into base and actual data set name
+                    baseName = key.split('/')[:-1]
+                    endName = key.split('/')[-1]
+                    
+                    # Attributes contain '__'
+                    if not contains(entry,key) and not '__' in endName:
+                        # replace repetition of base name in data set name for all but 'detector_position'
+                        if len(baseName)>0 and endName != 'detector_position':
+                            endName = endName.replace(baseName[-1]+'_','')
+                        
+                        # recreate the actual data set name
+                        globalName = '/'.join(baseName+[endName])
+                        if hasattr(value,'dtype'): # Is a numpy type
+                            if len(value.shape)!=0:
+                                kwargs = {'compression':"gzip", 'compression_opts':compression}
+                            else:
+                                kwargs = {}
+                            # special shape for Powder data
+                            if self.scanType == 'Powder' and endName == 'data':
+                                shape = value.shape[1:]
+                            else:
+                                shape = value.shape
+                            entry.create_dataset(globalName,shape = shape, data=value.reshape(shape), **kwargs)
+
+                        elif isinstance(value,str): # If string, save this with correct dtype, i.e. scalar
+                            length = max(len(value), 1) # Find length, minimum is 1
+                            dset = entry.create_dataset(globalName,(1,),dtype='<S'+str(length))
+                            dset[0] = np.string_(value)
+                        else: # Catch exceptions
+                            raise AttributeError('Unknown data type for',key)
+                    elif '__' in endName: # an attribute
+                        # replace the '__' in the name, separate out attrName 
+                        *name, attrName = endName.replace('__','').split('_')
+                        globalName = '/'.join(baseName+['_'.join(name)])
+                        entry.get(globalName).attrs[attrName] = value
+                    else:
+                        raise AttributeError('Unknown error for',key)
+            
+            # Make the symbolic link between data in the DMC/Detector and Data/Data
+            entry['data/data'] = entry['DMC/detector/data']
+
+
+    def __eq__(self,other):
+        return len(self.difference(other))==0
+    
+    def difference(self,other,keys = set(['sample.name','waveLength','counts','A3','twoTheta','scanType','monitor'])):
+        """Return the difference between two data files by keys"""
+        dif = []
+        if not set(self.__dict__.keys()) == set(other.__dict__.keys()): # Check if same generation and type (hdf or nxs)
+            return list(set(self.__dict__.keys())-set(other.__dict__.keys()))
+
+        comparisonKeys = keys
+        for key in comparisonKeys:
+            skey = self
+            okey = other
+            while '.' in key:
+                baseKey,*keys = key.split('.')
+                skey = skey.__dict__[baseKey]
+                okey = okey.__dict__[baseKey]
+                key = '.'.join(keys)
+            if isinstance(skey,np.ndarray):
+                try:
+                    if not np.all(np.isclose(skey,okey)):
+                        if not np.all(np.isnan(skey),np.isnan(okey)):
+                            dif.append(key)
+                except (TypeError, AttributeError,ValueError):
+                    if np.all(skey!=okey):
+                        dif.append(key)
+            elif not np.all(skey.__dict__[key]==okey.__dict__[key]):
+                dif.append(key)
+        return dif
 
 
     @property
