@@ -97,7 +97,7 @@ class Viewer3D(object):
         #    ax.set_navigate(True)
         self.value = 0
         self.figure.subplots_adjust(bottom=0.25)
-        self.cmap = cmap # Update to accomedate deprication warning
+        self.cmap = cmap # Update to accommodate deprecation warning
         self.value = 0
         
 
@@ -149,9 +149,9 @@ class Viewer3D(object):
             maxVal = 1
         self.caxis = [np.nanmin(self.masked_array),maxVal]
         if self.grid:
-            self.ax.grid(self.grid,zorder=self.gridZOrder)
+            self.ax.grid(True,zorder=self.gridZOrder)
         else:
-            self.ax.grid(self.grid)
+            self.ax.grid(False)
 
         self.setAxis(viewAxis) # Set view plane to correct
         ## Hack for this to look nice as just changing direction does not render correctly
