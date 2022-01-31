@@ -165,14 +165,14 @@ class DataSet(object):
 
         
         
-        summedRawIntensity, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=self.counts[self.mask])
+        summedRawIntensity, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=self.counts[np.logical_not(self.mask)])
 
         if applyNormalization:
-            summedMonitor, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=monitorRepeated[self.mask]*self.normalization[self.mask])
+            summedMonitor, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=monitorRepeated[np.logical_not(self.mask)]*self.normalization[np.logical_not(self.mask)])
         else:
-            summedMonitor, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=monitorRepeated[self.mask])
+            summedMonitor, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=monitorRepeated[np.logical_not(self.mask)])
 
-        inserted, _  = np.histogram(twoTheta[self.mask],bins=twoThetaBins)
+        inserted, _  = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins)
 
         normalizedIntensity = summedRawIntensity/summedMonitor
         normalizedIntensityError =  np.sqrt(summedRawIntensity)/summedMonitor
@@ -566,8 +566,11 @@ class DataSet(object):
         
         """
         if rlu:
-            raise NotImplementedError('Currently, only plotting using Q space is supported.')
-        pos = np.array(np.concatenate([df.q.reshape(3,-1) for df in self],axis=-1))
+            #raise NotImplementedError('Currently, only plotting using Q space is supported.')
+            pos = np.array(np.concatenate([np.einsum('ij,jk',df.UBInv,df.q.reshape(3,-1)) for df in self],axis=-1))
+
+        else:
+            pos = np.array(np.concatenate([df.q.reshape(3,-1) for df in self],axis=-1))
 
         if not raw:
             data = np.concatenate([df.intensity.flatten()  for df in self])
