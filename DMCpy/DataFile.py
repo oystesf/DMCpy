@@ -161,19 +161,19 @@ class DataFile(object):
 
             - other kwargs will be used to overwrite values otherwise loaded from file. Following are possible to overwrite:
 
-                - radius (float)
+            - radius (float)
 
-                - data (int shaped (n,128,1152))
+            - data (int shaped (n,128,1152))
 
-                - twoThetaPosition (float shaped (1), i.e. np.array([0.0]))
+            - twoThetaPosition (float shaped (1), i.e. np.array([0.0]))
 
-                - A3 (float shaped (n))
+            - A3 (float shaped (n))
 
-                - verticalPosition (float shaped (128))
+            - verticalPosition (float shaped (128))
 
-                - Monitor (float shaped (n))
+            - Monitor (float shaped (n))
 
-                - waveLength (float)
+            - waveLength (float)
 
         If a file path is given data is loaded into this object. If an existing DataFile object
         is provided, its data is copied into the new object.
