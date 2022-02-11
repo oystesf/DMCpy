@@ -173,7 +173,7 @@ class DataSet(object):
             summedMonitor, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=monitorRepeated[np.logical_not(self.mask)])
 
         inserted, _  = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins)
-
+        
         normalizedIntensity = summedRawIntensity/summedMonitor
         normalizedIntensityError =  np.sqrt(summedRawIntensity)/summedMonitor
 
@@ -217,7 +217,7 @@ class DataSet(object):
         TwoThetaPositions = 0.5*(twoThetaBins[:-1]+twoThetaBins[1:])
 
         if not 'fmt' in kwargs:
-            kwargs['fmt'] = '-.'
+            kwargs['fmt'] = '-'
 
         if ax is None:
             fig,ax = plt.subplots()
@@ -292,7 +292,7 @@ class DataSet(object):
         
 
         if not hasattr(kwargs,'fmt'):
-            kwargs['fmt']='.-'
+            kwargs['fmt']='-'
 
         if self.type.upper() == 'OLD DATA': # Data is 1D, plot using errorbar
             ax.titles = [df.fileName for df in self]
@@ -500,7 +500,7 @@ class DataSet(object):
 
 
         if not 'fmt' in kwargs:
-            kwargs['fmt']='.-'
+            kwargs['fmt']='_'
 
         if not 'masking' in kwargs:
             kwargs['masking']= True
@@ -579,3 +579,120 @@ class DataSet(object):
         Data,bins = _tools.binData3D(dqx,dqy,dqz,pos=pos,data=data)
 
         return Viewer3D.Viewer3D(Data,bins,axis=axis, grid=grid, log=log, outputFunction=outputFunction, cmap=cmap)
+
+
+    def export_PSI_format(self,saveFile, dTheta = 0.2,bins=None,applyNormalization=True,correctedTwoTheta=True):
+
+        """
+        Her skal Oystein forklare        
+        
+        
+        
+        """
+
+        twoTheta = self.twoTheta
+        
+        anglesMin = np.min(twoTheta)
+        anglesMax = np.max(twoTheta)
+        
+        if bins is None:
+            bins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
+        
+        bins,intensity,err,monitor = self.sumDetector(bins,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta)
+        
+        # find mean monitor
+        meanMonitor = np.median(monitor)
+        intensity[np.isnan(intensity)] = -1
+        
+        # rescale intensity and err
+        intensity*=meanMonitor
+        err*=meanMonitor
+        
+        step = np.mean(np.diff(bins))
+        start = np.min(bins)+0.5*step
+        stop = np.max(bins)-0.5*step
+        
+        meanTemp = np.mean(self.sample_temperature)
+        stdTemp = np.std(self.sample_temperature)
+        
+        if np.all([x == self.sample_name[0] for x in self.sample_name[1:]]):
+            sampleName = self.sample_name[0]#.decode("utf-8")
+        else:
+            sampleName ='Unknown! Combined different sample names'
+        
+        if np.all([np.isclose(x,self.waveLength[0]) for x in self.waveLength[1:]]):
+            waveLength = self.waveLength[0]
+        else:
+            waveLength ='Unknown! Combined different Wavelengths'
+        
+        
+        
+        # reshape intensity and err to fit into (10,x)
+        intNum = len(intensity)
+        
+        # How many empty values to add to allow reshape
+        addEmpty = int(10*np.ceil(intNum/10.0)-intNum)
+        
+        intensity = np.concatenate([intensity,addEmpty*[np.nan]]).reshape(-1,10)
+        err = np.concatenate([err,addEmpty*[np.nan]]).reshape(-1,10)
+        
+        ## Generate output to DMC file format
+        titleLine = "DMC, "+sampleName
+        paramLine = "lambda={:9.5f}, T={:8.3f}, dT={:7.3f}, Date='{}'".format(waveLength,meanTemp,stdTemp,self[0].start_time)#.decode("utf-8"))
+        paramLine2= ' '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+sampleName+'"'
+        
+        dataLinesInt = '\n'.join([' '+' '.join(["{:6.0f}.".format(x).replace('nan.','    ') for x in line]) for line in intensity])
+        dataLinesErr = '\n'.join([' '+' '.join(["{:7.1f}".format(x).replace('nan.','    ') for x in line]) for line in err])
+        
+        ## Generate bottom information part
+        if len(self) == 1:
+            year = 2022
+            fileNumbers = str(int(self.fileName[0].split('n')[-1].split('.')[0]))
+        else:
+            year,fileNumbers = _tools.numberStringGenerator(self.fileName)
+        
+        
+        fileList = " Filelist='dmc:{}:{}'".format(year,fileNumbers)
+        
+        minmax = [np.nanmin,np.nanmax]
+        
+        twoThetaStart = self.twoTheta[:,0]
+        twoTheta = [np.min(twoThetaStart),np.max(twoThetaStart)]
+        Counts = [int(func(intensity)) for func in minmax]
+        numor = fileNumbers.replace('-',' ')
+        Npkt = len(bins) - 1        
+        
+        owner = self[-1].user.name#.decode("utf-8")
+        a1 = self[-1].DMC.monochromator.rotation_angle[0]
+        a2 = self[-1].DMC.monochromator.takeoff_angle[0]
+        a3 = self[-1].sample.rotation_angle[0]
+        mcv =  self[-1].DMC.monochromator.curvature[0]
+        mtx = self[-1].DMC.monochromator.translation_lower[0]
+        mty = self[-1].DMC.monochromator.translation_upper[0]
+        mgu = self[-1].DMC.monochromator.goniometer_upper[0]
+        mgl = self[-1].DMC.monochromator.goniometer_lower[0]
+        
+        bMon = [df.Monitor.proton_charge for df in self]
+        pMon = [df.Monitor.monitor for df in self]
+        sMon = [[0.0]]
+        
+        timeMin, timeMax = [func(self.time) for func in minmax]
+        sMonMin, sMonMax = [func(sMon) for func in minmax]
+        bMonMin, bMonMax = [func(bMon) for func in minmax]
+        aMon = np.mean([0.0 for df in self])
+        pMonMin, pMonMax = [func(pMon) for func in minmax]
+        muR = 0.0#self[-1].sample.sample_mur[0]
+        preset = self[-1].Monitor.mode#.decode("utf-8")
+        
+        paramLines = []
+        paramLines.append(" a4={:1.1f}. {:1.1f}.; Counts={} {}; Numor={}; Npkt={}; owner='{}'".format(*twoTheta,*Counts,numor,Npkt,owner))
+        paramLines.append('  a1={:4.2f}; a2={:3.2f}; a3={:3.2f}; mcv={:3.2f}; mtx={:3.2f}; mty={:3.2f}; mgu={:4.3f}; mgl={:4.3f}; '.format(a1,a2,a3,mcv,mtx,mty,mgu,mgl))
+        paramLines.append('  time={:4.4f} {:4.4f}; sMon={:4.0f}. {:4.0f}.; bMon={:3.0f}. {:3.0f}.; aMon={:1.0f}'.format(timeMin,timeMax,sMonMin,sMonMax,bMonMin,bMonMax,aMon))
+        paramLines.append("  pMon={:7.0f}. {:7.0f}.; muR={:1.0f}.; Preset='{}'".format(float(pMonMin),float(pMonMax),muR,preset))
+        paramLines.append("  calibration='{}'".format(self[-1].normalizationFile))
+        paramLines.append("")
+        fileString = '\n'.join([titleLine,paramLine,paramLine2,dataLinesInt,dataLinesErr,fileList,*paramLines])
+        
+        
+        with open(saveFile,'w') as sf:
+            sf.write(fileString)

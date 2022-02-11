@@ -117,4 +117,7 @@ def test_kwargs():
     except AttributeError as e:
         assert(e.args[0] == 'Key-word argument "corrected" not understood. Did you mean "correctedTwoTheta"?')
 
-    
+
+def test_export_PSI_format():
+
+    pass  
