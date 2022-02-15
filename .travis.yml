@@ -23,7 +23,7 @@ matrix:
         - pip3 install --user pip
         - pip3 install --user pytest>=3.6 pycodestyle python-coveralls pytest-cov>=2.5 coveralls
         - pip3 install --user .
-        - wget -UseBasicParsing 'https://www.dropbox.com/s/rl5dy5mzhf0exdk/DataDMC.zip?dl=1'
+        - wget -UseBasicParsing 'https://www.dropbox.com/s/8wnk3tuypwk2rup/DataDMC.zip?dl=1'
         - mkdir data
         - unzip DataDMC.zip?dl=1 -d data
       script: python3 -m pytest -vv
@@ -38,7 +38,7 @@ matrix:
         - pip3 install pytest>=3.6 pycodestyle python-coveralls pytest-cov>=2.5 coveralls
         - python setup.py sdist
         - pip3 install .
-        - curl -LO "https://www.dropbox.com/s/rl5dy5mzhf0exdk/DataDMC.zip?dl=1"
+        - curl -LO "https://www.dropbox.com/s/8wnk3tuypwk2rup/DataDMC.zip?dl=1"
         - 7z e DataDMC.zip?dl=1 "-odata"
       env: PATH=/c/Python38:/c/Python38/Scripts:$PATH  
       script: py.test test/ -vv
@@ -46,7 +46,7 @@ before_install:
   - pip install pytest>=3.6 pycodestyle python-coveralls pytest-cov>=2.5 coveralls
   - pip install --upgrade pip
   - pip install .
-  - wget 'https://www.dropbox.com/s/rl5dy5mzhf0exdk/DataDMC.zip?dl=1' 
+  - wget 'https://www.dropbox.com/s/8wnk3tuypwk2rup/DataDMC.zip?dl=1' 
   - mkdir data
   - unzip DataDMC.zip?dl=1 -d data
   
