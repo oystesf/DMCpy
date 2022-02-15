@@ -8,6 +8,8 @@ import pandas as pd
 import DMCpy
 import os.path
 from DMCpy import InteractiveViewer
+from collections import defaultdict
+import warnings
 
 import copy
 from DMCpy import _tools
@@ -712,3 +714,145 @@ class DataFile(object):
         if not self.scanType.lower() in ['a3','powder'] :
             raise AttributeError('Interactive Viewer can only be used for the new data files. Either for powder or for a single crystal A3 scan')
         return InteractiveViewer.InteractiveViewer(self.intensity,self.twoTheta,self.pixelPosition,self.A3,scanParameter = 'A3',scanValueUnit='deg',colorbar=True,**kwargs)
+
+
+
+
+
+
+
+
+
+
+## Dictionary for holding hdf position of attributes. HDFTranslation['a3'] gives hdf position of 'a3'
+HDFTranslation = {'sample':'/entry/sample',
+                  'sampleName':'/entry/sample/name',
+                  'unitCell':'/entry/sample/unit_cell',
+                  'intensity':'entry/DMC/detector/intensity',
+                  'wavelength':'entry/DMC/monochromator/wavelength',
+                  'twoThetaPosition':'entry/DMC/detector/detector_position',
+                  'mode':'entry/monitor/mode',
+                  'preset':'entry/monitor/preset',
+                  'startTime':'entry/start_time',
+                  'monitor':'entry/monitor/monitor',
+                  'time':'entry/monitor/time',
+                  'endTime':'entry/end_time',
+                  'comment':'entry/comment',
+                  'proposal':'entry/proposal_id',
+                  'proposalTitle':'entry/proposal_title',
+                  'localContact':'entry/local_contact/name',
+                  'proposalUser':'entry/proposal_user/name',
+                  'proposalEmail':'entry/proposal_user/email',
+                  'user':'entry/user/name',
+                  'email':'entry/user/email',
+                  'address':'entry/user/address',
+                  'affiliation':'entry/user/affiliation',
+                  'A3':'entry/sample/rotation_angle',
+                  'temperature':'entry/sample/temperature',
+                  'magneticField':'entry/sample/magnetic_field',
+                  'electricField':'entry/sample/electric_field',
+                  'scanCommand':'entry/scancommand',
+                  'title':'entry/title',
+                  'absoluteTime':'entry/control/absolute_time',
+                  'protonBeam':'entry/proton_beam/data'
+}
+## Default dictionary to perform on loaded data, i.e. take the zeroth element, swap axes, etc
+
+HDFTranslationFunctions = defaultdict(lambda : [])
+HDFTranslationFunctions['mode'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['sampleName'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['startTime'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['wavelength'] = [['mean',[]]]
+HDFTranslationFunctions['twoThetaPosition'] = [['__getitem__',[0]]]
+HDFTranslationFunctions['endTime'] = [['__getitem__',[0]]]
+HDFTranslationFunctions['experimentalIdentifier'] = [['__getitem__',[0]]]
+HDFTranslationFunctions['comment'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['proposal'] = [['__getitem__',[0]]]
+HDFTranslationFunctions['proposalTitle'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['localContact'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['proposalUser'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['proposalEmail'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['user'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['email'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['address'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['affiliation'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['scanCommand'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['title'] = [['__getitem__',[0]],['decode',['utf8']]]
+
+
+
+HDFInstrumentTranslation = {
+}
+
+HDFInstrumentTranslationFunctions = defaultdict(lambda : [])
+# HDFInstrumentTranslationFunctions['counts'] = [['swapaxes',[1,2]]]
+HDFInstrumentTranslationFunctions['twoThetaPosition'] = [['mean',]]
+HDFInstrumentTranslationFunctions['wavelength'] = [['mean',]]
+
+extraAttributes = ['name','fileLocation']
+
+possibleAttributes = list(HDFTranslation.keys())+list(HDFInstrumentTranslation.keys())+extraAttributes
+possibleAttributes.sort(key=lambda v: v.lower())
+
+
+
+def getNX_class(x,y,attribute):
+    try:
+        variableType = y.attrs['NX_class']
+    except:
+        variableType = ''
+    if variableType==attribute:
+        return x
+
+def getInstrument(file):
+    location = file.visititems(lambda x,y: getNX_class(x,y,b'NXinstrument'))
+    return file.get(location)
+
+def shallowRead(files,parameters):
+
+    parameters = np.array(parameters)
+    values = []
+    possibleAttributes.sort(key=lambda v: v.lower())
+    possible = []
+    for p in parameters:
+        possible.append(p in possibleAttributes)
+    
+    if not np.all(possible):
+        if np.sum(np.logical_not(possible))>1:
+            raise AttributeError('Parameters {} not found'.format(parameters[np.logical_not(possible)]))
+        else:
+            raise AttributeError('Parameter {} not found'.format(parameters[np.logical_not(possible)]))
+    
+    for file in files:
+        vals = {}
+        vals['file'] = file
+        with hdf.File(file,mode='r') as f:
+            instr = getInstrument(f)
+            for p in parameters:
+                if p == 'name':
+                    v = os.path.basename(file)
+                    vals[p] = v
+                    continue
+                elif p == 'fileLocation':
+                    v = os.path.dirname(file)
+                    vals[p] = v
+                    continue
+                elif p in HDFTranslation:
+                    v = np.array(f.get(HDFTranslation[p]))
+                    TrF= HDFTranslationFunctions
+                elif p in HDFInstrumentTranslation:
+                    v = np.array(instr.get(HDFInstrumentTranslation[p]))
+                    TrF= HDFInstrumentTranslationFunctions
+                else:
+                    raise AttributeError('Parameter "{}" not found'.format(p))
+                for func,args in TrF[p]:
+                    try:
+                        v = getattr(v,func)(*args)
+                    except (IndexError,AttributeError):
+                        warnings.warn('Parameter "{}" not found in file "{}"'.format(p,file))
+                        v = None
+                        
+                vals[p] = v
+        values.append(vals)
+
+    return values
