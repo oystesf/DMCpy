@@ -203,7 +203,7 @@ def test_changeOfParameters():
 def test_shallow_read():
     parameters = ['startTime','twoThetaPosition','wavelength','sampleName']
 
-    files = _tools.fileListGenerator('494,565',folder=r'Data',year=2021)
+    files = _tools.fileListGenerator('494,565',folder=r'data',year=2021)
 
     dicts = DataFile.shallowRead(files,parameters)
 
