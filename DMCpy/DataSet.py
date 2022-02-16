@@ -17,7 +17,7 @@ class DataSet(object):
 
         Raises:
 
-            - NotImplemetedError
+            - NotImplementedError
 
             - AttributeError
 
@@ -41,7 +41,7 @@ class DataSet(object):
             setattr(self,parameter,np.array([getattr(d,parameter) for d in self]))
 
         # Collect parameters from sample into self
-        for parameter in ['sample_temperature','sample_name']:
+        for parameter in ['sample_temperature']:
             setattr(self,parameter,np.array([getattr(d.sample,parameter) for d in self]))
 
         types = [df.scanType for df in self]
@@ -105,7 +105,7 @@ class DataSet(object):
 
 
     def generateMask(self,maskingFunction = DataFile.maskFunction, **pars):
-        """Generate maks to applied to data in data file
+        """Generate mask to applied to data in data file
         
         Kwargs:
 
@@ -165,17 +165,17 @@ class DataSet(object):
 
         
         
-        summedRawIntenisty, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=self.counts[self.mask])
+        summedRawIntensity, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=self.counts[np.logical_not(self.mask)])
 
         if applyNormalization:
-            summedMonitor, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=monitorRepeated[self.mask]*self.normalization[self.mask])
+            summedMonitor, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=monitorRepeated[np.logical_not(self.mask)]*self.normalization[np.logical_not(self.mask)])
         else:
-            summedMonitor, _ = np.histogram(twoTheta[self.mask],bins=twoThetaBins,weights=monitorRepeated[self.mask])
+            summedMonitor, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=monitorRepeated[np.logical_not(self.mask)])
 
-        inserted, _  = np.histogram(twoTheta[self.mask],bins=twoThetaBins)
+        inserted, _  = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins)
 
-        normalizedIntensity = summedRawIntenisty/summedMonitor
-        normalizedIntensityError =  np.sqrt(summedRawIntenisty)/summedMonitor
+        normalizedIntensity = summedRawIntensity/summedMonitor
+        normalizedIntensityError =  np.sqrt(summedRawIntensity)/summedMonitor
 
         return twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor
     
@@ -303,7 +303,7 @@ class DataSet(object):
             def plotSpectrum(ax,index=0,kwargs=kwargs):
                 if kwargs is None:
                     kwargs = {}
-                if hasattr(ax,'_errorbar'): # am errprbar has already been plotted, delete ot
+                if hasattr(ax,'_errorbar'): # am errorbar has already been plotted, delete ot
                     ax._errorbar.remove()
                     del ax._errorbar
                 
@@ -437,7 +437,7 @@ class DataSet(object):
             self.plotSpectrum(index)
 
         # Connect functions to key presses
-        def onkeypress(self,event): # pragma: no cover
+        def onKeyPress(self,event): # pragma: no cover
             if event.key in ['+','up']:
                 increaseAxis(self)
             elif event.key in ['-','down']:
@@ -448,20 +448,20 @@ class DataSet(object):
             elif event.key in ['end']:
                 index = len(self.intensityMatrix)-1
                 self.plotSpectrum(index)
-            elif event.key in ['pageup']: # Pressing pageup or page down performs steps of 10
+            elif event.key in ['pageup']: # Pressing page up or page down performs steps of 10
                 increaseAxis(self,step=10)
             elif event.key in ['pagedown']:
                 decreaseAxis(self,step=10)
 
-        # Call function for scrolling with mouse wheele
-        def onscroll(self,event): # pragma: no cover
+        # Call function for scrolling with mouse wheel
+        def onScroll(self,event): # pragma: no cover
             if(event.button=='up'):
                 increaseAxis(self)
             elif event.button=='down':
                 decreaseAxis(self)
         # Connect function calls to slots
-        fig.canvas.mpl_connect('key_press_event',lambda event: onkeypress(ax,event) )
-        fig.canvas.mpl_connect('scroll_event',lambda event: onscroll(ax,event) )
+        fig.canvas.mpl_connect('key_press_event',lambda event: onKeyPress(ax,event) )
+        fig.canvas.mpl_connect('scroll_event',lambda event: onScroll(ax,event) )
         
         return ax
 
@@ -566,8 +566,11 @@ class DataSet(object):
         
         """
         if rlu:
-            raise NotImplementedError('Currently, only plotting using Q space is supported.')
-        pos = np.array(np.concatenate([df.q.reshape(3,-1) for df in self],axis=-1))
+            #raise NotImplementedError('Currently, only plotting using Q space is supported.')
+            pos = np.array(np.concatenate([np.einsum('ij,jk',df.UBInv,df.q.reshape(3,-1)) for df in self],axis=-1))
+
+        else:
+            pos = np.array(np.concatenate([df.q.reshape(3,-1) for df in self],axis=-1))
 
         if not raw:
             data = np.concatenate([df.intensity.flatten()  for df in self])

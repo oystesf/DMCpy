@@ -27,3 +27,4 @@ DMCpy.egg-info/*
 */.coverage*
 
 coverage_html_report
+Tutorials/tutorialList.txt

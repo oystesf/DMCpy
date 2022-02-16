@@ -11,8 +11,9 @@ def Tester():
     
     A3 = np.arange(0,118,0.5) # known a3 range
     
+    twoThetaPosition = np.array([-18])
     # Load data file with corrected A3 range
-    df = DataFile.DataFile(file,A3=A3)
+    df = DataFile.DataFile(file,A3=A3,twoThetaPosition=twoThetaPosition)
     
     # Use above data file in data set. Must be inserted as a list
     ds = DataSet.DataSet([df])

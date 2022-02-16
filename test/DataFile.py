@@ -1,4 +1,4 @@
-from DMCpy import DataFile
+from DMCpy import DataFile,_tools
 import os.path
 import numpy as np
 import matplotlib.pyplot as plt
@@ -75,14 +75,14 @@ def test_masking_2D():
     df = DataFile.DataFile(os.path.join('data','dmc2021n{:06d}.hdf'.format(494)))
 
     df.generateMask(maxAngle=90) # No points are masked
-    assert(np.all(df.mask==np.ones_like(df.counts,dtype=bool)))
+    assert(np.all(df.mask==np.zeros_like(df.counts,dtype=bool)))
 
     df.generateMask(maxAngle=-1) # All points are masked
-    assert(np.all(df.mask==np.zeros_like(df.counts,dtype=bool)))
+    assert(np.all(df.mask==np.ones_like(df.counts,dtype=bool)))
 
     df.generateMask(maxAngle=7) # All points are masked
     total = np.size(df.counts)
-    maskTotal = np.sum(df.mask)
+    maskTotal = np.sum(np.logical_not(df.mask))
     assert(total>maskTotal)
 
     try:
@@ -132,5 +132,90 @@ def test_decoding():
 
     df = DataFile.DataFile(dataFile)
 
-    assert(isinstance(df.sample.sample_name,str)) # Originally byte array
+    assert(isinstance(df.sample.name,str)) # Originally byte array
     
+
+def test_saveLoad():
+    dataFile = os.path.join('data','dmc2021n{:06d}.hdf'.format(494))
+    df = DataFile.DataFile(dataFile)
+
+    splitted = dataFile.split('.')
+    splitted[-2] = splitted[-2] +'new'
+    saveFileName = '.'.join(splitted)
+
+
+    if os.path.exists(saveFileName):
+        os.remove(saveFileName)
+        
+    df.save(saveFileName)
+    df2 = DataFile.DataFile(saveFileName)
+    assert(df==df)
+    assert(df==df2)
+
+    if os.path.exists(saveFileName):
+        os.remove(saveFileName)
+
+
+def test_changeOfParameters():
+    dataFile = os.path.join('data','dmc2021n{:06d}.hdf'.format(494))
+    df = DataFile.DataFile(dataFile,twoThetaPosition=np.array([1])) # Move the two theta position away from absolute 0
+
+    originalKi = df.Ki
+    originalWaveLength = df.waveLength
+    originalQ = df.q
+
+    df.Ki = 2.0
+    assert(np.isclose(df.waveLength,np.pi))
+    assert(np.all(np.logical_not(np.isclose(df.q,originalQ))))
+
+    df.waveLength = 2.0
+    assert(np.isclose(df.Ki,np.pi))
+    assert(np.all(np.logical_not(np.isclose(df.q,originalQ))))
+    
+    df.Ki = originalKi
+    assert(np.isclose(df.waveLength,originalWaveLength))
+    assert(np.all(np.isclose(df.q,originalQ)))
+
+    df2 = DataFile.DataFile(dataFile)
+    df2.twoThetaPosition = np.array([1])
+    assert(df==df2)
+
+
+    splitted = dataFile.split('.')
+    splitted[-2] = splitted[-2] +'new'
+    saveFileName = '.'.join(splitted)
+    if os.path.exists(saveFileName):
+        os.remove(saveFileName)
+        
+    ## Change all parameters and save to check reproducibility
+    df.Ki = 2
+    df.twoThetaPosition = np.array([20.0])
+    
+    df.save(saveFileName)
+    df2 = DataFile.DataFile(saveFileName)
+    assert(df==df2)
+
+    if os.path.exists(saveFileName):
+        os.remove(saveFileName)
+    
+
+
+def test_shallow_read():
+    parameters = ['startTime','twoThetaPosition','wavelength','sampleName']
+
+    files = _tools.fileListGenerator('494,565',folder=r'data',year=2021)
+
+    dicts = DataFile.shallowRead(files,parameters)
+
+    startTimes = ['2021-12-17 15:14:59','2021-12-21 17:27:35']
+    sampleNames = ['','']
+
+    wavelength = 2.4500992
+
+    for I,(file,d) in enumerate(zip(files,dicts)):
+        assert(d['file'] == file)
+        assert(np.isclose(d['wavelength'],wavelength))
+        assert(startTimes[I] == d['startTime'])
+        assert(d['sampleName'] == sampleNames[I])
+        
+
