@@ -4,14 +4,16 @@ from Tutorial_Class import Tutorial
 
 
 def Tester():
-    from DMCpy import DataSet
+    from DMCpy import DataSet,DataFile
     import numpy as np
     import DMCpy
     
     file = r'C:/Users/lass_j/Documents/DMC_2021/dmc2021n000565.hdf'
     
-    
-    ds = DataSet.DataSet(file)
+    twoThetaPosition = np.array([-18])
+    # Load data file with corrected twoTheta
+    df = DataFile.DataFile(file,twoThetaPosition=twoThetaPosition)
+    ds = DataSet.DataSet(df)
     
     # Generate a two theta plot utilizing the corrected 2Theta values
     ax,bins,Int,Int_err,monitor = ds.plotTwoTheta()
