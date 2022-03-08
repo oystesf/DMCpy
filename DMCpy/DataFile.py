@@ -13,6 +13,7 @@ import warnings
 
 import copy
 from DMCpy import _tools
+from DMCpy import Sample
 
 scanTypes = ['Old Data','Powder','A3']
 class Entry:
@@ -222,6 +223,19 @@ class DataFile(object):
                 bulkData.data1 = data1
 
         self.updateProperty(bulkData.__dict__)
+
+        # set up sample
+        if not hasattr(self,'sample_name'):
+            name = 'Unknown'
+        else:
+            name = self.sample_name
+        self.sample = Sample.Sample(name=name)
+        
+        # if not hasattr(self,'sample'):
+        #     self.sample = Sample.Sample()
+        # else:
+        #     print(self.sample)
+        #     raise NotImplementedError('There is currently no implementation of sample from data file..... sorry')
 
         # copy important paramters to correct position
         self.radius = self.kwargs.get('radius',0.8)
