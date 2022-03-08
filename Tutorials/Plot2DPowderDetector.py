@@ -10,7 +10,9 @@ def Tester():
     
     file = r'C:/Users/lass_j/Documents/DMC_2021/dmc2021n000565.hdf'
     
-    df = DataFile.DataFile(file)
+    twoThetaPosition = np.array([-18])
+    # Load data file with corrected twoTheta
+    df = DataFile.DataFile(file,twoThetaPosition=twoThetaPosition)
     
     ax = df.plotDetector()
     

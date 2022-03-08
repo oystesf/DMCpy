@@ -11,7 +11,9 @@ The simplets data set on the DMC beam line is that of a powder measured with onl
    
    file = r'Path\To\Data\Folder\dmc2021n000565.hdf'
    
-   df = DataFile.DataFile(file)
+   twoThetaPosition = np.array([-18])
+   # Load data file with corrected twoTheta
+   df = DataFile.DataFile(file,twoThetaPosition=twoThetaPosition)
    
    ax = df.plotDetector()
    

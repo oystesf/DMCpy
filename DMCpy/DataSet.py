@@ -104,6 +104,19 @@ class DataSet(object):
         self._getData
 
 
+    @property
+    def sample(self):
+        return [df.sample for df in self]
+
+    @sample.getter
+    def sample(self):
+        return [df.sample for df in self]
+
+    @sample.setter
+    def sample(self,sample):
+        for df in self:
+            df.sample = sample
+
     def generateMask(self,maskingFunction = DataFile.maskFunction, **pars):
         """Generate mask to applied to data in data file
         

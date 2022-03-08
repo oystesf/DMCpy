@@ -5,14 +5,16 @@ When a powder has been measured, in one or more settings, these can be combined 
 .. code-block:: python
    :linenos:
 
-   from DMCpy import DataSet
+   from DMCpy import DataSet,DataFile
    import numpy as np
    import DMCpy
    
    file = r'Path\To\Data\Folder\dmc2021n000565.hdf'
    
-   
-   ds = DataSet.DataSet(file)
+   twoThetaPosition = np.array([-18])
+   # Load data file with corrected twoTheta
+   df = DataFile.DataFile(file,twoThetaPosition=twoThetaPosition)
+   ds = DataSet.DataSet(df)
    
    # Generate a two theta plot utilizing the corrected 2Theta values
    ax,bins,Int,Int_err,monitor = ds.plotTwoTheta()

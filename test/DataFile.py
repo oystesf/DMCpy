@@ -1,4 +1,4 @@
-from DMCpy import DataFile
+from DMCpy import DataFile,_tools
 import os.path
 import numpy as np
 import matplotlib.pyplot as plt
@@ -198,3 +198,24 @@ def test_changeOfParameters():
     if os.path.exists(saveFileName):
         os.remove(saveFileName)
     
+
+
+def test_shallow_read():
+    parameters = ['startTime','twoThetaPosition','wavelength','sampleName']
+
+    files = _tools.fileListGenerator('494,565',folder=r'data',year=2021)
+
+    dicts = DataFile.shallowRead(files,parameters)
+
+    startTimes = ['2021-12-17 15:14:59','2021-12-21 17:27:35']
+    sampleNames = ['','']
+
+    wavelength = 2.4500992
+
+    for I,(file,d) in enumerate(zip(files,dicts)):
+        assert(d['file'] == file)
+        assert(np.isclose(d['wavelength'],wavelength))
+        assert(startTimes[I] == d['startTime'])
+        assert(d['sampleName'] == sampleNames[I])
+        
+
