@@ -3,7 +3,7 @@ import numpy as np
 import pickle as pickle
 import matplotlib.pyplot as plt
 import pandas as pd
-
+import os
 from DMCpy import DataFile, _tools, Viewer3D
 
 
@@ -186,7 +186,7 @@ class DataSet(object):
             summedMonitor, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=monitorRepeated[np.logical_not(self.mask)])
 
         inserted, _  = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins)
-
+        
         normalizedIntensity = summedRawIntensity/summedMonitor
         normalizedIntensityError =  np.sqrt(summedRawIntensity)/summedMonitor
 
@@ -230,7 +230,7 @@ class DataSet(object):
         TwoThetaPositions = 0.5*(twoThetaBins[:-1]+twoThetaBins[1:])
 
         if not 'fmt' in kwargs:
-            kwargs['fmt'] = '-.'
+            kwargs['fmt'] = '-'
 
         if ax is None:
             fig,ax = plt.subplots()
@@ -305,7 +305,7 @@ class DataSet(object):
         
 
         if not hasattr(kwargs,'fmt'):
-            kwargs['fmt']='.-'
+            kwargs['fmt']='-'
 
         if self.type.upper() == 'OLD DATA': # Data is 1D, plot using errorbar
             ax.titles = [df.fileName for df in self]
@@ -513,7 +513,7 @@ class DataSet(object):
 
 
         if not 'fmt' in kwargs:
-            kwargs['fmt']='.-'
+            kwargs['fmt']='_'
 
         if not 'masking' in kwargs:
             kwargs['masking']= True
@@ -592,3 +592,976 @@ class DataSet(object):
         Data,bins = _tools.binData3D(dqx,dqy,dqz,pos=pos,data=data)
 
         return Viewer3D.Viewer3D(Data,bins,axis=axis, grid=grid, log=log, outputFunction=outputFunction, cmap=cmap)
+
+
+
+    def export_PSI_format(self,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
+
+        """
+        The function takes a data set and merge the files.
+        Outputs a .dat file in PSI format (Fullprof inst. 8)
+        Saves the file with input name
+        Data files used in the export is given in output file
+        
+        Kwargs:
+            
+            - dTheta (Float): stepsize of binning if no nins is given (default is 0.2)
+            
+            - twoThetaOffset (float): Linear shift of two theta, default is 0. To be used if a4 in hdf file is incorrect
+            
+            - Bins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.2)
+            
+            - outFile (str): String that will be used for outputfile. Default is automatic generated name.
+            
+        - Arguments for automatic file name:
+                
+            - sampleName (bool): Include sample name in filename. Default is True.
+        
+            - temperature (bool): Include temperature in filename. Default is True.
+        
+            - magneticField (bool): Include magnetic field in filename. Default is False.
+        
+            - electricField (bool): Include electric field in filename. Default is False.
+        
+            - fileNumber (bool): Include sample number in filename. Default is True.
+            
+        Kwargs for sumDetector:
+
+            - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.2 Deg)
+                
+            - applyNormalization (bool): Use normalization files (default True)
+                
+            - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+            
+        Returns:
+            
+            .dat file in PSI format with input name
+            
+        Note: Input is a data set.
+            
+        Example:
+            >>> inputNumber = _tools.fileListGenerator(565,folder)
+            >>> ds = DataSet.DataSet(inputNumber)
+            >>> for df in ds:
+            ...    if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+            ...        df.monitor = np.ones_like(df.monitor)
+            >>> export_PSI_format(ds)
+        
+        """
+
+        twoTheta = self.twoTheta
+        
+        anglesMin = np.min(twoTheta)
+        anglesMax = np.max(twoTheta)
+        
+        if bins is None:
+            bins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
+        
+        bins,intensity,err,monitor = self.sumDetector(bins,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta)
+        
+        bins = bins + twoThetaOffset
+        
+        # find mean monitor
+        meanMonitor = np.median(monitor)
+        intensity[np.isnan(intensity)] = -1
+        
+        # rescale intensity and err
+        intensity*=meanMonitor
+        err*=meanMonitor
+        
+        step = np.mean(np.diff(bins))
+        start = bins[0]+0.5*step
+        stop = bins[-1]-0.5*step
+        
+        meanTemp = np.mean(self.sample_temperature)
+        stdTemp = np.std(self.sample_temperature)
+
+        if np.all([x == self.sample[0].name for x in [s.name for s in self.sample[1:]]]):
+            samName = self.sample[0].name        #.decode("utf-8")
+        else:
+            samName ='Unknown! Combined different sample names'
+        
+        if np.all([np.isclose(x,self.waveLength[0]) for x in self.waveLength[1:]]):
+            waveLength = self.waveLength[0]
+        else:
+            waveLength ='Unknown! Combined different Wavelengths'
+        
+
+        # reshape intensity and err to fit into (10,x)
+        intNum = len(intensity)
+        
+        # How many empty values to add to allow reshape
+        addEmpty = int(10*np.ceil(intNum/10.0)-intNum)
+        
+        intensity = np.concatenate([intensity,addEmpty*[np.nan]]).reshape(-1,10)
+        err = np.concatenate([err,addEmpty*[np.nan]]).reshape(-1,10)
+        
+        ## Generate output to DMC file format
+        titleLine = "DMC, "+samName
+        paramLine = "lambda={:9.5f}, T={:8.3f}, dT={:7.3f}, Date='{}'".format(waveLength,meanTemp,stdTemp,self[0].start_time)#.decode("utf-8"))
+        paramLine2= ' '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
+        
+        dataLinesInt = '\n'.join([' '+' '.join(["{:6.0f}.".format(x).replace('nan.','    ') for x in line]) for line in intensity])
+        dataLinesErr = '\n'.join([' '+' '.join(["{:7.1f}".format(x).replace('nan.','    ') for x in line]) for line in err])
+        
+        ## Generate bottom information part
+        if len(self) == 1:
+            year = 2022
+            fileNumbers = str(int(self.fileName[0].split('n')[-1].split('.')[0]))
+        else:
+            year,fileNumbers = _tools.numberStringGenerator(self.fileName)
+        
+        fileList = " Filelist='dmc:{}:{}'".format(year,fileNumbers)
+        
+        minmax = [np.nanmin,np.nanmax]
+        
+        twoThetaStart = self.twoTheta[:,0]
+        twoTheta = [np.min(twoThetaStart),np.max(twoThetaStart)]
+        Counts = [int(func(intensity)) for func in minmax]
+        numor = fileNumbers.replace('-',' ')
+        Npkt = len(bins) - 1        
+        
+        owner = self[-1].user.name#.decode("utf-8")
+        a1 = self[-1].DMC.monochromator.rotation_angle[0]
+        a2 = self[-1].DMC.monochromator.takeoff_angle[0]
+        a3 = self[-1].sample.rotation_angle[0]
+        mcv = self[-1].DMC.monochromator.curvature[0]
+        mtx = self[-1].DMC.monochromator.translation_lower[0]
+        mty = self[-1].DMC.monochromator.translation_upper[0]
+        mgu = self[-1].DMC.monochromator.goniometer_upper[0]
+        mgl = self[-1].DMC.monochromator.goniometer_lower[0]
+        
+        bMon = [df.Monitor.proton_charge for df in self]
+        pMon = [df.Monitor.monitor for df in self]
+        sMon = [[0.0]]
+        
+        timeMin, timeMax = [func(self.time) for func in minmax]
+        sMonMin, sMonMax = [func(sMon) for func in minmax]
+        bMonMin, bMonMax = [func(bMon) for func in minmax]
+        aMon = np.mean([0.0 for df in self])
+        pMonMin, pMonMax = [func(pMon) for func in minmax]
+        muR = 0.0                           #self[-1].sample.sample_mur[0]
+        preset = self[-1].Monitor.mode      #.decode("utf-8")
+        
+        paramLines = []
+        paramLines.append(" a4={:1.1f}. {:1.1f}.; Counts={} {}; Numor={}; Npkt={}; owner='{}'".format(*twoTheta,*Counts,numor,Npkt,owner))
+        paramLines.append('  a1={:4.2f}; a2={:3.2f}; a3={:3.2f}; mcv={:3.2f}; mtx={:3.2f}; mty={:3.2f}; mgu={:4.3f}; mgl={:4.3f}; '.format(a1,a2,a3,mcv,mtx,mty,mgu,mgl))
+        paramLines.append('  time={:4.4f} {:4.4f}; sMon={:4.0f}. {:4.0f}.; bMon={:3.0f}. {:3.0f}.; aMon={:1.0f}'.format(timeMin,timeMax,sMonMin,sMonMax,bMonMin,bMonMax,aMon))
+        paramLines.append("  pMon={:7.0f}. {:7.0f}.; muR={:1.0f}.; Preset='{}'".format(float(pMonMin),float(pMonMax),muR,preset))
+        paramLines.append("  calibration='{}'".format(self[-1].normalizationFile))
+        paramLines.append("")
+        fileString = '\n'.join([titleLine,paramLine,paramLine2,dataLinesInt,dataLinesErr,fileList,*paramLines])
+        
+        # get magnetic field
+        # get electric field
+        mag = "not defined"
+        elec = "not defined"
+        
+        if outFile is None:
+            saveFile = "DMC"
+            if sampleName == True:
+                saveFile += f"_{samName[:6]}"
+            if temperature == True:
+                saveFile += "_" + str(meanTemp).replace(".","p")[:3] + "K"
+            if magneticField == True:
+                saveFile += "_" + mag + "T"
+            if electricField == True:
+                saveFile += "_" + elec + "keV"
+            if fileNumber == True:
+                saveFile += "_" + fileNumbers.replace(',','_')  
+        else:
+            saveFile = str(outFile.replace('.dat',''))
+            
+        with open(saveFile+".dat",'w') as sf:
+            sf.write(fileString)
+
+    def export_xye_format(self,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
+
+        """
+        The function takes a data set and merge the files.
+        Outputs a .xye file in with a comment line with info and xye data
+        Saves the file with input name
+        
+        Kwargs:
+            
+            - dTheta (Float): stepsize of binning if no nins is given (default is 0.2)
+            
+            - twoThetaOffset (float): Linear shift of two theta, default is 0. To be used if a4 in hdf file is incorrect
+            
+            - Bins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.2)
+            
+            - outFile (str): String that will be used for outputfile. Default is automatic generated name.
+            
+        - Arguments for automatic file name:
+                
+            - sampleName (bool): Include sample name in filename. Default is True.
+        
+            - temperature (bool): Include temperature in filename. Default is True.
+        
+            - magneticField (bool): Include magnetic field in filename. Default is False.
+        
+            - electricField (bool): Include electric field in filename. Default is False.
+        
+            - fileNumber (bool): Include sample number in filename. Default is True.
+            
+        Kwargs for sumDetector:
+
+            - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.2 Deg)
+                
+            - applyNormalization (bool): Use normalization files (default True)
+                
+            - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+            
+        Returns:
+            
+            .xye file in with a comment line with info and xye data
+        
+        Note: Input is a data set.
+            
+        Example:
+            >>> inputNumber = _tools.fileListGenerator(565,folder)
+            >>> ds = DataSet.DataSet(inputNumber)
+            >>> for df in ds:
+            ...    if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+            ...        df.monitor = np.ones_like(df.monitor)
+            >>> export_xye_format(ds)
+            
+        """
+
+        twoTheta = self.twoTheta
+        
+        anglesMin = np.min(twoTheta)
+        anglesMax = np.max(twoTheta)
+        
+        if bins is None:
+            bins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
+        
+        bins,intensity,err,monitor = self.sumDetector(bins,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta)
+        
+        bins = bins + twoThetaOffset
+        
+        # find mean monitor
+        meanMonitor = np.median(monitor)
+        intensity[np.isnan(intensity)] = -1
+        
+        # rescale intensity and err
+        intensity*=meanMonitor
+        err*=meanMonitor
+        
+        step = np.mean(np.diff(bins))
+        start = np.min(bins)+0.5*step
+        stop = np.max(bins)-0.5*step
+        
+        Centres=0.5*(bins[1:]+bins[:-1])
+        saveData = np.array([Centres,intensity,err])
+        
+        if np.all([x == self.sample[0].name for x in [s.name for s in self.sample[1:]]]):
+            samName = self.sample[0].name        #.decode("utf-8")
+        else:
+            samName ='Unknown! Combined different sample names'
+
+        if np.all([np.isclose(x,self.waveLength[0]) for x in self.waveLength[1:]]):
+            waveLength = self.waveLength[0]
+        else:
+            waveLength ='Unknown! Combined different Wavelengths'
+        
+        meanTemp = np.mean(self.sample_temperature)
+        
+        # fileNumbers = str(self.fileName) 
+        # fileNumbers_short = str(int(self.fileName[0].split('n')[-1].split('.')[0]))  # 
+        
+        if len(self) == 1:
+            year = 2022
+            fileNumbers = str(int(self.fileName[0].split('n')[-1].split('.')[0]))
+        else:
+            year,fileNumbers = _tools.numberStringGenerator(self.fileName)
+        
+        titleLine1 = f"# DMC at SINQ, PSI: Sample name = {samName}, wavelength = {str(waveLength)[:5]} AA, T = {str(meanTemp)[:5]} K"
+        titleLine2 = "# Filelist='dmc:{}:{}'".format(year,fileNumbers)
+        titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
+
+            
+        # get magnetic field
+        # get electric field
+        mag = "not defined"
+        elec = "not defined"
+        
+        if outFile is None:
+            saveFile = "DMC"
+            if sampleName == True:
+                saveFile += f"_{samName[:6]}"
+            if temperature == True:
+                saveFile += "_" + str(meanTemp).replace(".","p")[:3] + "K"
+            if magneticField == True:
+                saveFile += "_" + mag + "T"
+            if electricField == True:
+                saveFile += "_" + elec + "keV"
+            if fileNumber == True:
+                saveFile += "_" + fileNumbers.replace(',','_') 
+        else:
+            saveFile = str(outFile.replace('.xye',''))
+            
+        with open(saveFile+".xye",'w') as sf:
+            sf.write(titleLine1+"\n")    
+            sf.write(titleLine2+"\n") 
+            sf.write(titleLine3+"\n") 
+            np.savetxt(sf,saveData.T,delimiter='  ')
+            sf.close()
+        
+
+
+            
+    
+            
+            
+def add(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
+
+    """
+    
+    Takes a set/series file numbers and export a added/merged file. 
+    The input is read as a tuple and can be formatted as int, str, list, and several arguments separated by comma can be given. 
+    If one argument is a list or str, multiple filenumbers can be given inside.
+    
+    Exports PSI and xye format file for all scans. 
+    
+    Kwargs:
+        
+        - listinput (tuple): The function will add/merge all elements of the tuple/list. Files can be given as int, str, list.
+        
+        - folder (str): Path to directory for data files, default is current working directory
+        
+        - outFile (str): string for name of outfile (given without extension)
+        
+        - PSI (bool): Export PSI format. Default is True
+        
+        - xye (bool): Export xye format. Default is True
+        
+    - Arguments for automatic file name:
+            
+        - sampleName (bool): Include sample name in filename. Default is True.
+    
+        - temperature (bool): Include temperature in filename. Default is True.
+    
+        - magneticField (bool): Include magnetic field in filename. Default is False.
+    
+        - electricField (bool): Include electric field in filename. Default is False.
+    
+        - fileNumber (bool): Include sample number in filename. Default is True.
+        
+    Kwargs for sumDetector:
+
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.2 Deg)
+            
+        - applyNormalization (bool): Use normalization files (default True)
+            
+        - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+        
+    Example:    
+        >>> add(565,566,567,(570),'571-573',[574],sampleName=False,temperature=False)
+        
+        output:
+            DMC_565-567_570-574 as both .dat and xye files
+    """    
+
+    if folder is None:
+        folder = os.getcwd()
+        
+    listOfDataFiles = str()
+    
+    if type(listinput) == tuple:
+        for elemnt in listinput:
+            elemnt = str(elemnt)
+            elemnt = elemnt.replace('"','').replace("'","").replace('(','').replace(')','').replace('[','').replace(']','').strip(',')
+            listOfDataFiles += f"{elemnt},"
+        print(f"Export of added files: {listOfDataFiles[:-1]}")
+        inputNumber = _tools.fileListGenerator(listOfDataFiles[:-1],folder)
+        print(inputNumber)
+        ds = DataSet(inputNumber)
+        for df in ds:
+            if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+                df.monitor = np.ones_like(df.monitor)
+            print('I got ehre 2')
+        if PSI == True:
+            ds.export_PSI_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)    
+        if xye == True:
+            ds.export_xye_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)      
+    else:
+        print("Cannot export! Something wrong with input")       
+
+
+# add(565,566,567,(570),'571-573',[574],sampleName=False,temperature=False)
+
+
+
+        
+def export(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
+
+    """
+    
+    Takes a set file numbers and export induvidually. 
+    The input is read as a tuple and can be formatted as int, str, list, and arguments separated by comma is export induvidually. 
+    If one argument is a list or str, multiple filenumbers can be given inside, and they will be added/merged.
+    
+    Exports PSI and xye format file for all scans. 
+    
+    Kwargs:
+        
+        - listinput (tuple): the function will export all elements of the tuple/list inducidually. Files can be merged by [], '', and () notation.
+        
+        - folder (str): Path to directory for data files, default is current working directory
+        
+        - PSI (bool): Export PSI format. Default is True
+        
+        - xye (bool): Export xye format. Default is True
+        
+        - outFile (str): string for name of outfile (given without extension)
+        
+    - Arguments for automatic file name:
+            
+        - sampleName (bool): Include sample name in filename. Default is True.
+    
+        - temperature (bool): Include temperature in filename. Default is True.
+    
+        - magneticField (bool): Include magnetic field in filename. Default is False.
+    
+        - electricField (bool): Include electric field in filename. Default is False.
+    
+        - fileNumber (bool): Include sample number in filename. Default is True.
+        
+    Kwargs for sumDetector:
+
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.2 Deg)
+            
+        - applyNormalization (bool): Use normalization files (default True)
+            
+        - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+        
+    Example:    
+        >>> export(565,'566',[567,568,570,571],'570-573',(574,575),sampleName=None,temperature=False)  
+        
+        output: DMC_565, DMC_566, DMC_567_568_570_571, DMC_570-573, DMC_574-575 as both .dat and xye files
+        
+    """    
+
+    if folder is None:
+        folder = os.getcwd()
+    
+    if type(listinput) == tuple:
+        for elemnt in listinput:
+            elemnt = str(elemnt)
+            elemnt = elemnt.replace('"','').replace("'","").replace('(','').replace(')','').replace('[','').replace(']','').strip(',')
+            print(f"Export of: {elemnt}")
+            inputNumber = _tools.fileListGenerator(elemnt,folder)
+            ds = DataSet(inputNumber)
+            for df in ds:
+                if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+                    df.monitor = np.ones_like(df.monitor)
+            if PSI == True:
+                ds.export_PSI_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)    
+            if xye == True:
+                ds.export_xye_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)      
+    else:
+        print("Cannot export! Something wrong with input")
+        
+
+# export(565,'566',[567,568,570,571],'570-573',(574,575),sampleName=False,temperature=False)  
+        
+
+
+
+
+def export_from(startFile,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
+    
+    """
+    
+    Takes a starting file number and export xye format file for all the following files in the folder.
+
+    Exports PSI and xye format file for all scans. 
+    
+    Kwargs:
+        
+        - startFile (int): First file number for export
+        
+        - folder (str): Path to directory for data files, default is current working directory
+        
+        - PSI (bool): Export PSI format. Default is True
+        
+        - xye (bool): Export xye format. Default is True
+        
+        - all from export_PSI_format and export_xye_format
+        
+    - Arguments for automatic file name:
+            
+        - sampleName (bool): Include sample name in filename. Default is True.
+    
+        - temperature (bool): Include temperature in filename. Default is True.
+    
+        - magneticField (bool): Include magnetic field in filename. Default is False.
+    
+        - electricField (bool): Include electric field in filename. Default is False.
+    
+        - fileNumber (bool): Include sample number in filename. Default is True.
+        
+    Kwargs for sumDetector:
+
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.2 Deg)
+            
+        - applyNormalization (bool): Use normalization files (default True)
+            
+        - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+        
+    Example:       
+        >>> export_from(590,sampleName=False,temperature=False)    
+        
+    """
+    if folder is None:
+        folder = os.getcwd()
+    
+    hdf_files = [f for f in os.listdir(folder) if f.endswith('.hdf')]
+    last_hdf = hdf_files[-1]
+
+    numberOfFiles = int(last_hdf.strip('.hdf').split('n')[-1]) - int(startFile)
+    
+    fileList = list(range(startFile,startFile+numberOfFiles))
+    
+    for file in fileList:  
+
+        file = str(file)
+        file = file.replace('"','').replace("'","").replace('(','').replace(')','').replace('[','').replace(']','').replace(' ','').strip(',')
+        print(f"Export of: {file}")
+        try:
+            inputNumber = _tools.fileListGenerator(file,folder)
+            ds = DataSet(inputNumber)
+            for df in ds:
+                if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+                    df.monitor = np.ones_like(df.monitor)
+            if PSI == True:
+                ds.export_PSI_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)    
+            if xye == True:
+                ds.export_xye_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)      
+        except:
+            print(f"Cannot export! File is wrong format: {file}")
+            
+# export_from(587,sampleName=False,temperature=False)    
+
+
+
+
+
+def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
+
+    """
+    
+    Takes a starting file number and a end file number, export for all scans between (including start and end)
+
+    Exports PSI and xye format file for all scans. 
+    
+    Kwargs:
+        
+        - startFile (int): First file number for export
+        
+        - endFile (int): Final file number for export
+        
+        - folder (str): Path to directory for data files, default is current working directory
+        
+        - PSI (bool): Export PSI format. Default is True
+        
+        - xye (bool): Export xye format. Default is True
+        
+        - all from export_PSI_format and export_xye_format
+        
+    - Arguments for automatic file name:
+            
+        - sampleName (bool): Include sample name in filename. Default is True.
+    
+        - temperature (bool): Include temperature in filename. Default is True.
+    
+        - magneticField (bool): Include magnetic field in filename. Default is False.
+    
+        - electricField (bool): Include electric field in filename. Default is False.
+    
+        - fileNumber (bool): Include sample number in filename. Default is True.
+        
+    Kwargs for sumDetector:
+
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.2 Deg)
+            
+        - applyNormalization (bool): Use normalization files (default True)
+            
+        - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+        
+    Example:     
+        >>> export_from_to(565,570,sampleName=False,temperature=False)
+        
+        output: DMC_565, DMC_566, DMC_567, DMC_568, DMC_569, DMC__570 as both .xye and .dat files
+        
+    """
+    if folder is None:
+        folder = os.getcwd()
+        
+    fileList = list(range(startFile,endFile+1))
+    
+    for file in fileList:    
+        file = str(file)
+        file = file.replace('"','').replace("'","").replace('(','').replace(')','').replace('[','').replace(']','').replace(' ','').strip(',')
+        print(f"Export of: {file}")
+        try:
+            inputNumber = _tools.fileListGenerator(file,folder)
+            ds = DataSet(inputNumber)
+            for df in ds:
+                if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+                    df.monitor = np.ones_like(df.monitor)
+            if PSI == True:
+                ds.export_PSI_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)    
+            if xye == True:
+                ds.export_xye_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)      
+        except:
+            print(f"Cannot export! File is wrong format: {file}")
+
+
+# export_from_to(565,570,sampleName=False,temperature=False)
+
+
+
+
+
+
+
+def export_list(listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
+
+    """
+    
+    Takes a list and export all elements induvidually. If a list is given inside the list, these files will be added/merged.
+
+    Exports PSI and xye format file for all scans. 
+    
+    Kwargs:
+        
+        - list input (list: List of files that will be exported.
+        
+        - folder (str): Path to directory for data files, default is current working directory
+        
+        - PSI (bool): Export PSI format. Default is True
+        
+        - xye (bool): Export xye format. Default is True
+        
+        - all from export_PSI_format and export_xye_format
+        
+    - Arguments for automatic file name:
+            
+        - sampleName (bool): Include sample name in filename. Default is True.
+    
+        - temperature (bool): Include temperature in filename. Default is True.
+    
+        - magneticField (bool): Include magnetic field in filename. Default is False.
+    
+        - electricField (bool): Include electric field in filename. Default is False.
+    
+        - fileNumber (bool): Include sample number in filename. Default is True.
+        
+    Kwargs for sumDetector:
+
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.2 Deg)
+            
+        - applyNormalization (bool): Use normalization files (default True)
+            
+        - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+        
+    Example:    
+        >>> export_list([565,566,567,[569,570]],sampleName=False,temperature=False) 
+        
+        output: DMC_565, DMC_566, DMC_567, DMC_569_570 as both .xye and .dat files
+        
+    """    
+
+    if folder is None:
+        folder = os.getcwd()
+        
+    for file in listinput:   
+        file = str(file)
+        file = file.replace('"','').replace("'","").replace('(','').replace(')','').replace('[','').replace(']','').replace(' ','').strip(',')
+        print(f"Export of: {file}")           
+        try:
+            inputNumber = _tools.fileListGenerator(file,folder)
+            ds = DataSet(inputNumber)
+            for df in ds:
+                if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+                    df.monitor = np.ones_like(df.monitor)
+            if PSI == True:
+                ds.export_PSI_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)    
+            if xye == True:
+                ds.export_xye_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)      
+        except:
+            print(f"Cannot export! File is wrong format: {file}")
+            
+
+# export_list([565,566,567,[569,570]],sampleName=False,temperature=False)            
+                
+
+                
+def subtract_PSI(file1,file2,outFile=None,folder=None):
+
+    """
+    
+    This function takes two .dat files in PSI format and export a differnce curve with correct uncertainties. 
+    
+    The second file is scaled after the monitor of the first file.
+    
+    Kwargs:
+        
+        - PSI (bool): Subtract PSI format. Default is True
+        
+        - xye (bool): Subtract xye format. Default is True
+        
+        - outFile (str): string for name of outfile (given without extension)
+                
+    Example:
+        >>> subtract('DMC_565.dat','DMC_573')
+    
+    """
+
+    if folder is None:
+        folder = os.getcwd()
+        
+    with open(os.path.join(folder,file1.replace('.dat','')+'.dat'),'r') as rf:
+        allinfo1 = rf.readlines()
+        rf.close()
+
+    with open(os.path.join(folder,file2.replace('.dat','')+'.dat'),'r') as rf:
+        allinfo2 = rf.readlines()
+        rf.close()    
+
+    info1 = allinfo1[:3] 
+    info2 = allinfo2[:3] 
+
+    if info1[2].split(',')[0].split(',')[0] != info2[2].split(',')[0].split(',')[0]:
+        return print('Not same range of files! Cannot subtract.')          
+        
+    infoStr1 = (info1[2].split(',')[0].strip('#').replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('  ',' '))
+    infoArr1 = [float(x) for x in infoStr1[1:].split(' ')]
+
+    infoStr2 = (info2[2].split(',')[0].strip('#').replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('  ',' '))
+    infoArr2 = [float(x) for x in infoStr2[1:].split(' ')]
+        
+    monitor1 = infoArr1[3]
+    monitor2 = infoArr2[3]
+    monitorRatio = monitor1/monitor2    
+    dataPoints = int((infoArr1[2]-infoArr1[0]) / infoArr1[1]) + 1
+    subInt = []
+    subErr = []
+    
+    dataLines = int(np.ceil(dataPoints/10)) 
+    commentlines = 3
+    
+    for intLines in range(dataLines): 
+        subIntList = []
+        subErrList = []
+        intline1= allinfo1[intLines+commentlines]
+        intline2= allinfo2[intLines+commentlines]
+        errline1= allinfo1[intLines+dataLines+commentlines]
+        errline2= allinfo2[intLines+dataLines+commentlines]
+        intensity1 = [int(x) for x in intline1[:-2].replace(' ','').split('.') if x != '']    
+        intensity2 = [int(x) for x in intline2[:-2].replace(' ','').split('.') if x != '']  
+        err1 = [float(x) for x in errline1[:-2].replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('nan','').replace('na','').split(' ') if x != '' ] 
+        err2 = [float(x) for x in errline2[:-2].replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('nan','').replace('na','').split(' ') if x != '' ] 
+        for i, j in zip(intensity1,intensity2):
+            subIntList.append(i-j*monitorRatio)
+        for h, k in zip(err1,err2):
+            subErrList.append(np.sqrt(h**2 + monitorRatio**2 * k**2))
+        subInt.append(subIntList)
+        subErr.append(subErrList)
+    
+    titleLine = str(info1[0]).strip('\n') + ', subtracted: ' + str(info2[0])  + str(info1[1]) + str(info1[2]).strip('\n')
+    dataLinesInt = '\n'.join([' '+' '.join(["{:6.0f}.".format(x) for x in line]) for line in subInt])
+    dataLinesErr = '\n'.join([' '+' '.join(["{:7.1f}".format(x) for x in line]) for line in subErr])
+    indexParamLines = dataLines*2 + commentlines
+    paramLine1 = '\n'.join([str(line).strip('\n') for line in allinfo1[indexParamLines:]])
+    paramLine2 = ' subtracted:'
+    paramLine3 = str(info2[0])  + str(info1[1]) + str(info1[2]).strip('\n')
+    paramLine4 = ''.join([str(line) for line in allinfo2[indexParamLines:]])
+    fileString = '\n'.join([titleLine,dataLinesInt,dataLinesErr,paramLine1,paramLine2,paramLine3,paramLine4])
+    
+    if outFile is None:
+        saveFile = file1.replace('.dat','') + '_sub_' + file2.replace('.dat','')
+    else:
+        saveFile = str(outFile.replace('.dat',''))
+
+    print(f'Subtracting PSI: {file1}.dat minus {file2}.dat') 
+
+    with open(saveFile+".dat",'w') as sf:
+        sf.write(fileString)
+    
+    
+    
+# subtract_PSI('DMC_565','DMC_573')
+
+
+def subtract_xye(file1,file2,outFile=None,folder=None):
+
+    """
+    
+    This function takes two .xye files and export a differnce curve with correct uncertainties. 
+    
+    The second file is scaled after the monitor of the first file.
+    
+    Kwargs:
+        
+        - PSI (bool): Subtract PSI format. Default is True
+        
+        - xye (bool): Subtract xye format. Default is True
+        
+        - outFile (str): string for name of outfile (given without extension)    
+        
+    Example:
+        >>> subtract('DMC_565.xye','DMC_573')
+        
+    """
+    
+    if folder is None:
+        folder = os.getcwd()
+        
+    data1 = np.genfromtxt(os.path.join(folder,file1.replace('.xye','')+'.xye'), delimiter='  ')
+    data2 = np.genfromtxt(os.path.join(folder,file2.replace('.xye','')+'.xye'), delimiter='  ')  
+    
+    with open(os.path.join(folder,file1.replace('.xye','')+'.xye'),'r') as rf:
+        info1 = rf.readlines()[:3]
+        rf.close()
+
+    with open(os.path.join(folder,file2.replace('.xye','')+'.xye'),'r') as rf:
+        info2 = rf.readlines()[:3]
+        rf.close()
+
+    if info1[2].split(',')[0].split(',')[0] != info2[2].split(',')[0].split(',')[0]:
+        return print('Not same range of files! Cannot subtract.')          
+        
+    infoStr1 = (info1[2].split(',')[0].strip('#').replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('  ',' '))
+    infoArr1 = [float(x) for x in infoStr1[1:].split(' ')]
+
+    infoStr2 = (info2[2].split(',')[0].strip('#').replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('  ',' '))
+    infoArr2 = [float(x) for x in infoStr2[1:].split(' ')]
+
+    monitorRatio = infoArr1[3]/infoArr2[3]
+
+    subInt = np.subtract(data1[:,1], np.multiply(monitorRatio,(data2[:,1])))
+
+    intErr2 = monitorRatio * data2[:,2]
+    
+    subErr = 0 * data2[:,1]
+    
+    for i in range(len(data1[:,2])):
+        subErr[i] = np.sqrt( (data1[i,2])**2 + (intErr2[i])**2 ) 
+    
+    saveData = np.array([data1[:,0],subInt,subErr])
+
+    if outFile is None:
+        saveFile = file1.replace('.xye','') + '_sub_' + file2.replace('.xye','')
+    else:
+        saveFile = str(outFile.replace('.xye',''))
+
+    print(f'Subtracting xye: {file1}.xye minus {file2}.xye')    
+
+    with open(saveFile+".xye",'w') as sf:
+        sf.write('# ' + str(info1) + "\n")   
+        sf.write("# subtracted file: \n") 
+        sf.write('# ' + str(info2) + "\n") 
+        np.savetxt(sf,saveData.T,delimiter='  ')
+        sf.close()
+
+        
+    # subtract_xye('DMC_565','DMC_573')
+
+def subtract(file1,file2,PSI=True,xye=True,outFile=None,folder=None):
+    """
+
+    This function takes two files and export a differnce curve with correct uncertainties. 
+
+    The second file is scaled after the monitor of the first file.
+
+    Kwargs:
+        
+        - PSI (bool): Subtract PSI format. Default is True
+        
+        - xye (bool): Subtract xye format. Default is True
+        
+        - outFile (str): string for name of outfile (given without extension)    
+        
+    Example:
+        >>> subtract('DMC_565.xye','DMC_573')
+
+    """
+
+
+    if folder is None:
+        folder = os.getcwd()
+
+    file1 = file1.replace('.xye','').replace('.dat','')
+    file2 = file2.replace('.xye','').replace('.dat','')
+
+    if PSI == True:
+        try:
+            subtract_PSI(file1,file2,outFile,folder=folder)
+        except:
+            print('Cannot subtract PSI format files')
+    if xye == True:
+        try:
+            subtract_xye(file1,file2,outFile,folder=folder)
+        except:
+            print('Cannot subtract xye format files')
+        
+        
+#subtract('DMC_565.xye','DMC_573')
+
+def sort_export():
+    
+    pass
+
+def export_help(): 
+    print(" ")
+    print(" The following commands are avaliable for export of powder data in DMCpy:")
+    print(" ")
+    print("     export, add, export_from, export_from_to, export_list")
+    print(" ")
+    print(" They export both PSI and xye format by default. Can be deactivated by the arguments PSI=False and xye=False")
+    print(" ")
+    print('      - export: For export of induvidual sets of scan files. Files can be merged by [] or "" notation, i.e. list or strings.')
+    print('      - add: TThe function adds/merge all the files given. ')
+    print("      - export_from: For export of all data files in a folder after a startfile")
+    print("      - export_from_to: It exports all files between and including two given files")
+    print("      - export_list: Takes a list and export all the files separatly. If a list is given inside the list, the files will be merged ")
+    print(" ")
+    print(" Examples:  ")
+    print('      >>> export(565,"566",[567,568,570,571],"570-573",(574,575),sampleName=False,temperature=False)  ')
+    print("      >>> add(565,566,567,(570),'571-573',[574],sampleName=False,temperature=False) ")
+    print("      >>> export_from(590,fileNumber=True)  ")
+    print("      >>> export_from_to(565,570,dTheta=0.25,twoThetaOffset=2.0)")
+    print("      >>> export_list([565,566,567,570],temperature=False,xye=False)")
+    print("      >>> export_list([565,566,567,[568,569,570]]) # This is an example of list inside a list. 568,569,570 will be merged in this case. ")
+    print('      >>> add("565,567,570-573",outFile="mergefilename")')
+    print('      >>> export(565,folder=r"Path\To\Data\Folder")   #Note r"..." notation')      
+    print(" ")
+    print(" ")
+    print(" Most important kewords and aguments:")
+    print(" ")
+    print("     - dTheta (float): stepsize of binning if no bins is given (default is 0.2)")
+    print("     - outFile (str): String that will be used for outputfile. Default is automatic generated name.")
+    print("     - twoThetaOffset (float): Linear shift of two theta, default is 0. To be used if a4 in hdf file is incorrect")
+    print(" ")
+    print(" Arguments for automatic file name:")
+    print(" ")
+    print("     - sampleName (bool): Include sample name in filename. Default is True.")
+    print("     - temperature (bool): Include temperature in filename. Default is True.")
+    print("     - fileNumber (bool): Include sample number in filename. Default is True.")
+    print("     - magneticField (bool): Include magnetic field in filename. Default is False.")
+    print("     - electricField (bool): Include electric field in filename. Default is False.")
+    print(" ")
+    print(" ")
+    print(" There is also a subtract function for subtracting PSI format files and xye format files. ")    
+    print(" The files are normalized to the onitor of the first dataset.")
+    print(" Input is two existing filenames with or without extenstion. ")
+    print(" PSI and xye format can be deactivated by PSI = False and xye = False")    
+    print(" Alternatively can subtract_PSI or subtract_xye be used")
+    print(" ")
+    print("      >>> subtract('DMC_565.xye','DMC_573')")    
+    print(" ")
+    
+

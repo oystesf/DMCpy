@@ -382,6 +382,8 @@ class DataFile(object):
 
     @twoThetaPosition.getter
     def twoThetaPosition(self):
+        if not hasattr(self.DMC.detector,'detector_position'):
+            self.DMC.detector.detector_position = [0.0]
         return self.DMC.detector.detector_position
 
     @twoThetaPosition.setter
@@ -519,7 +521,7 @@ class DataFile(object):
         # If data is one dimensional
         if self.twoTheta.shape[1] == 1:
             if not 'fmt' in kwargs:
-                kwargs['fmt'] = '.-'
+                kwargs['fmt'] = '_'
 
             ax._err = ax.errorbar(self.twoTheta[np.logical_not(self.mask)],intensity[np.logical_not(self.mask)],intensity_err[np.logical_not(self.mask)],**kwargs)
             ax.set_xlabel(r'$2\theta$ [deg]')

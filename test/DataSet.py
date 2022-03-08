@@ -117,4 +117,154 @@ def test_kwargs():
     except AttributeError as e:
         assert(e.args[0] == 'Key-word argument "corrected" not understood. Did you mean "correctedTwoTheta"?')
 
+
+
+def test_export_PSI_format(folder='data'):  
     
+    if folder is None:
+        folder = os.getcwd()
+        
+    fileNumbers = [565]
+    
+    dataFiles = [os.path.join(folder,'dmc2021n{:06d}.hdf'.format(no)) for no in fileNumbers]
+    print(dataFiles)
+    ds = DataSet.DataSet(dataFiles)
+    
+    for df in ds:
+        if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+            df.monitor = np.ones_like(df.monitor)
+    
+    ds.export_PSI_format(outFile="testfile")
+    
+    assert(os.path.exists("testfile.dat") == True and os.stat("testfile.dat").st_size != 0)
+    
+    os.remove("testfile.dat")
+
+#test_export_PSI_format()    
+
+
+def test_export_xye_format(folder='data'):
+    
+    if folder is None:
+        folder = os.getcwd()
+        
+    fileNumbers = [565]
+    
+    dataFiles = [os.path.join(folder,'dmc2021n{:06d}.hdf'.format(no)) for no in fileNumbers]
+    
+    ds = DataSet.DataSet(dataFiles)
+    
+    for df in ds:
+        if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+            df.monitor = np.ones_like(df.monitor)
+    
+    ds.export_xye_format(outFile="testfile")
+    
+    assert(os.path.exists("testfile.xye") == True and os.stat("testfile.xye").st_size != 0)
+    
+    os.remove("testfile.xye")
+
+#test_export_xye_format() 
+
+
+
+def test_add():
+    
+    DataSet.add(565,566,outFile='test_add',folder='data')
+    
+    assert(os.path.exists("test_add.dat") == True and os.stat("test_add.dat").st_size != 0)
+    assert(os.path.exists("test_add.xye") == True and os.stat("test_add.xye").st_size != 0)
+    os.remove("test_add.dat")
+    os.remove("test_add.xye")
+
+# test_add()    
+
+def test_export():
+    
+    DataSet.export(565,outFile='test_export',folder='data')
+    
+    assert(os.path.exists("test_export.dat") == True and os.stat("test_export.dat").st_size != 0)
+    assert(os.path.exists("test_export.xye") == True and os.stat("test_export.xye").st_size != 0)
+    os.remove("test_export.dat")
+    os.remove("test_export.xye")
+
+# test_export()
+
+
+def test_export_from(folder = 'data'):
+    """
+    Runs the last two files in the data folder. These files must be powder scans for test to work    
+    """
+
+    if folder is None:
+        folder = os.getcwd()
+        
+    hdf_files = [f for f in os.listdir(folder) if f.endswith('.hdf')]
+    last_hdf = hdf_files[-1]
+    numberOfFiles = int(last_hdf.strip('.hdf').split('n')[-1])
+    file1 = f"DMC_{numberOfFiles-2}"
+    file2 = f"DMC_{numberOfFiles-1}"
+    print(file1)
+    print(file2)
+    DataSet.export_from(numberOfFiles-2,sampleName=False,temperature=False,folder='data')
+    
+    assert(os.path.exists(file1+'.dat') == True and os.stat(file1+'.dat').st_size != 0)
+    assert(os.path.exists(file2+'.dat') == True and os.stat(file2+'.dat').st_size != 0)   
+    assert(os.path.exists(file1+'.xye') == True and os.stat(file1+'.xye').st_size != 0)
+    assert(os.path.exists(file2+'.xye') == True and os.stat(file2+'.xye').st_size != 0)       
+    os.remove(file1+'.dat')
+    os.remove(file2+'.dat')
+    os.remove(file1+'.xye')
+    os.remove(file2+'.xye')
+
+
+def test_export_from_to():
+    
+    DataSet.export_from_to(565,566,sampleName=False,temperature=False,folder='data')
+    
+    assert(os.path.exists("DMC_565.dat") == True and os.stat("DMC_565.dat").st_size != 0)
+    assert(os.path.exists("DMC_565.xye") == True and os.stat("DMC_565.xye").st_size != 0)
+    assert(os.path.exists("DMC_566.dat") == True and os.stat("DMC_566.dat").st_size != 0)
+    assert(os.path.exists("DMC_566.xye") == True and os.stat("DMC_566.xye").st_size != 0)
+    os.remove("DMC_565.dat")
+    os.remove("DMC_565.xye")
+    os.remove("DMC_566.dat")
+    os.remove("DMC_566.xye")
+
+# test_export_from_to()
+
+
+def test_export_list():
+    
+    DataSet.export([565],outFile='test_export_list',folder='data')
+    
+    assert(os.path.exists("test_export_list.dat") == True and os.stat("test_export_list.dat").st_size != 0)
+    assert(os.path.exists("test_export_list.xye") == True and os.stat("test_export_list.xye").st_size != 0)
+    os.remove("test_export_list.dat")
+    os.remove("test_export_list.xye")
+    
+# test_export_list()
+
+def test_subtract_PSI():
+    
+    DataSet.subtract_PSI('DMC_565','DMC_566',outFile='test_subtract_PSI',folder='data')
+    
+    assert(os.path.exists("test_subtract_PSI.dat") == True and os.stat("test_subtract_PSI.dat").st_size != 0)
+    os.remove("test_subtract_PSI.dat")
+
+def test_subtract_xye():
+    
+    DataSet.subtract_xye('DMC_565','DMC_566',outFile='test_subtract_xye',folder='data')
+    
+    assert(os.path.exists("test_subtract_xye.xye") == True and os.stat("test_subtract_xye.xye").st_size != 0)
+    os.remove("test_subtract_xye.xye")
+
+
+def test_subtract():
+    
+    DataSet.subtract('DMC_565','DMC_566',outFile='test_subtract',folder='data')
+
+    assert(os.path.exists("test_subtract.dat") == True and os.stat("test_subtract.dat").st_size != 0)
+    assert(os.path.exists("test_subtract.xye") == True and os.stat("test_subtract.xye").st_size != 0)
+    os.remove("test_subtract.dat")
+    os.remove("test_subtract.xye")
