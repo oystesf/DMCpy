@@ -382,6 +382,8 @@ class DataFile(object):
 
     @twoThetaPosition.getter
     def twoThetaPosition(self):
+        if not hasattr(self.DMC.detector,'detector_position'):
+            self.DMC.detector.detector_position = [0.0]
         return self.DMC.detector.detector_position
 
     @twoThetaPosition.setter
