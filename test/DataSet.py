@@ -191,11 +191,31 @@ def test_export():
 # test_export()
 
 
-def test_export_from():
+def test_export_from(folder = 'data'):
+    """
+    Runs the last two files in the data folder. These files must be powder scans for test to work    
+    """
+
+    if folder is None:
+        folder = os.getcwd()
+        
+    hdf_files = [f for f in os.listdir(folder) if f.endswith('.hdf')]
+    last_hdf = hdf_files[-1]
+    numberOfFiles = int(last_hdf.strip('.hdf').split('n')[-1])
+    file1 = f"DMC_{numberOfFiles-2}"
+    file2 = f"DMC_{numberOfFiles-1}"
+    print(file1)
+    print(file2)
+    DataSet.export_from(numberOfFiles-2,sampleName=False,temperature=False,folder='data')
     
-    # this test will depend on the data files in the folder we run it
-    
-    pass
+    assert(os.path.exists(file1+'.dat') == True and os.stat(file1+'.dat').st_size != 0)
+    assert(os.path.exists(file2+'.dat') == True and os.stat(file2+'.dat').st_size != 0)   
+    assert(os.path.exists(file1+'.xye') == True and os.stat(file1+'.xye').st_size != 0)
+    assert(os.path.exists(file2+'.xye') == True and os.stat(file2+'.xye').st_size != 0)       
+    os.remove(file1+'.dat')
+    os.remove(file2+'.dat')
+    os.remove(file1+'.xye')
+    os.remove(file2+'.xye')
 
 
 def test_export_from_to():
