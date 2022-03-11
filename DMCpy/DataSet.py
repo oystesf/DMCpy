@@ -905,7 +905,32 @@ class DataSet(object):
             sf.close()
         
 
-
+    def updateDataFiles(self,key,value):
+        if np.all([hasattr(df,key) for df in self]): # all datafiles have the key
+            try:
+                length = len(value)
+            except TypeError:
+                length = 1
+            
+            if length == len(self): # input has the same length as number of data files! Apply individually
+                if length == 1:
+                    value = [value]
+                for v,df in zip(value,self):
+                    setattr(df,key,v)
+            elif length == 1:
+                for df in self:
+                    setattr(df,key,value)
+            else:
+                raise AttributeError('Length of DataSet is {} but received {} values for {}'.format(len(self),length,key))
+                
+            self._getData() # update!
+            
+        else:
+            missing = len(self)-np.sum([hasattr(df,key) for df in self])
+            if missing == 0:
+                raise AttributeError('DataFiles do not contain',key)
+            else:
+                raise AttributeError('Not all DataFiles do not contain',key)
             
     
             

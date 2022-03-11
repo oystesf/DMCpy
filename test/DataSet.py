@@ -1,3 +1,6 @@
+from xml.dom.minidom import Attr
+
+from attr import Attribute
 from DMCpy import DataSet
 from DMCpy import DataFile
 import os.path
@@ -266,3 +269,33 @@ def test_subtract():
     assert(os.path.exists("test_subtract.xye") == True and os.stat("test_subtract.xye").st_size != 0)
     os.remove("test_subtract.dat")
     os.remove("test_subtract.xye")
+
+def test_updateDataFileParameters():
+
+
+    fileNumbers = [565,565,566]
+    dataFiles = [os.path.join('data','dmc2021n{:06d}.hdf'.format(no)) for no in fileNumbers]
+
+    ds = DataSet.DataSet(dataFiles)
+    oldWavelength = [df.wavelength for df in ds]
+
+    newWavelength = 10
+    ds.updateDataFiles('wavelength',newWavelength)
+    assert(np.all([np.isclose(newWavelength,df.wavelength) for df in ds]))
+
+    try:
+        ds.updateDataFiles('WaveLength',newWavelength) # Doesn't have the attribute
+        assert False
+    except AttributeError:
+        assert True
+
+    try:
+        ds.updateDataFiles('wavelength',[10,10]) # Wrong length of parameters
+        assert False
+    except AttributeError:
+        assert True
+
+
+    newValues = np.random.rand(len(ds))
+    ds.updateDataFiles('twoThetaPosition',newValues)
+    assert(np.all([np.isclose(nV,df.twoThetaPosition) for nV,df in zip(newValues,ds)]))
