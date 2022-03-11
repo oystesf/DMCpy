@@ -204,8 +204,7 @@ def test_export_from(folder = 'data'):
     numberOfFiles = int(last_hdf.strip('.hdf').split('n')[-1])
     file1 = f"DMC_{numberOfFiles-2}"
     file2 = f"DMC_{numberOfFiles-1}"
-    print(file1)
-    print(file2)
+ 
     DataSet.export_from(numberOfFiles-2,sampleName=False,temperature=False,folder='data')
     
     assert(os.path.exists(file1+'.dat') == True and os.stat(file1+'.dat').st_size != 0)
