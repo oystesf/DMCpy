@@ -1048,14 +1048,17 @@ def export(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,
             elemnt = elemnt.replace('"','').replace("'","").replace('(','').replace(')','').replace('[','').replace(']','').strip(',')
             print(f"Export of: {elemnt}")
             inputNumber = _tools.fileListGenerator(elemnt,folder)
-            ds = DataSet(inputNumber)
-            for df in ds:
-                if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
-                    df.monitor = np.ones_like(df.monitor)
-            if PSI == True:
-                ds.export_PSI_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)    
-            if xye == True:
-                ds.export_xye_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)      
+            try:
+                ds = DataSet(inputNumber)
+                for df in ds:
+                    if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+                        df.monitor = np.ones_like(df.monitor)
+                if PSI == True:
+                    ds.export_PSI_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)    
+                if xye == True:
+                    ds.export_xye_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)      
+            except:
+                print(f"Cannot export! File is wrong format: {elemnt}")
     else:
         print("Cannot export! Something wrong with input")
         
@@ -1356,8 +1359,8 @@ def subtract_PSI(file1,file2,outFile=None,folder=None):
         intline2= allinfo2[intLines+commentlines]
         errline1= allinfo1[intLines+dataLines+commentlines]
         errline2= allinfo2[intLines+dataLines+commentlines]
-        intensity1 = [int(x) for x in intline1[:-2].replace(' ','').split('.') if x != '']    
-        intensity2 = [int(x) for x in intline2[:-2].replace(' ','').split('.') if x != '']  
+        intensity1 = [float(x) for x in intline1[:-2].replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('nan','').replace('na','').split(' ') if x != '' ]  
+        intensity2 = [float(x) for x in intline2[:-2].replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('nan','').replace('na','').split(' ') if x != '' ] 
         err1 = [float(x) for x in errline1[:-2].replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('nan','').replace('na','').split(' ') if x != '' ] 
         err2 = [float(x) for x in errline2[:-2].replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('nan','').replace('na','').split(' ') if x != '' ] 
         for i, j in zip(intensity1,intensity2):
