@@ -387,7 +387,7 @@ class DataFile(object):
         
         #self.Monitor = self.monitor
         
-        if self.monitor == np.array([0]): # error mode from commissioning
+        if np.any(np.isclose(self.monitor,0)): # error mode from commissioning
             self.monitor = np.ones(self.counts.shape[0])
         
         self.alpha = np.rad2deg(np.arctan2(self.pixelPosition[2],self.radius))

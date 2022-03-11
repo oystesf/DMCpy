@@ -131,24 +131,26 @@ def test_decoding():
     
 
 def test_saveLoad():
-    dataFile = os.path.join('data','dmc2021n{:06d}.hdf'.format(494))
-    df = DataFile.loadDataFile(dataFile)
 
-    splitted = dataFile.split('.')
-    splitted[-2] = splitted[-2] +'new'
-    saveFileName = '.'.join(splitted)
+    dataFiles = [os.path.join('data','dmc2021n{:06d}.hdf'.format(number)) for number in [565,597]]
+    for dataFile in dataFiles:
+        df = DataFile.loadDataFile(dataFile)
+
+        splitted = dataFile.split('.')
+        splitted[-2] = splitted[-2] +'new'
+        saveFileName = '.'.join(splitted)
 
 
-    if os.path.exists(saveFileName):
-        os.remove(saveFileName)
-        
-    df.save(saveFileName)
-    df2 = DataFile.loadDataFile(saveFileName)
-    assert(df==df)
-    assert(df==df2)
+        if os.path.exists(saveFileName):
+            os.remove(saveFileName)
+            
+        df.save(saveFileName)
+        df2 = DataFile.loadDataFile(saveFileName)
+        assert(df==df)
+        assert(df==df2)
 
-    if os.path.exists(saveFileName):
-        os.remove(saveFileName)
+        if os.path.exists(saveFileName):
+            os.remove(saveFileName)
 
 
 def test_changeOfParameters():
