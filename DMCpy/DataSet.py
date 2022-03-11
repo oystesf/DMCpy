@@ -29,7 +29,7 @@ class DataSet(object):
             if isinstance(dataFiles,(str,DataFile.DataFile)): # If either string or DataFile instance wrap in a list
                 dataFiles = [dataFiles]
             try:
-                self.dataFiles = [DataFile.DataFile(dF) if isinstance(dF,(str)) else dF for dF in dataFiles]
+                self.dataFiles = [DataFile.loadDataFile(dF) if isinstance(dF,(str)) else dF for dF in dataFiles]
             except TypeError:
                 raise AttributeError('Provided dataFiles attribute is not iterable, filepath, or of type DataFile. Got {}'.format(dataFiles))
             
@@ -37,14 +37,11 @@ class DataSet(object):
 
     def _getData(self):
         # Collect parameters listed below across data files into self
-        for parameter in ['counts','monitor','twoTheta','correctedTwoTheta','fileName','pixelPosition','waveLength','mask','normalization','normalizationFile','time']:
+        for parameter in ['counts','monitor','twoTheta','correctedTwoTheta','fileName','pixelPosition','waveLength','mask','normalization','normalizationFile','time','temperature']:
             setattr(self,parameter,np.array([getattr(d,parameter) for d in self]))
 
-        # Collect parameters from sample into self
-        for parameter in ['sample_temperature']:
-            setattr(self,parameter,np.array([getattr(d.sample,parameter) for d in self]))
-
-        types = [df.scanType for df in self]
+        
+        types = [df.fileType for df in self]
         if len(types)>1:
             if not np.all([types[0] == t for t in types[1:]]):
                 raise AttributeError('Provided data files have different types!\n'+'\n'.join([df.fileName+': '+df.scanType for df in self]))
@@ -90,7 +87,7 @@ class DataSet(object):
                 item = [item]
             for f in item:
                 if isinstance(f,str):
-                    f = DataFile.DataFile(f)
+                    f = DataFile.loadDataFile(f)
                 self.dataFiles.append(f)
         except Exception as e:
             raise(e)
@@ -169,15 +166,12 @@ class DataSet(object):
             dTheta = 0.5
             twoThetaBins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
 
-        
-        if self.type.upper() == 'A3':
+        if self.type.lower() == 'singlecrystal':
             monitorRepeated = np.array([np.ones_like(df.counts)*df.monitor.reshape(-1,1,1) for df in self])
         else:
             monitorRepeated = np.repeat(np.repeat(self.monitor[:,np.newaxis,np.newaxis],self.counts.shape[-2],axis=1),self.counts.shape[-1],axis=2)
             monitorRepeated.shape = self.counts.shape
 
-        
-        
         summedRawIntensity, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=self.counts[np.logical_not(self.mask)])
 
         if applyNormalization:
@@ -278,7 +272,7 @@ class DataSet(object):
         
         twoTheta = self.twoTheta
 
-        if self.type.upper() in ['A3','POWDER']:
+        if self.type.lower() in ['singlecrystal','powder']:
             shape = self.counts.shape
             
             intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,:,np.newaxis,np.newaxis]).reshape(-1,shape[2],shape[3])
@@ -380,7 +374,7 @@ class DataSet(object):
                 
                 ax.set_ylabel('Intensity [arb]')
 
-        elif self.type.upper() == 'A3':
+        elif self.type.lower() == 'A3':
             
             
             ax.A3 = np.concatenate([df.A3 for df in self],axis=0)
@@ -673,8 +667,9 @@ class DataSet(object):
         start = bins[0]+0.5*step
         stop = bins[-1]-0.5*step
         
-        meanTemp = np.mean(self.sample_temperature)
-        stdTemp = np.std(self.sample_temperature)
+        temperatures = [df.temperature for df in self]
+        meanTemp = np.mean(temperatures)
+        stdTemp = np.std(temperatures)
 
         if np.all([x == self.sample[0].name for x in [s.name for s in self.sample[1:]]]):
             samName = self.sample[0].name        #.decode("utf-8")
@@ -698,7 +693,7 @@ class DataSet(object):
         
         ## Generate output to DMC file format
         titleLine = "DMC, "+samName
-        paramLine = "lambda={:9.5f}, T={:8.3f}, dT={:7.3f}, Date='{}'".format(waveLength,meanTemp,stdTemp,self[0].start_time)#.decode("utf-8"))
+        paramLine = "lambda={:9.5f}, T={:8.3f}, dT={:7.3f}, Date='{}'".format(waveLength,meanTemp,stdTemp,self[0].startTime)#.decode("utf-8"))
         paramLine2= ' '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
         
         dataLinesInt = '\n'.join([' '+' '.join(["{:6.0f}.".format(x).replace('nan.','    ') for x in line]) for line in intensity])
@@ -721,18 +716,18 @@ class DataSet(object):
         numor = fileNumbers.replace('-',' ')
         Npkt = len(bins) - 1        
         
-        owner = self[-1].user.name#.decode("utf-8")
-        a1 = self[-1].DMC.monochromator.rotation_angle[0]
-        a2 = self[-1].DMC.monochromator.takeoff_angle[0]
-        a3 = self[-1].sample.rotation_angle[0]
-        mcv = self[-1].DMC.monochromator.curvature[0]
-        mtx = self[-1].DMC.monochromator.translation_lower[0]
-        mty = self[-1].DMC.monochromator.translation_upper[0]
-        mgu = self[-1].DMC.monochromator.goniometer_upper[0]
-        mgl = self[-1].DMC.monochromator.goniometer_lower[0]
+        owner = self[-1].user#.decode("utf-8")
+        a1 = self[-1].monochromatorRotationAngle[0]
+        a2 = self[-1].monochromatorTakeoffAngle[0]
+        a3 = self[-1].A3[0]
+        mcv = self[-1].monochromatorCurvature[0]
+        mtx = self[-1].monochromatorTranslationLower[0]
+        mty = self[-1].monochromatorTranslationUpper[0]
+        mgu = self[-1].monochromatorGoniometerUpper[0]
+        mgl = self[-1].monochromatorGoniometerLower[0]
         
-        bMon = [df.Monitor.proton_charge for df in self]
-        pMon = [df.Monitor.monitor for df in self]
+        bMon = [df.protonBeam for df in self]
+        pMon = [df.monitor for df in self]
         sMon = [[0.0]]
         
         timeMin, timeMax = [func(self.time) for func in minmax]
@@ -741,7 +736,7 @@ class DataSet(object):
         aMon = np.mean([0.0 for df in self])
         pMonMin, pMonMax = [func(pMon) for func in minmax]
         muR = 0.0                           #self[-1].sample.sample_mur[0]
-        preset = self[-1].Monitor.mode      #.decode("utf-8")
+        preset = self[-1].mode      #.decode("utf-8")
         
         paramLines = []
         paramLines.append(" a4={:1.1f}. {:1.1f}.; Counts={} {}; Numor={}; Npkt={}; owner='{}'".format(*twoTheta,*Counts,numor,Npkt,owner))
@@ -865,7 +860,8 @@ class DataSet(object):
         else:
             waveLength ='Unknown! Combined different Wavelengths'
         
-        meanTemp = np.mean(self.sample_temperature)
+        temperatures = np.array([df.temperature for df in self])
+        meanTemp = np.mean(temperatures)
         
         # fileNumbers = str(self.fileName) 
         # fileNumbers_short = str(int(self.fileName[0].split('n')[-1].split('.')[0]))  # 

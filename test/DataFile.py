@@ -12,29 +12,24 @@ def test_init():
     except FileNotFoundError:
         assert True
 
-    testDF = DataFile.DataFile('DEBUG')
-    assert(testDF._debugging == True)
 
-    df = DataFile.DataFile(file=os.path.join('data','dmc2021n000494.hdf'))
-    path,name = os.path.split(os.path.join('data','dmc2021n000494.hdf'))
+    df = DataFile.loadDataFile(fileLocation=os.path.join('data','dmc2021n000565.hdf'))
+    path,name = os.path.split(os.path.join('data','dmc2021n000565.hdf'))
 
     assert(df.folder == path)
     assert(df.fileName == name)
+    assert(df.fileType.lower() == 'powder')
 
 
 def test_copy(): # Test the ability to copy from one data file to another
-    testDF = DataFile.DataFile(os.path.join('data','dmc2021n000494.hdf'))
+    testDF = DataFile.DataFile(os.path.join('data','dmc2021n000565.hdf'))
 
-    testDFDict = testDF.__dict__
-
-    dfCopy = DataFile.DataFile(testDF) # Perform copy
-
-    assert(dfCopy._debugging == False)
+    dfCopy = DataFile.loadDataFile(testDF) # Perform copy
 
     assert(dfCopy==testDF)
-
+    
 def test_load():
-    testDF = DataFile.DataFile(os.path.join('data','dmc2021n000494.hdf'))
+    testDF = DataFile.loadDataFile(os.path.join('data','dmc2021n000565.hdf'))
 
     assert(testDF.twoTheta.shape == (128,128*9))
     assert(testDF.counts.shape == (1,128,128*9))
@@ -56,14 +51,14 @@ def test_load():
 def test_plot():
     dataFile = os.path.join('data','dmc2021n{:06d}.hdf'.format(494))
 
-    df = DataFile.DataFile(dataFile)
+    df = DataFile.loadDataFile(dataFile)
     fig,ax = plt.subplots()
 
     Ax = df.plotDetector()
 
 
 def test_masking_2D():
-    df = DataFile.DataFile()
+    df = DataFile.loadDataFile()
 
     # An empty data file raises error on making a mask
     try:
@@ -72,7 +67,7 @@ def test_masking_2D():
     except RuntimeError:
         assert True
 
-    df = DataFile.DataFile(os.path.join('data','dmc2021n{:06d}.hdf'.format(494)))
+    df = DataFile.loadDataFile(os.path.join('data','dmc2021n{:06d}.hdf'.format(494)))
 
     df.generateMask(maxAngle=90) # No points are masked
     assert(np.all(df.mask==np.zeros_like(df.counts,dtype=bool)))
@@ -130,14 +125,14 @@ def test_calibration():
 def test_decoding():
     dataFile = os.path.join('data','dmc2021n{:06d}.hdf'.format(494))
 
-    df = DataFile.DataFile(dataFile)
+    df = DataFile.loadDataFile(dataFile)
 
     assert(isinstance(df.sample.name,str)) # Originally byte array
     
 
 def test_saveLoad():
     dataFile = os.path.join('data','dmc2021n{:06d}.hdf'.format(494))
-    df = DataFile.DataFile(dataFile)
+    df = DataFile.loadDataFile(dataFile)
 
     splitted = dataFile.split('.')
     splitted[-2] = splitted[-2] +'new'
@@ -148,7 +143,7 @@ def test_saveLoad():
         os.remove(saveFileName)
         
     df.save(saveFileName)
-    df2 = DataFile.DataFile(saveFileName)
+    df2 = DataFile.loadDataFile(saveFileName)
     assert(df==df)
     assert(df==df2)
 
@@ -158,25 +153,25 @@ def test_saveLoad():
 
 def test_changeOfParameters():
     dataFile = os.path.join('data','dmc2021n{:06d}.hdf'.format(494))
-    df = DataFile.DataFile(dataFile,twoThetaPosition=np.array([1])) # Move the two theta position away from absolute 0
+    df = DataFile.loadDataFile(dataFile,twoThetaPosition=np.array([1])) # Move the two theta position away from absolute 0
 
     originalKi = df.Ki
-    originalWaveLength = df.waveLength
+    originalWaveLength = df.wavelength
     originalQ = df.q
 
     df.Ki = 2.0
-    assert(np.isclose(df.waveLength,np.pi))
+    assert(np.isclose(df.wavelength,np.pi))
     assert(np.all(np.logical_not(np.isclose(df.q,originalQ))))
 
-    df.waveLength = 2.0
+    df.wavelength = 2.0
     assert(np.isclose(df.Ki,np.pi))
     assert(np.all(np.logical_not(np.isclose(df.q,originalQ))))
     
     df.Ki = originalKi
-    assert(np.isclose(df.waveLength,originalWaveLength))
+    assert(np.isclose(df.wavelength,originalWaveLength))
     assert(np.all(np.isclose(df.q,originalQ)))
 
-    df2 = DataFile.DataFile(dataFile)
+    df2 = DataFile.loadDataFile(dataFile)
     df2.twoThetaPosition = np.array([1])
     assert(df==df2)
 
@@ -192,7 +187,7 @@ def test_changeOfParameters():
     df.twoThetaPosition = np.array([20.0])
     
     df.save(saveFileName)
-    df2 = DataFile.DataFile(saveFileName)
+    df2 = DataFile.loadDataFile(saveFileName)
     assert(df==df2)
 
     if os.path.exists(saveFileName):

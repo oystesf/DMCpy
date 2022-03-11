@@ -9,7 +9,7 @@ def test_init():
 
     assert(len(ds)==0)
 
-    df = DataFile.DataFile(os.path.join('data','dmc2021n{:06d}.hdf'.format(494)))
+    df = DataFile.loadDataFile(os.path.join('data','dmc2021n{:06d}.hdf'.format(494)))
 
     ds2 = DataSet.DataSet([df])
     assert(len(ds2)==1)
@@ -59,14 +59,13 @@ def test_load():
 
 def test_plot():
 
-    fileNumbers = [494]
+    fileNumbers = [565]
     dataFiles = [os.path.join('data','dmc2021n{:06d}.hdf'.format(no)) for no in fileNumbers]
 
 
     ds = DataSet.DataSet(dataFiles)
     ds.monitor[0] = np.array([1.0])
-    fig,ax = plt.subplots()
-
+    
     Ax, bins, intensity, error, monitor = ds.plotTwoTheta()
 
     Ax,*_ = ds.plotTwoTheta(correctedTwoTheta=False)

@@ -1,6 +1,7 @@
 import numpy as np
 from DMCpy import _tools
 import h5py as hdf
+from DMCpy import TasUBlibDEG
 
 
 def cosd(x):
@@ -26,17 +27,27 @@ class Sample(object):
     @_tools.KwargChecker()
     def __init__(self,a=1.0,b=1.0,c=1.0,alpha=90,beta=90,gamma=90,sample=None,name='Unknown',projectionVector1=None, projectionVector2 = None):
         if isinstance(sample,hdf._hl.group.Group):
-            self.name = str(np.array(sample.get('name'))[0].decode())
-            self.orientationMatrix = np.array(sample.get('orientation_matrix'))*2*np.pi
+            self.name = np.array(sample.get('name'))[0].decode()
+            if self.name is None or self.name == '':
+                self.name = 'Unknown'
+            if not sample.get('orientation_matrix') is None:
+                self.orientationMatrix = np.array(sample.get('orientation_matrix'))*2*np.pi
+            else:
+                self.orientationMatrix = np.eye(3)
 
             self.planeNormal = np.array(sample.get('plane_normal'))
             
             self.polarAngle = np.array(sample.get('polar_angle'))
             self.rotationAngle = np.array(sample.get('rotation_angle'))
-            self.unitCell = np.array(sample.get('unit_cell'))
+            unitCell = sample.get('unit_cell')
+
+            if not unitCell is None:
+                self.unitCell = unitCell
+            else:
+                self.unitCell = [1,1,1,90,90,90]
             self.plane_vector1 = np.array(sample.get('plane_vector_1'))
             self.plane_vector2 = np.array(sample.get('plane_vector_2'))
-            crossProduct = np.cross(self.plane_vector1[:3],self.plane_vector2[:3])
+            #crossProduct = np.cross(self.plane_vector1[:3],self.plane_vector2[:3])
             # if not np.all(np.isclose(crossProduct,[0,0,0])):
             #     self.planeNormal = crossProduct
             # self.A3Off = np.array([0.0])#
@@ -59,9 +70,7 @@ class Sample(object):
             self.polarAngle = np.array(None)
             self.rotationAngle = np.array(0)
             self.name=name
-            if projectionVector1 is None or projectionVector2 is None:
-                projectionVector1,projectionVector2 = [np.array([1.0,0.0,0.0,0.0,0.0,0.0,0.0,5.0,5.0]),np.array([0.0,1.0,0.0,0.0,0.0,0.0,0.0,5.0,5.0])]
-
+            
             r1 = projectionVector1
             r2 = projectionVector2
             self.plane_vector1 = r1
@@ -100,7 +109,7 @@ class Sample(object):
         self.alpha = unitCell[3]
         self.beta  = unitCell[4]
         self.gamma = unitCell[5]
-        # self.updateCell()
+        self.updateCell()
         
     @property
     def a(self):
@@ -192,3 +201,11 @@ class Sample(object):
             self._gamma = gamma
         else:
             raise AttributeError('Negative,null or above 180 degrees given for lattice parameter gamma')
+
+    def updateCell(self):
+        self.fullCell = TasUBlibDEG.calcCell(self.unitCell)
+        self.B = TasUBlibDEG.calculateBMatrix(self.fullCell)
+
+    def saveToHdf(self,entry):
+        entry.create_dataset('name',data = [np.string_(self.name)])
+        
