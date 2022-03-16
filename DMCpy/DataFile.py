@@ -265,7 +265,8 @@ def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
             return SingleCrystalDataFile(fileLocation)
         else:
             return DataFile(fileLocation)
-
+    elif not os.path.exists(fileLocation): # load file from disk
+        raise FileNotFoundError('Provided file path "{}" not found.'.format(fileLocation))
 
     A3 = shallowRead([fileLocation],['A3'])[0]['A3']
     
@@ -417,6 +418,12 @@ class DataFile(object):
                 self.normalization = np.repeat(self.normalization,self.counts.shape[0],axis=0)
             else:
                 self.normalization.shape = self.counts.shape
+
+    def __len__(self):
+        if hasattr(self,'counts'):
+            return len(self.counts)
+        else:
+            return 0
 
     @property
     def A3(self):
@@ -780,7 +787,7 @@ class DataFile(object):
 
     @property
     def intensity(self):
-        return np.divide(self.counts,self.normalization)
+        return np.divide(self.counts,self.normalization.reshape(*self.counts.shape))
 
     def InteractiveViewer(self,**kwargs):
         if not self.scanType.lower() in ['singlecrystal','powder'] :
