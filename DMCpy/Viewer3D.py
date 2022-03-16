@@ -14,7 +14,7 @@ pythonSubVersion = sys.version_info[1]
 
 class Viewer3D(object):  
     @_tools.KwargChecker(include=[_tools.MPLKwargs])
-    def __init__(self,Data,bins,axis=2, log=False, grid = False, adjustable=True, outputFunction=print, 
+    def __init__(self,Data,bins,axis=2, ax=None,log=False, grid = False, adjustable=True, outputFunction=print, 
                  cmap='viridis', **kwargs):#pragma: no cover
         """3 dimensional viewing object generating interactive Matplotlib figure. 
         Keeps track of all the different plotting functions and variables in order to allow the user to change between different slicing modes and to scroll through the data in an interactive way.
@@ -76,27 +76,63 @@ class Viewer3D(object):
         else:
             self.grid = False
             self.gridZOrder = 0
+        if ax is None:
+            self.figure = plt.figure()
+            self.ax = plt.subplot(gs[0])#self.figure.add_subplot(111)
+            self.xlabel = r'Qx [$A^{-1}$]'
+            self.ylabel = r'Qy [$A^{-1}$]'
+            self.zlabel = r'Qz [$A^{-1}$]'
+            self.rlu = False
+            self._axes = [self.ax]
+        else:
+            if isinstance(ax,plt.Axes): # Assuming only RLU - energy plot is provided
+                self.axRLU = ax
+                self.figure = ax.get_figure() # Get the correct figure
+                self.axNorm,ax2  = self.figure.subplots(1,2,gridspec_kw={'width_ratios':[4, 1]}) # Create figure on top of the other
+                ax2.remove() # Remove the excess figure
+                
+                self.axRLU.set_position(self.axNorm.get_position()) # Update RLU to correct position
 
-        # if ax is None:
-        self.figure = plt.figure()
-        self.ax = plt.subplot(gs[0])#self.figure.add_subplot(111)
-        # set up the hover option        
-        # self.ax.axis = 2
-        
-        # self.ax.format_coord = lambda x,y: format_coord(self.ax,x,y)
+                self._axes = [self.axNorm,self.axNorm,self.axRLU]
+                self._axes[0].set_xlabel(r'Qx [$A^{-1}$]')
+                self._axes[0].set_ylabel(r'Qz [$A^{-1}$]')
+                self._axes[1].set_xlabel(r'Qy [$A^{-1}$]')
+                self._axes[1].set_ylabel(r'Qz [$A^{-1}$]')
+                self.ax = self.axNorm
+                self.xlabel = r'Qx [$A^{-1}$]'
+                self.ylabel = r'Qy [$A^{-1}$]'
+                self.zlabel = 'Qz [$A^{-1}$]'
+                self.rlu = False
+            elif len(ax)==3: # All axes provided in order QyQz,QxQz,QxQy
+                self.axQyQz = ax[0]
+                self.axQxQz = ax[1]
+                self.axQxQy = ax[2]
+                self.figure = self.axQxQy.get_figure() # Get the correct figure
+                self.axNorm,ax2  = self.figure.subplots(1,2,gridspec_kw={'width_ratios':[4, 1]}) # Create figure on top of the other
+                ax2.remove() # Remove the excess figure
+                self._axes = ax#[self.axQyQz,self.axQxQz,self.axQxQy]
+                for a in self._axes:
+                    a.set_position(self.axNorm.get_position())
+                
+                self.ax = self.axNorm
+                hkl = ['H','K','L']
+                xLabelSplit = self._axes[0].sample.projectionVectors[:,0].flatten()
+                yLabelSplit = self._axes[0].sample.projectionVectors[:,1].flatten()
+                zLabelSplit = self._axes[0].sample.projectionVectors[:,2].flatten()
+                self.xlabel = '\n'.join(['{}: '.format(hkl[i])+'{:+.3f}'.format(float(x)) for i,x in enumerate(xLabelSplit)])
+                self.ylabel = '\n'.join(['{}: '.format(hkl[i])+'{:+.3f}'.format(float(y)) for i,y in enumerate(yLabelSplit)])
+                self.zlabel = '\n'.join(['{}: '.format(hkl[i])+'{:+.3f}'.format(float(z)) for i,z in enumerate(zLabelSplit)])
+                self.rlu = True
+                
+                self.EnergySliderTransform=[1.0,1.0,1.0] # Factor to divide the Energy slider value with (only applicable for QE axes)
 
-        self.xlabel = r'Qx [$AA^{-1}$]'
-        self.ylabel = r'Qy [$AA^{-1}$]'
-        self.zlabel = r'Qz [$AA^{-1}$]'
-        self.ax._labels = [r'Qx = {:.4} 1/AA',r'Qy = {:.4} 1/AA', r'Qz = {:.4} 1/AA']
-        self.rlu = False
-        self._axes = [self.ax]
+            else:
+                raise AttributeError('Number of provided axes is {} but only 1 or 3 is accepted.'.format(len(ax)))
 
-        self.figure.set_size_inches(11,7)
-        #for ax in self._axes:
-        #    ax.set_navigate(True)
+        if not 'size_inches' in kwargs:
+            size_inches = (11,7)
+        self.figure.set_size_inches(size_inches)
         self.value = 0
-        self.figure.subplots_adjust(bottom=0.25)
         self.cmap = cmap # Update to accommodate deprecation warning
         self.value = 0
         
@@ -118,7 +154,10 @@ class Viewer3D(object):
         
         self.Energy_slider.on_changed(lambda val: sliders_on_changed(self,val))
             
-        self.units = [' 1/AA',' 1/AA',' 1/AA']
+        if not self.rlu:
+            self.units = 3*[' 1/AA']
+        else:
+            self.units = 3*[' RLU']
             
         textposition = [self.Energy_slider_ax.get_position().p1[0]+0.005,self.Energy_slider_ax.get_position().p0[1]+0.005]
         self.text = self.figure.text(textposition[0], textposition[1],s=self.stringValue())
@@ -165,22 +204,7 @@ class Viewer3D(object):
 
             addColorbarSliders(self,c_min=self.caxis[0],c_max=self.caxis[1],c_minval=self.caxis[0],\
                 c_maxval=self.caxis[1],ax_cmin=ax_cmin,ax_cmax=ax_cmax,log=False)
-                
-                
-        self.ax._step=self.calculateValue()
-        
-        self.ax._transposeOrder = [(2,0,1),(0,2,1),(0,1,2)]
-
-        
-        def format_coord(ax,x,y):
-            Q = np.array([x,y,ax._step])
-            Q = np.array([Q[idx] for idx in ax._transposeOrder[ax.axis]])
-            
-            
-            return ', '.join([label.format(x) for x,label in zip(Q,ax._labels)])
-        
-        self.ax.format_coord = lambda x,y: format_coord(self.ax,x,y)
-
+       
     @property 
     def caxis(self):
         return self._caxis
@@ -191,7 +215,7 @@ class Viewer3D(object):
 
     @caxis.setter
     def caxis(self,caxis):
-        ErrMsg = 'Provided caxis is not of correct format. Expected 2 values but recieved "{}" of type {}'
+        ErrMsg = 'Provided caxis is not of correct format. Expected 2 values but received "{}" of type {}'
         if not isinstance(caxis,(list,np.ndarray,tuple)):
             raise AttributeError(ErrMsg.format(caxis,type(caxis)))
         if len(list(caxis))!=2:
@@ -230,7 +254,7 @@ class Viewer3D(object):
             else:
                 self.ax.set_xlabel(self.xlabel)
                 self.ax.set_ylabel(self.ylabel)
-                self.ax.axis = 2
+                self.ax.axisProjection = 2
             axes = (0,1,2)
             label = self.zlabel#self.ax.get_ylabel
         elif axis==1:  # pragma: no cover
@@ -240,7 +264,7 @@ class Viewer3D(object):
             else:
                 self.ax.set_xlabel(self.xlabel)
                 self.ax.set_ylabel(self.zlabel)
-                self.ax.axis = 1
+                self.ax.axisProjection = 1
             axes = (0,2,1)
             label =  self.ylabel#self.ax.get_ylabel
         elif axis==0:  # pragma: no cover
@@ -250,20 +274,19 @@ class Viewer3D(object):
             else:
                 self.ax.set_xlabel(self.ylabel)
                 self.ax.set_ylabel(self.zlabel)
-                self.ax.axis = 0
+                self.ax.axisProjection = 0
             axes = (1,2,0)
             label =  self.xlabel#self.ax.get_xlabel()
             
         else:
             raise AttributeError('Axis provided not recognized. Should be 0, 1, or 2 but got {}'.format(axis))
 
-        if hasattr(self.ax,'_step'):
+        if hasattr(self,'Z'):#'_step'):
             self.ax._step=self.calculateValue()
         X=self.bins[axes[0]].transpose(axes)
         Y=self.bins[axes[1]].transpose(axes)
         Z=self.bins[axes[2]].transpose(axes)
         
-
         masked_array = np.ma.array (self.Data, mask=np.isnan(self.Data)).transpose(axes)
         self.emptyData = masked_array[:,:,0].T.flatten().copy()
         self._axesChanged = True
