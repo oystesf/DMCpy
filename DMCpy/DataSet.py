@@ -698,7 +698,10 @@ class DataSet(object):
             
             
             directionVector = (QStop-QStart).reshape(3,1)
-            directionVector*=1.0/np.linalg.norm(directionVector)
+            length = np.linalg.norm(directionVector)
+            if np.isclose(length,0.0):
+                raise AttributeError('The vector connecting the cut points has length 0. Received P1={}, P2={}'.format(','.join([str(x) for x in P1]),','.join([str(x) for x in P2])))
+            directionVector*=1.0/length
             
             stopAlong = np.dot(QStop-QStart,directionVector)[0]
             sign = np.sign(stopAlong)
