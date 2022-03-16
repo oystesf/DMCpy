@@ -1,3 +1,4 @@
+from cmath import acos
 import numpy as np
 from DMCpy import _tools
 import h5py as hdf
@@ -26,42 +27,20 @@ class Sample(object):
     """Sample object to store all information of the sample from the experiment"""
     @_tools.KwargChecker()
     def __init__(self,a=1.0,b=1.0,c=1.0,alpha=90,beta=90,gamma=90,sample=None,name='Unknown',projectionVector1=None, projectionVector2 = None):
+
+        self.UB = np.eye(3)
         if isinstance(sample,hdf._hl.group.Group):
             self.name = np.array(sample.get('name'))[0].decode()
             if self.name is None or self.name == '':
                 self.name = 'Unknown'
-            if not sample.get('orientation_matrix') is None:
-                self.orientationMatrix = np.array(sample.get('orientation_matrix'))*2*np.pi
-            else:
-                self.orientationMatrix = np.eye(3)
 
-            self.planeNormal = np.array(sample.get('plane_normal'))
-            
-            self.polarAngle = np.array(sample.get('polar_angle'))
-            self.rotationAngle = np.array(sample.get('rotation_angle'))
-            unitCell = sample.get('unit_cell')
+            unitCell = np.array(sample.get('unit_cell'))
 
-            if not unitCell is None:
+            if not sample.get('unit_cell') is None:
                 self.unitCell = unitCell
             else:
                 self.unitCell = [1,1,1,90,90,90]
-            self.plane_vector1 = np.array(sample.get('plane_vector_1'))
-            self.plane_vector2 = np.array(sample.get('plane_vector_2'))
-            #crossProduct = np.cross(self.plane_vector1[:3],self.plane_vector2[:3])
-            # if not np.all(np.isclose(crossProduct,[0,0,0])):
-            #     self.planeNormal = crossProduct
-            # self.A3Off = np.array([0.0])#
-            # if not np.isclose(np.linalg.norm(self.plane_vector1[:3].astype(float)),0.0) or not np.isclose(np.linalg.norm(self.plane_vector2[:3].astype(float)),0.0): # If vectors are not zero
-            #     self.projectionVector1,self.projectionVector2 = calcProjectionVectors(self.plane_vector1.astype(float),self.plane_vector2.astype(float))
-            # else:
-            #     self.projectionVector1,self.projectionVector2 = [np.array([1.0,0.0,0.0]),np.array([0.0,1.0,0.0])]
-            # self.initialize()
-            # self.calculateProjections()
 
-            # attributes = ['azimuthal_angle','x','y','sgu','sgu_zero','sgl','sgl_zero']
-            # values = [camelCase(x) for x in attributes]
-            # for att, val in zip(attributes,values):
-            #     setattr(self,val,np.array(sample.get(att)))
             
             
         elif np.all([a is not None,b is not None, c is not None]):
@@ -202,10 +181,153 @@ class Sample(object):
         else:
             raise AttributeError('Negative,null or above 180 degrees given for lattice parameter gamma')
 
+    @property
+    def UBInv(self):
+        return np.linalg.inv(self.UB)
+
+    # @property
+    # def convertinv(self):
+    #     return np.linalg.inv(self.convert)
+
+    # @property
+    # def projectionAngle(self):
+    #     p1 = np.dot(self.convertHKL,self.projectionVectors[0])
+    #     p2 = np.dot(self.convertHKL,self.projectionVectors[1])
+    #     return np.rad2deg(_tools.vectorAngle(p1,p2))
+
     def updateCell(self):
         self.fullCell = TasUBlibDEG.calcCell(self.unitCell)
         self.B = TasUBlibDEG.calculateBMatrix(self.fullCell)
 
     def saveToHdf(self,entry):
         entry.create_dataset('name',data = [np.string_(self.name)])
+        if hasattr(self,'unitCell'):
+            entry.create_dataset('unit_cell',data = self.unitCell)
+
         
+    def defineUB(self,HKL1,HKL2,Q1,Q2):
+        self.P1 = _tools.LengthOrder(HKL1)
+        self.P3 = _tools.LengthOrder(np.cross(HKL1,HKL2))
+        self.P2 = _tools.LengthOrder(np.cross(self.P3,HKL1))
+
+        self.projectionVectors = np.array([self.P1,self.P2,self.P3]).T
+
+        # projectionVectors = np.array([[0,0,1],[1,1,0],[1,-1,0]])
+        axisVectors = np.eye(3)
+        ## Assume that Q1/HKL1 is along x-axis
+
+        Alpha1 = np.rad2deg(np.arccos(np.dot(Q1,axisVectors[0])/(np.linalg.norm(Q1))))
+        Rot1 = np.cross(Q1,axisVectors[0])
+        Rot1*=1.0/np.linalg.norm(Rot1)
+        ROT1 = _tools.rotMatrix(Rot1,Alpha1)
+
+        # Rotate Q2 into Q1's frame
+        Q2Rot = np.dot(ROT1,Q2)
+        Q2Rot-= np.dot(axisVectors[0],Q2Rot)*axisVectors[0]# project out [1,0,0] as this rotation has been done by Q1
+
+        Alpha2 = np.rad2deg(np.arccos(np.dot(Q2Rot,axisVectors[1])/(np.linalg.norm(Q2Rot))))#np.rad2deg(np.arccos(Q2Rot[1]/np.linalg.norm(Q2Rot)))
+        Rot2 = np.cross(Q2Rot,axisVectors[1])
+        Rot2*=1.0/np.linalg.norm(Rot2)
+        ROT2 = _tools.rotMatrix(Rot2,Alpha2)
+
+        self.ROT = np.dot(ROT2,ROT1)
+
+        
+        self.projectionB = np.diag(np.linalg.norm(np.dot(self.projectionVectors.T,self.B),axis=1))
+
+        # Rotates into the scattering plane
+        self.UB = np.dot(self.ROT.T,np.dot(self.projectionB,np.linalg.inv(self.projectionVectors)))#np.linalg.inv(np.dot(Binverse,self.ROT))
+
+        # p23 = np.array([[1,0,0],[0,1,0]]) 
+        # self.convert = np.dot(p23,np.einsum('ij,jk->ik',self.UB,self.projectionVectors[:,:2])) # Convert from projX,projY,projZ to Qx, Qy, Qz
+        # self.convertHKL = np.dot(p23,self.UB) # Convert from HKL to Qx, Qy
+        
+    def tr(self,proj0,proj1,proj2=None,projection=2):
+        """Convert from projX, projY coordinate to Qx',QY' coordinate."""
+        if proj2 is None:
+            p0, p1 = np.asarray(proj0), np.asarray(proj1)
+            P = np.array([p0,p1])
+
+            projections = np.delete(self.projectionVectors,projection,axis=1)
+            
+            pm = np.delete(np.eye(3),projection,axis=0)
+            
+            convert = np.dot(pm,np.dot(self.ROT,np.dot(self.UB,projections)))
+        else:
+
+            p0, p1, p2 = np.asarray(proj0), np.asarray(proj1), np.asarray(proj2)
+            P = np.array([p0,p1,p2])
+
+            # permutation order of the projection vectors
+            order = np.array([[1,2,0],[0,2,1],[0,1,2]])
+
+            projections = self.projectionVectors[:,order[projection]]#np.delete(self.projectionVectors,projection,axis=1)
+            #projections = np.concatenate([projections,np.array([self.projectionVectors[:,projection]]).reshape(3,1)],axis=1)
+            
+            convert = np.dot(self.ROT,np.dot(self.UB,projections))
+        return np.einsum('ij,j...->i...',convert,P)
+
+
+    def inv_tr(self,qx,qy, qz = None,projection=2):
+        """Convert from projX, projY coordinate to Qx',QY' coordinate."""
+        if qz is None:
+
+            p0, p1 = np.asarray(qx), np.asarray(qy)
+            P = np.array([p0,p1])
+            projections = np.delete(self.projectionVectors,projection,axis=1)
+            
+            pm = np.delete(np.eye(3),projection,axis=0)
+
+            convert = np.linalg.inv(np.dot(pm,np.dot(self.ROT,np.dot(self.UB,projections))))
+        else:
+            p0, p1, p2 = np.asarray(qx), np.asarray(qy), np.asarray(qz)
+            P = np.array([p0,p1,p2])
+
+            # permutation order of the projection vectors
+            order = np.array([[1,2,0],[0,2,1],[0,1,2]])
+
+            projections = self.projectionVectors[:,order[projection]]#np.delete(self.projectionVectors,projection,axis=1)
+            #projections = np.concatenate([projections,np.array([self.projectionVectors[:,projection]]).reshape(3,1)],axis=1)
+            
+            convert = np.linalg.inv(np.dot(self.ROT,np.dot(self.UB,projections)))
+        
+        
+        return np.einsum('ij,j...->i...',convert,P)
+
+
+    def projectionAngle(self,projection=2):
+        V1 = self.tr(1,0,projection=projection)
+        V2 = self.tr(0,1,projection=projection)
+        return _tools.vectorAngle(V1, V2)
+
+    def format_coord(self,x,y,z=None,projection=2):
+        """Format coordinates from Qx'Qy' in rotated frame into HKL."""
+        order = np.array([[1,2,0],[0,2,1],[0,1,2]])
+        if z is None:
+            proj0,proj1 = self.inv_tr(x,y,projection=projection)
+            projections = np.delete(self.projectionVectors,projection,axis=1)
+            rlu = proj0*projections[:,0]+proj1*projections[:,1]
+        else:
+            proj0,proj1,proj2 = self.inv_tr(x,y,z,projection=projection)
+            projections = self.projectionVectors[:,order[projection]]
+            
+            rlu = proj0*projections[:,0]+proj1*projections[:,1]+proj2*projections[:,2]
+        return "h = {0:.3f}, k = {1:.3f}, l = {2:.3f}".format(rlu[0],rlu[1],rlu[2])
+
+    
+    def calculateQxQyQzToHKL(self,x,y,z):
+        """convert from Qx,Qy to HKL."""
+        pos = np.array([x,y,z])
+        return np.einsum('ij,j...->i...',self.UBInv,pos)
+
+    def calculateHKLToQxQyQz(self,H,K,L):
+        """convert HKL to Qx,Qy."""
+        pos = np.array([H,K,L])
+        return np.einsum('ij,j...->i...',self.UB,pos)
+
+    def calculateHKLtoProjection(self,H,K,L):
+        """convert from projections to HKL."""
+        #QxQyQz = np.dot(self.ROT,self.calculateHKLToQxQyQz(H,K,L))
+        #projection = self.inv_tr(*QxQyQz)
+        projection = np.dot(np.linalg.inv(self.projectionVectors),np.array([H,K,L]))
+        return projection
