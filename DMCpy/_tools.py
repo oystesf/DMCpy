@@ -231,7 +231,7 @@ def binData3D(dx,dy,dz,pos,data,norm=None,mon=None,bins=None):
         
         returndata.append(Normalization)
         
-    NormCount =    np.histogramdd(np.array(pos).T,bins=HistBins,weights=np.ones_like(data).flatten())[0].astype(int)
+    NormCount =    np.histogramdd(np.array(pos).T,bins=HistBins,weights=np.ones_like(data).flatten())[0].astype(float)
     returndata.append(NormCount)
     return returndata,bins
 
@@ -354,3 +354,113 @@ def calculateGrid3D(X,Y,Z):
     
     
     return XT,YT,ZT
+
+def rotMatrix(v,theta,deg=True):
+    """ Generalized rotation matrix.
+    
+    Args:
+        
+        - v (list): Rotation axis around which matrix rotates
+        
+        - theta (float): Rotation angle (by default in degrees)
+        
+    Kwargs:
+        
+        - deg (bool): Whether or not angle is in degrees or radians (Default True)
+        
+    Returns:
+        
+        - 3x3 matrix rotating points around vector v by amount theta.
+    """
+    if deg==True:
+        theta = np.deg2rad(theta.copy())
+    v/=np.linalg.norm(v)
+    m11 = np.cos(theta)+v[0]**2*(1-np.cos(theta))
+    m12 = v[0]*v[1]*(1-np.cos(theta))-v[2]*np.sin(theta)
+    m13 = v[0]*v[2]*(1-np.cos(theta))+v[1]*np.sin(theta)
+    m21 = v[0]*v[1]*(1-np.cos(theta))+v[2]*np.sin(theta)
+    m22 = np.cos(theta)+v[1]**2*(1-np.cos(theta))
+    m23 = v[1]*v[2]*(1-np.cos(theta))-v[0]*np.sin(theta)
+    m31 = v[0]*v[2]*(1-np.cos(theta))-v[1]*np.sin(theta)
+    m32 = v[1]*v[2]*(1-np.cos(theta))+v[0]*np.sin(theta)
+    m33 = np.cos(theta)+v[2]**2*(1-np.cos(theta))
+    return np.array([[m11,m12,m13],[m21,m22,m23],[m31,m32,m33]])
+
+
+def Norm2D(v):
+    reciprocal = np.abs(1/v)
+    if np.isclose(reciprocal[0],reciprocal[1]):
+        return v*reciprocal[0]
+    
+    ratio = np.max(reciprocal)/np.min(reciprocal)
+    if np.isclose(np.mod(ratio,1),0.0) or np.isclose(np.mod(ratio,1),1.0):
+        return v*np.min(reciprocal)*ratio
+    else:
+        return v
+
+def LengthOrder(v):
+    nonZeroPos = np.logical_not(np.isclose(v,0.0))
+    if np.sum(nonZeroPos)==1:
+        Rv = v/np.linalg.norm(v)
+        return Rv
+    if np.sum(nonZeroPos)==0:
+        raise AttributeError('Provided vector is zero vector!')
+    
+    if np.sum(nonZeroPos)==3:
+        v1 = Norm2D(v[:2])
+        ratio = v1[0]/v[0]
+        v2 = Norm2D(np.array([v1[0],v[2]*ratio]))
+        ratio2 = v2[0]/v1[0]
+        Rv = np.array([v2[0],v1[1]*ratio2,v2[1]])
+    else:
+        Rv = np.zeros(3)
+        nonZeros = v[nonZeroPos]
+        Rv[nonZeroPos] = Norm2D(nonZeros)
+    
+    if not np.isclose(np.dot(Rv,v)/(np.linalg.norm(Rv)*np.linalg.norm(v)),1.0):
+        raise AttributeError('The found vector is not parallel to original vector: {}, {}',format(Rv,v))
+    return Rv
+
+def overWritingFunctionDecorator(overWritingFunction):
+    def overWriter(func):
+        return overWritingFunction
+    return overWriter
+
+
+@KwargChecker()
+def vectorAngle(V1,V2):
+    """calculate angle between V1 and V2.
+    
+    Args:
+    
+        - V1 (list): List or array of numbers
+        
+        - V2 (list): List or array of numbers
+        
+    Return:
+        
+        - theta (float): Angle in degrees between the two vectors
+    """
+    return np.arccos(np.dot(V1,V2.T)/(np.linalg.norm(V1)*np.linalg.norm(V2)))
+
+def normlength(V):
+    """rescale V to have unit length"""
+    return V/np.linalg.norm(V)
+
+
+def invert(M):
+    """Invert non-square matrices as described on https://en.wikipedia.org/wiki/Generalized_inverse.
+    
+    Args:
+        
+        - M (matrix): Matrix in question.
+        
+    Returns:
+        
+        - Left or right inverse matrix depending on shape of provided matrix.
+    """
+    s = M.shape
+    if s[0]>s[1]:
+        return np.dot(np.linalg.inv(np.dot(M.T,M)),M.T)
+    else:
+        return np.dot(M.T,np.linalg.inv(np.dot(M,M.T)))
