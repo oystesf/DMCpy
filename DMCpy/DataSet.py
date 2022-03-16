@@ -4,7 +4,7 @@ import pickle as pickle
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from DMCpy import DataFile, _tools, Viewer3D
+from DMCpy import DataFile, _tools, Viewer3D, RLUAxes
 
 
 class DataSet(object):
@@ -543,7 +543,7 @@ class DataSet(object):
         return Ax
 
     def Viewer3D(self,dqx,dqy,dqz,rlu=False,axis=2, raw=False,  log=False, grid = True, outputFunction=print, 
-                 cmap='viridis'):
+                 cmap='viridis',smart=False):
 
         """Generate a 3D view of all data files in the DatSet.
         
@@ -572,21 +572,215 @@ class DataSet(object):
             - cmap (str): Name of color map used for plot (default viridis)
         
         """
+
         if rlu:
-            #raise NotImplementedError('Currently, only plotting using Q space is supported.')
-            pos = np.array(np.concatenate([np.einsum('ij,jk',df.UBInv,df.q.reshape(3,-1)) for df in self],axis=-1))
+            rluAxesQxQy = self.createRLUAxes(projection=2)#**kwargs)
+            figure = rluAxesQxQy.get_figure()
+            figure.delaxes(rluAxesQxQy)
+            rluAxesQxQz = self.createRLUAxes(figure=figure,projection=1)
+            figure.delaxes(rluAxesQxQz)
+            rluAxesQyQz = self.createRLUAxes(figure=figure,projection=0)
+            figure.delaxes(rluAxesQyQz)
+            axes = [rluAxesQyQz,rluAxesQxQz,rluAxesQxQy]
+
 
         else:
-            pos = np.array(np.concatenate([df.q.reshape(3,-1) for df in self],axis=-1))
+            axes = None
 
-        if not raw:
-            data = np.concatenate([df.intensity.flatten()  for df in self])
-        else:
-            data = np.concatenate([df.counts.flatten()  for df in self])
-        Data,bins = _tools.binData3D(dqx,dqy,dqz,pos=pos,data=data)
+        Data,bins = self.binData3D(dqx,dqy,dqz,rlu=rlu,raw=raw,smart=smart)
 
-        return Viewer3D.Viewer3D(Data,bins,axis=axis, grid=grid, log=log, outputFunction=outputFunction, cmap=cmap)
+        return Viewer3D.Viewer3D(Data,bins,axis=axis, ax=axes, grid=grid, log=log, outputFunction=outputFunction, cmap=cmap)
 
+    def binData3D(self,dqx,dqy,dqz,rlu=True,raw=False,smart=False):
+
+        maximas = []
+        minimas = []
+        for df in self:
+            if rlu:
+                pos = np.einsum('ij,jk',df.sample.ROT,df.q.reshape(3,-1))
+                maximas.append(np.max(pos,axis=1))
+                minimas.append(np.min(pos,axis=1))
+            else:
+                maximas.append(np.max(df.q.reshape(3,-1),axis=1))
+                minimas.append(np.min(df.q.reshape(3,-1),axis=1))
+
+        maximas = np.max(maximas,axis=0)
+        minimas = np.min(minimas,axis=0)
+        extremePositions = np.array([minimas,maximas]).T
+        bins = _tools.calculateBins(dqx,dqy,dqz,extremePositions)
+
+        returndata = None
+        for df in self:
+            
+            
+
+            if rlu:
+                pos = np.einsum('ij,j...',df.sample.ROT,df.q).transpose(0,3,1,2) # shape -> steps,3,128,1152
+
+            else:
+                pos = df.q.transpose(1,0,2,3)# shape -> steps,3,128,1152
+
+            if not raw:
+                data = df.intensity # shape steps,128,1152
+            else:
+                data = df.counts # shape steps,128,1152
+            if smart:
+                for p,d,mon in zip(pos,data,df.monitor):
+                    localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=p.reshape(3,-1),data=d.flatten(),bins = bins)
+
+                    if returndata is None:
+                        returndata = localReturndata
+                        returndata[-1]*=mon
+                    else:
+                        returndata[-1]*=mon
+                        for data,newData in zip(returndata,localReturndata):
+                            data+=newData
+            else:
+                pos = pos.transpose(1,0,2,3)
+                localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=pos.reshape(3,-1),data=data.flatten(),bins = bins)
+
+                if returndata is None:
+                    returndata = localReturndata
+                    returndata[-1]*=df.monitor[0]
+                else:
+                    returndata[-1]*=df.monitor[0]
+                    for data,newData in zip(returndata,localReturndata):
+                        data+=newData
+                    
+
+        intensities = np.divide(returndata[0],returndata[1])
+        NaNs = returndata[1]==0
+        intensities[NaNs]=np.nan
+        return intensities,bins
+
+    @_tools.KwargChecker()
+    @_tools.overWritingFunctionDecorator(RLUAxes.createRLUAxes)
+    def createRLUAxes(*args,**kwargs): # pragma: no cover
+        raise RuntimeError('This code is not meant to be run but rather is to be overwritten by decorator. Something is wrong!! Should run {}'.format(RLUAxes.createRLUAxes))
+
+    def cut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.02,raw=False,chunks=True,**kwargs):
+        """Cut data from P1 to P2 in steps of stepSize [1/AA] width a cylindrical width [1/AA]
+
+        Args:
+
+            - P1 (list): Start position for cut in either (Qx,Qy,Qz) or (H,K,L)
+
+            - P2 (list): End position for cut in either (Qx,Qy,Qz) or (H,K,L)
+
+        Kwargs:
+
+            - rlu (bool): If True, P1 and P2 are in HKL, otherwise in QxQyQz (default True)
+
+            - stepSize (float): Size of bins along cut direction in units of [1/AA] (default 0.01)
+
+            - width (float): Integration width orthogonal to cut in units of [1/AA] (default 0.02)
+
+            - raw (bool): If True, do not normalize data (default False)
+
+            - chunks (bool): If True, perform operation in chunks which utilizes less RAM (default True)
+
+        Returns:
+
+            - Pos,Int....
+            
+
+        """
+        histograms = []
+
+
+        for df in self:
+            if rlu:
+                QStart = df.sample.calculateHKLToQxQyQz(*P1)
+                QStop  = df.sample.calculateHKLToQxQyQz(*P2)
+            else:
+                QStart = P1
+                QStop  = P2
+            
+            
+            directionVector = (QStop-QStart).reshape(3,1)
+            directionVector*=1.0/np.linalg.norm(directionVector)
+            
+            stopAlong = np.dot(QStop-QStart,directionVector)[0]
+            sign = np.sign(stopAlong)
+            
+            bins = np.arange(-stepSize*0.5,np.abs(stopAlong)+stepSize*0.51,stepSize)
+            
+            intensity = []
+            pos = []
+            
+            individualMonitors = not np.all(np.isclose(df.monitor,df.monitor[0]))
+
+            if not individualMonitors:
+                Mon = df.monitor[0]
+            else:
+                Mon = []
+            
+            if not raw:
+                data = df.intensity
+            else:
+                data = df.counts
+            if chunks:
+                
+                shapes = df.q.shape
+                for i,(q,INT) in enumerate(zip(df.q.reshape(3,shapes[1],-1).transpose(1,0,2),
+                                            data.reshape(shapes[1],-1))):
+                    
+                    relativePosition = q-QStart.reshape(3,-1)
+                    along = np.einsum('ij,i...->...j',relativePosition,directionVector)
+                    
+                    orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+                    
+                    insideQ = np.logical_and((orthogonal<width),np.logical_and(along>-stepSize,along<stopAlong+stepSize)).flatten()
+                    
+                    if insideQ.sum() != 0:
+                        intensity.append(INT.flatten()[insideQ])
+                        pos.append(sign*along.flatten()[insideQ])
+                        if individualMonitors:
+                            Mon.append([df.monitor[i]]*insideQ.sum())
+                
+                
+                intensity = np.concatenate(intensity,axis=0)
+                pos = np.concatenate(pos,axis=0)
+                if individualMonitors:
+                    Mon = np.concatenate(Mon,axis=0)
+                
+            else:
+                relativePosition = df.q.reshape(3,-1)-QStart.reshape(3,-1)
+                along = np.einsum('ij,i...->...j',relativePosition,directionVector)
+                
+                orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+                
+                insideQ = np.logical_and((orthogonal<width),np.logical_and(along>-stepSize,along<stopAlong+stepSize)).flatten()#(orthogonal<width).flatten()
+            
+                intensity = data.flatten()[insideQ]
+                pos = sign*along.flatten()[insideQ]
+                
+                if individualMonitors:
+                    shape = df.counts[0].shape
+                    Mon = np.array([np.full(shape,m) for m in df.monitor]).flatten()[insideQ]
+                    
+
+            I = np.histogram(pos,bins=bins,weights=intensity)[0]
+            NumBins = np.histogram(pos,bins=bins)[0]
+            
+            Mon = df.monitor[0]
+            
+            if not individualMonitors:
+                HistogramIntensity = I/Mon
+            else:
+                HistogramIntensity = np.divide(I*NumBins,Mon)
+            
+            histograms.append(HistogramIntensity)
+
+        histogram = np.sum(histograms,axis=0)
+        binCentres = 0.5*(bins[:-1]+bins[1:])
+
+        positionVector = directionVector*binCentres+QStart.reshape(3,1)
+        if rlu:
+            positionVector = np.array([self[-1].sample.calculateQxQyQzToHKL(*bC) for bC in positionVector.T]).T
+
+
+        return positionVector,histogram
 
 
     def export_PSI_format(self,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
