@@ -685,8 +685,8 @@ class DataSet(object):
             
 
         """
-        histograms = []
-
+        intensities = None # holder for total intensities
+        
 
         for df in self:
             if rlu:
@@ -729,8 +729,11 @@ class DataSet(object):
                     along = np.einsum('ij,i...->...j',relativePosition,directionVector)
                     
                     orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+                    test1 = (orthogonal<width).flatten()
+                    test2 = (along[0]>-stepSize).flatten()
+                    test3 = (along[0]<np.linalg.norm(stopAlong)+stepSize).flatten()
                     
-                    insideQ = np.logical_and((orthogonal<width),np.logical_and(along>-stepSize,along<stopAlong+stepSize)).flatten()
+                    insideQ = np.all([test1,test2,test3],axis=0)
                     
                     if insideQ.sum() != 0:
                         intensity.append(INT.flatten()[insideQ])
@@ -750,7 +753,12 @@ class DataSet(object):
                 
                 orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
                 
-                insideQ = np.logical_and((orthogonal<width),np.logical_and(along>-stepSize,along<stopAlong+stepSize)).flatten()#(orthogonal<width).flatten()
+                orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+                test1 = (orthogonal<width).flatten()
+                test2 = (along[0]>-stepSize).flatten()
+                test3 = (along[0]<np.linalg.norm(stopAlong)+stepSize).flatten()
+                
+                insideQ = np.all([test1,test2,test3],axis=0)
             
                 intensity = data.flatten()[insideQ]
                 pos = sign*along.flatten()[insideQ]
@@ -760,19 +768,17 @@ class DataSet(object):
                     Mon = np.array([np.full(shape,m) for m in df.monitor]).flatten()[insideQ]
                     
 
-            I = np.histogram(pos,bins=bins,weights=intensity)[0]
-            NumBins = np.histogram(pos,bins=bins)[0]
-            
-            Mon = df.monitor[0]
-            
-            if not individualMonitors:
-                HistogramIntensity = I/Mon
+            if intensities is None:
+                intensities = np.histogram(pos,bins=bins,weights=intensity)[0]
+                normCounts = np.histogram(pos,bins=bins)[0]
+                monitors = np.full_like(intensities,df.monitor[0])
             else:
-                HistogramIntensity = np.divide(I*NumBins,Mon)
+                intensities+=np.histogram(pos,bins=bins,weights=intensity)[0]
+                normCounts+=np.histogram(pos,bins=bins)[0]
+                monitors += np.full_like(intensities,df.monitor[0])
             
-            histograms.append(HistogramIntensity)
-
-        histogram = np.sum(histograms,axis=0)
+        I = np.divide(intensities,monitors)
+        I[normCounts==0]=np.nan
         binCentres = 0.5*(bins[:-1]+bins[1:])
 
         positionVector = directionVector*binCentres+QStart.reshape(3,1)
@@ -780,7 +786,7 @@ class DataSet(object):
             positionVector = np.array([self[-1].sample.calculateQxQyQzToHKL(*bC) for bC in positionVector.T]).T
 
 
-        return positionVector,histogram
+        return positionVector,I
 
 
     def export_PSI_format(self,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
