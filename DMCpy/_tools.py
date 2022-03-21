@@ -2,6 +2,7 @@ import functools
 import numpy as np
 from difflib import SequenceMatcher
 import os.path
+import cProfile, pstats, io
 
 
 MPLKwargs = ['agg_filter','alpha','animated','antialiased or aa','clip_box','clip_on','clip_path','color or c','contains','dash_capstyle','dash_joinstyle','dashes','drawstyle','figure','fillstyle','gid','label','linestyle or ls','linewidth or lw','marker','markeredgecolor or mec','markeredgewidth or mew','markerfacecolor or mfc','markerfacecoloralt or mfcalt','markersize or ms','markevery','path_effects','picker','pickradius','rasterized','sketch_params','snap','solid_capstyle','solid_joinstyle','transform','url','visible','xdata','ydata','zorder']
@@ -464,3 +465,24 @@ def invert(M):
         return np.dot(np.linalg.inv(np.dot(M.T,M)),M.T)
     else:
         return np.dot(M.T,np.linalg.inv(np.dot(M,M.T)))
+
+
+
+def profile(fnc):
+    
+    """A decorator that uses cProfile to profile a function"""
+    
+    def inner(*args, **kwargs):
+        
+        pr = cProfile.Profile()
+        pr.enable()
+        retval = fnc(*args, **kwargs)
+        pr.disable()
+        s = io.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
+        return retval
+
+    return inner
