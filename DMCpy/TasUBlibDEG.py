@@ -135,12 +135,12 @@ def calcTasQAngles(UB,planeNormal,ss,A3Off,qe):
     
     cos2t =(ki**2 + kf**2 - q**2) / (2. * np.abs(ki) * np.abs(kf))
     
-    A4 = arccosd(cos2t)
+    A4 = ss*arccosd(cos2t)
     theta = calcTheta(ki, kf, A4)
     A3 = om + ss*theta + A3Off
     A3 = np.mod(A3 + ss*180.0,360.0) - ss*180.0
     
-    return -A3,-A4,sgu,sgl
+    return A3,A4,sgu,sgl,A3+np.sign(A4)*ss*theta
     
 
 def calcTasMisalignment(UB,planeNormal,qe):
@@ -257,3 +257,38 @@ def calcCell(cell):
     beta3 = np.rad2deg(_tools.vectorAngle(bv1,bv2))
     cell = [a1,a2,a3,b1,b2,b3,alpha1,alpha2,alpha3,beta1,beta2,beta3]
     return cell
+
+
+
+def converterToA3A4(Qx,Qy,Qz, Ei,Ef,A3Off=0.0,A4Sign=1): # pragma: no cover
+    ## home made function to calculate A3 and A4
+    Qx = np.asarray(Qx)
+    Qy = np.asarray(Qy)
+    Qz = np.asarray(Qz)
+
+    QC = np.array([Qx,Qy,Qz])
+    q = np.linalg.norm(QC)
+
+    U1V = np.array([Qx.flatten(),Qy.flatten(),Qz.flatten()],dtype=float).flatten()
+
+    U1V/=np.linalg.norm(U1V)
+    U2V = np.array([0.0,0.0,1.0],dtype=float)
+    
+    
+    TV = buildTVMatrix(U1V, U2V)
+    R = np.linalg.inv(TV)
+    
+    ss = 1.0
+    
+    cossgl = np.sqrt(R[0,0]*R[0,0]+R[1,0]*R[1,0])
+    om = arctan2d(R[1,0]/cossgl, R[0,0]/cossgl)
+    
+    ki = np.sqrt(Ei)*factorsqrtEK
+    kf = np.sqrt(Ef)*factorsqrtEK
+    
+    cos2t =(ki**2 + kf**2 - q**2) / (2. * np.abs(ki) * np.abs(kf))
+    
+    A4 = ss*arccosd(cos2t)
+    theta = calcTheta(ki, kf, A4)
+    A3 = -om + np.sign(A4Sign)*ss*theta + A3Off
+    return A3,np.sign(A4Sign)*A4

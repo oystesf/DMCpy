@@ -324,7 +324,6 @@ class Viewer3D(object):
         self.Energy_slider.set_val(value)
         
     
-    
     def plot(self):
         self.text.set_text(self.stringValue())
         try:

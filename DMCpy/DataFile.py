@@ -334,7 +334,7 @@ class DataFile(object):
             else:
                 raise FileNotFoundError('Provided file path "{}" not found.'.format(file))
 
-
+    
     @_tools.KwargChecker()
     def loadFile(self,filePath):
         if not os.path.exists(filePath):
@@ -376,7 +376,6 @@ class DataFile(object):
                 
         self.counts.shape = (1,*self.counts.shape) # Standard shape
 
-
     def initializeQ(self):
 
         self.twoTheta, z = np.meshgrid(self.twoTheta.flatten(),self.verticalPosition,indexing='xy')
@@ -416,6 +415,7 @@ class DataFile(object):
             
             if self.fileType.lower() == "singlecrystal": # A3 scan
                 self.normalization = np.repeat(self.normalization,self.counts.shape[0],axis=0)
+                self.normalization.shape = self.counts.shape
             else:
                 self.normalization.shape = self.counts.shape
 
@@ -505,11 +505,11 @@ class DataFile(object):
         if not (hasattr(self,'Ki') and hasattr(self,'twoTheta')
                 and hasattr(self,'alpha') and hasattr(self,'A3')):
             return 
-        self.ki = np.array([self.Ki,0.0,0.0]) # along ki=2pi/lambda with x
+        self.ki = np.array([0.0,self.Ki,0.0]) # along ki=2pi/lambda with x
         self.ki.shape = (3,1,1)
 
-        self.kf = self.Ki * np.array([np.cos(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
-                                    -np.sin(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
+        self.kf = self.Ki * np.array([-np.sin(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
+                                    np.cos(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
                                     np.sin(np.deg2rad(self.alpha))])
         self.q = self.ki-self.kf   
         if self.fileType.lower() == 'singlecrystal': # A3 Scan
@@ -584,7 +584,7 @@ class DataFile(object):
         
         intensity = self.counts/self.monitor.reshape(-1,1,1)
         if applyNormalization:
-            intensity*=1.0/self.normalization
+            intensity=self.intensity/self.monitor.reshape(-1,1,1)#1.0/self.normalization
 
         count_err = np.sqrt(self.counts)
         intensity_err = count_err/self.monitor.reshape(-1,1,1)
@@ -787,7 +787,7 @@ class DataFile(object):
 
     @property
     def intensity(self):
-        return np.divide(self.counts,self.normalization.reshape(*self.counts.shape))
+        return np.divide(self.counts,self.normalization)
 
     def InteractiveViewer(self,**kwargs):
         if not self.scanType.lower() in ['singlecrystal','powder'] :

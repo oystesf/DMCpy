@@ -74,7 +74,7 @@ class MaxNLocator(mticker.MaxNLocator):
                 symmetric=False,
                 prune=None):
         # trim argument has no effect. It has been left for API compatibility
-        mticker.MaxNLocator.__init__(self, nbins, steps=steps,
+        super(MaxNLocator,self).__init__(nbins, steps=steps,
                                     integer=integer,
                                     symmetric=symmetric, prune=prune)
         self.create_dummy_axis()
@@ -98,7 +98,7 @@ class MultipleLocator(mticker.MultipleLocator):
     def __init__(self,base=None):
         if base is None:
             base = 0.25
-        mticker.MultipleLocator.__init__(self, base)
+        super(MultipleLocator,self).__init__(base)
         self.create_dummy_axis()
         self._factor = 1#0.0
         self._multiplerVals = np.array([1,2,4,5,10])
@@ -122,6 +122,8 @@ class MultipleLocator(mticker.MultipleLocator):
         if self._factor is not None:
             self.axis.set_view_interval(v1*self._factor, v2*self._factor)
             locs = mticker.MultipleLocator.__call__(self)
+            
+
             return np.array(locs), len(locs), self._factor
         else:
             self.axis.set_view_interval(v1, v2)
@@ -170,7 +172,7 @@ def axisChanged(axis,forceUpdate=False,direction='both'):
             or forceUpdate:# if new image size
 
                 points = np.array(np.meshgrid(xlim,ylim)).reshape(-1,2) # Generate the 4 corner points
-                Qs = np.array([s.tr(p[0],p[1]) for p in points])
+                Qs = np.array([s.inv_tr(p[0],p[1]) for p in points])
                 if d=='x':
                     span = np.max(Qs[:,0])-np.min(Qs[:,0])
                 else:
@@ -256,7 +258,7 @@ def createRLUAxes(self,figure=None,ids=[1, 1, 1],basex=None,basey=None,projectio
 
     if  not basex is None or not basey is None: # Either basex or basey is provided (or both)
         if basex is None:
-            basex = calculateTicks(basey,lambda: sample.projectionAngle(projection=projection),round=False)
+            basex = calculateTicks(1.0,lambda: sample.projectionAngle(projection=projection),round=False)
         elif basey is None:
             basey = basex/calculateTicks(1.0,lambda: sample.projectionAngle(projection=projection),round=False)
 
@@ -275,19 +277,6 @@ def createRLUAxes(self,figure=None,ids=[1, 1, 1],basex=None,basey=None,projectio
     ax = SubplotHost(fig, *ids, grid_helper=grid_helper)
     ax.sample = sample
     ax._step = step
-
-    # def specialTr(ax,x,y,projection):
-    #     z = np.ones_like(x)*ax._step
-    #     return ax.sample.tr(x,y,z,projection=projection)[:2]
-    
-    # def specialInvTr(ax,x,y,projection):
-    #     z = np.ones_like(x)*ax._step
-    #     return ax.sample.inv_tr(x,y,z,projection=projection)[:2]
-
-    # aux_trans = (lambda x,y: specialTr(ax,x,y,projection=projection), 
-    #             lambda x,y: specialInvTr(ax,x,y,projection=projection))
-
-    # ax.get_grid_helper().update_grid_finder(aux_trans)
 
     
     ax.basex = basex

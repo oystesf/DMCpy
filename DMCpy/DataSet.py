@@ -4,7 +4,7 @@ import pickle as pickle
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from DMCpy import DataFile, _tools, Viewer3D, RLUAxes
+from DMCpy import DataFile, _tools, Viewer3D, RLUAxes, TasUBlibDEG
 
 
 class DataSet(object):
@@ -285,7 +285,7 @@ class DataSet(object):
             
 
         if masking is True: # If masking, apply self.mask
-            intensityMatrix[np.logical_not(mask)] = np.nan
+            intensityMatrix[mask] = np.nan
 
         # Find plotting limits (For 2D pixel limits found later)
         thetaLimits = [f(twoTheta) for f in [np.min,np.max]]
@@ -374,7 +374,7 @@ class DataSet(object):
                 
                 ax.set_ylabel('Intensity [arb]')
 
-        elif self.type.lower() == 'A3':
+        elif self.type.lower() == 'singlecrystal':
             
             
             ax.A3 = np.concatenate([df.A3 for df in self],axis=0)
@@ -542,7 +542,7 @@ class DataSet(object):
         fig.tight_layout()
         return Ax
 
-    def Viewer3D(self,dqx,dqy,dqz,rlu=False,axis=2, raw=False,  log=False, grid = True, outputFunction=print, 
+    def Viewer3D(self,dqx,dqy,dqz,rlu=True,axis=2, raw=False,  log=False, grid = True, outputFunction=print, 
                  cmap='viridis',smart=False):
 
         """Generate a 3D view of all data files in the DatSet.
@@ -621,21 +621,21 @@ class DataSet(object):
                 pos = df.q.transpose(1,0,2,3)# shape -> steps,3,128,1152
 
             if not raw:
-                data = df.intensity # shape steps,128,1152
+                data = df.intensity#[np.logical_not(df.mask)]/df.normalization[np.logical_not(df.mask)] # shape steps,128,1152
             else:
-                data = df.counts # shape steps,128,1152
-            if smart:
-                for p,d,mon in zip(pos,data,df.monitor):
-                    localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=p.reshape(3,-1),data=d.flatten(),bins = bins)
+                data = df.counts#[np.logical_not(df.mask)] # shape steps,128,1152
+            # if smart:
+            #     for p,d,mon in zip(pos,data,df.monitor):
+            #         localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=p.reshape(3,-1),data=d.flatten(),bins = bins)
 
-                    if returndata is None:
-                        returndata = localReturndata
-                        returndata[-1]*=mon
-                    else:
-                        returndata[-1]*=mon
-                        for data,newData in zip(returndata,localReturndata):
-                            data+=newData
-            else:
+            #         if returndata is None:
+            #             returndata = localReturndata
+            #             returndata[-1]*=mon
+            #         else:
+            #             returndata[-1]*=mon
+            #             for data,newData in zip(returndata,localReturndata):
+            #                 data+=newData
+            if True:
                 pos = pos.transpose(1,0,2,3)
                 localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=pos.reshape(3,-1),data=data.flatten(),bins = bins)
 
@@ -658,7 +658,8 @@ class DataSet(object):
     def createRLUAxes(*args,**kwargs): # pragma: no cover
         raise RuntimeError('This code is not meant to be run but rather is to be overwritten by decorator. Something is wrong!! Should run {}'.format(RLUAxes.createRLUAxes))
 
-    def cut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.02,raw=False,chunks=True,**kwargs):
+        
+    def cut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True,**kwargs):
         """Cut data from P1 to P2 in steps of stepSize [1/AA] width a cylindrical width [1/AA]
 
         Args:
@@ -677,7 +678,7 @@ class DataSet(object):
 
             - raw (bool): If True, do not normalize data (default False)
 
-            - chunks (bool): If True, perform operation in chunks which utilizes less RAM (default True)
+            - optimize (bool): If True, perform optimized cutting (default True)
 
         Returns:
 
@@ -685,9 +686,7 @@ class DataSet(object):
             
 
         """
-        intensities = None # holder for total intensities
-        
-
+        intensities = None
         for df in self:
             if rlu:
                 QStart = df.sample.calculateHKLToQxQyQz(*P1)
@@ -711,66 +710,112 @@ class DataSet(object):
             intensity = []
             pos = []
             
-            individualMonitors = not np.all(np.isclose(df.monitor,df.monitor[0]))
-
-            if not individualMonitors:
-                Mon = df.monitor[0]
-            else:
-                Mon = []
             
             if not raw:
                 data = df.intensity
             else:
                 data = df.counts
-            if chunks:
+            if optimize:
+               
+                optimizationStepInPlane = 0.005
+                optimizationStepInPlane = np.min([optimizationStepInPlane,width*0.6])
                 
-                shapes = df.q.shape
-                for i,(q,INT) in enumerate(zip(df.q.reshape(3,shapes[1],-1).transpose(1,0,2),
-                                            data.reshape(shapes[1],-1))):
+                ## Define boundig box
+                direction = QStop-QStart
+                directionLength=np.linalg.norm(direction)
+                direction*=1.0/directionLength
+                orthogonal = np.cross(direction,np.array([0,0,1]))
+                
+                # Factor between actual cut and width used for cutoff
+                expansionFactior = 1.5
+                effectiveWidth = expansionFactior*width
                     
-                    relativePosition = q-QStart.reshape(3,-1)
-                    along = np.einsum('ij,i...->...j',relativePosition,directionVector)
+                if not np.isclose(np.abs(np.dot(direction,[0,0,1])),1.0): # If cut is not along z
+                    # Points for bounding box
+                    startEdge = QStart.reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonal.reshape(3,1)-stepSize*direction.reshape(3,1)
+                    endEdge = QStop.reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonal.reshape(3,1)+stepSize*direction.reshape(3,1)
+                    rightEdge = QStart.reshape(3,1)+0.5*effectiveWidth*orthogonal.reshape(3,1)+np.arange(-stepSize,directionLength+stepSize,optimizationStepInPlane)*direction.reshape(3,1)
+                    leftEdge =  QStart.reshape(3,1)-0.5*effectiveWidth*orthogonal.reshape(3,1)+np.arange(-stepSize,directionLength+stepSize,optimizationStepInPlane)*direction.reshape(3,1)
                     
-                    orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
-                    test1 = (orthogonal<width).flatten()
-                    test2 = (along[0]>-stepSize).flatten()
-                    test3 = (along[0]<np.linalg.norm(stopAlong)+stepSize).flatten()
+                    checkPositions = np.concatenate([startEdge,endEdge,rightEdge,leftEdge],axis=1)
+                
+                else: # if cut is along z
+                    orthogonalX = np.array([1,0,0])
+                    orthogonalY = np.array([0,1,0])
+                    startEdge = np.mean([QStart,QStop],axis=0).reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonalX.reshape(3,1)-effectiveWidth*orthogonalY.reshape(3,1)
+                    endEdge = np.mean([QStart,QStop],axis=0).reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonalX.reshape(3,1)+effectiveWidth*orthogonalY.reshape(3,1)
+                    rightEdge = np.mean([QStart,QStop],axis=0).reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonalY.reshape(3,1)-effectiveWidth*orthogonalX.reshape(3,1)
+                    leftEdge =  np.mean([QStart,QStop],axis=0).reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonalY.reshape(3,1)+effectiveWidth*orthogonalX.reshape(3,1)
                     
-                    insideQ = np.all([test1,test2,test3],axis=0)
-                    
-                    if insideQ.sum() != 0:
-                        intensity.append(INT.flatten()[insideQ])
-                        pos.append(sign*along.flatten()[insideQ])
-                        if individualMonitors:
-                            Mon.append([df.monitor[i]]*insideQ.sum())
+                    checkPositions = np.concatenate([startEdge,endEdge,rightEdge,leftEdge],axis=1)
+                
+                # Calcualte the corresponding A3 and A4 positons
+                E = np.power(df.ki[1,0][0]/0.694692,2.0)
+                A3,A4 = np.array([TasUBlibDEG.converterToA3A4(*pos,E,E) for pos in checkPositions.T]).T
+                
+                # remove nan-values
+                A4NonNaN = np.logical_not(np.isnan(A4))
+                A3 = A3[A4NonNaN]
+                A4 = A4[A4NonNaN]
+
+                
+                A3Min,A3Max = [f(A3) for f in [np.nanmin,np.nanmax]]
+                A4Min,A4Max = [f(A4) for f in [np.nanmin,np.nanmax]]
                 
                 
-                intensity = np.concatenate(intensity,axis=0)
-                pos = np.concatenate(pos,axis=0)
-                if individualMonitors:
-                    Mon = np.concatenate(Mon,axis=0)
+                # Find and sort ascending the indices        
+                twoThetaIdx = np.sort(np.array([np.argmin(np.abs(df.twoTheta[0]-tt)) for tt in [A4Min,A4Max]]))
+                A3Idx = np.sort(np.array([np.argmin(np.abs(df.A3-a3)) for a3 in [A3Min,A3Max]]))
+
+                if not np.isclose(np.abs(np.dot(direction,[0,0,1])),1.0):
+                    maxQz = np.max([QStart[2],QStop[2]])+widthZ*expansionFactior
+                    minQz = np.min([QStart[2],QStop[2]])-widthZ*expansionFactior
+                    qzIdx = np.array(np.sort(np.array([np.argmin(np.abs(w-df.q[2,0,:,0])) for w in [minQz,maxQz]])))
+                else:
+                    qzIdx = np.array([0,df.counts.shape[1]])#np.sort(np.array([np.argmin(np.abs(p[2]-df.q[2,0,:,0])) for p in [P1,P2]])))
+                
+                mask = np.zeros_like(df.counts,dtype=bool)
+                mask[A3Idx[0]:A3Idx[1]+1,
+                        qzIdx[0]:qzIdx[1]+1,
+                        twoThetaIdx[0]:twoThetaIdx[1]+1]=True
+                
+                data = data[mask]
+                relativePosition = df.q[:,mask]-QStart.reshape(3,-1)
                 
             else:
-                relativePosition = df.q.reshape(3,-1)-QStart.reshape(3,-1)
-                along = np.einsum('ij,i...->...j',relativePosition,directionVector)
+                # along = np.einsum('ij,i...->...j',relativePosition,directionVector)
                 
-                orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+                # orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
                 
-                orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
-                test1 = (orthogonal<width).flatten()
-                test2 = (along[0]>-stepSize).flatten()
-                test3 = (along[0]<np.linalg.norm(stopAlong)+stepSize).flatten()
+                # orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+                # test1 = (orthogonal<width).flatten()
+                # test2 = (along[0]>-stepSize).flatten()
+                # test3 = (along[0]<np.linalg.norm(stopAlong)+stepSize).flatten()
                 
-                insideQ = np.all([test1,test2,test3],axis=0)
+                # insideQ = np.all([test1,test2,test3],axis=0)
             
-                intensity = data.flatten()[insideQ]
-                pos = sign*along.flatten()[insideQ]
+                # intensity = data.flatten()[insideQ]
+                # pos = sign*along.flatten()[insideQ]
                 
-                if individualMonitors:
-                    shape = df.counts[0].shape
-                    Mon = np.array([np.full(shape,m) for m in df.monitor]).flatten()[insideQ]
-                    
+            #else:
+                relativePosition = df.q.reshape(3,-1)-QStart.reshape(3,-1)
+            
+            along = np.einsum('ij,i...->...j',relativePosition,directionVector)
+                
+            orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+            
+            orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+            test1 = (orthogonal<width*0.5).flatten()
+            test2 = (along[0]>-stepSize).flatten()
+            test3 = (along[0]<np.linalg.norm(stopAlong)+stepSize).flatten()
+            
+            insideQ = np.all([test1,test2,test3],axis=0)
+        
+            intensity = data.flatten()[insideQ]
+            pos = sign*along.flatten()[insideQ]
 
+                
+        
             if intensities is None:
                 intensities = np.histogram(pos,bins=bins,weights=intensity)[0]
                 normCounts = np.histogram(pos,bins=bins)[0]
@@ -779,16 +824,14 @@ class DataSet(object):
                 intensities+=np.histogram(pos,bins=bins,weights=intensity)[0]
                 normCounts+=np.histogram(pos,bins=bins)[0]
                 monitors += np.full_like(intensities,df.monitor[0])
-            
+        
         I = np.divide(intensities,monitors)
         I[normCounts==0]=np.nan
         binCentres = 0.5*(bins[:-1]+bins[1:])
-
+        
         positionVector = directionVector*binCentres+QStart.reshape(3,1)
         if rlu:
             positionVector = np.array([self[-1].sample.calculateQxQyQzToHKL(*bC) for bC in positionVector.T]).T
-
-
         return positionVector,I
 
 
