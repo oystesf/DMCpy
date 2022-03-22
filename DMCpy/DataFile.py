@@ -321,6 +321,7 @@ class DataFile(object):
     @_tools.KwargChecker()
     def __init__(self, file=None):
         self.fileType = 'DataFile'
+        self._twoThetaOffset = 0.0
 
         if not file is None: 
             if isinstance(file,DataFile): # Copy everything from provided file
@@ -377,9 +378,11 @@ class DataFile(object):
         self.counts.shape = (1,*self.counts.shape) # Standard shape
 
     def initializeQ(self):
-
-        self.twoTheta, z = np.meshgrid(self.twoTheta.flatten(),self.verticalPosition,indexing='xy')
-        
+        if len(self.twoTheta.shape) == 2:
+            self.twoTheta, z = np.meshgrid(self.twoTheta[0].flatten(),self.verticalPosition,indexing='xy')
+        else:
+            self.twoTheta, z = np.meshgrid(self.twoTheta.flatten(),self.verticalPosition,indexing='xy')
+            
         self.pixelPosition = np.array([self.radius*np.cos(np.deg2rad(self.twoTheta)),
                                     -self.radius*np.sin(np.deg2rad(self.twoTheta)),
                                     z]).reshape(3,*self.counts.shape[1:])
@@ -391,11 +394,10 @@ class DataFile(object):
             self.monitor = np.ones(self.counts.shape[0])
         
         self.alpha = np.rad2deg(np.arctan2(self.pixelPosition[2],self.radius))
-        self.waveLength = self.wavelength
         # Above line makes an implicit call to the self.calculateQ method!
         
         self.calculateQ()
-        self.correctedTwoTheta = 2.0*np.rad2deg(np.arcsin(self.waveLength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
+
         self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
 
         self.generateMask(maskingFunction=None)
@@ -454,7 +456,7 @@ class DataFile(object):
     def twoThetaPosition(self):
         if not hasattr(self,'_detector_position'):
             self._detector_position = np.array([0.0])
-        return self._detector_position
+        return self._detector_position+self.twoThetaOffset
 
     @twoThetaPosition.setter
     def twoThetaPosition(self,twoTheta):
@@ -463,8 +465,8 @@ class DataFile(object):
         elif np.isnan(twoTheta):
             self._detector_position = np.array([0.0]*len(self.A3))
         else:
-            self._detector_position = twoTheta
-        self.twoTheta = np.linspace(0,132,1152) + self._detector_position
+            self._detector_position = np.asarray(twoTheta)
+        self.twoTheta = np.repeat((np.linspace(0,132,1152) + self._detector_position + self._twoThetaOffset)[np.newaxis],self.counts.shape[1],axis=0)
         if hasattr(self,'_Ki') and hasattr(self,'twoTheta'):
             self.calculateQ()
 
@@ -482,6 +484,20 @@ class DataFile(object):
     def Ki(self,Ki):
         self._Ki = Ki
         self.wavelength = np.full_like(self.wavelength,2*np.pi/Ki)
+        self.calculateQ()
+
+    @property
+    def twoThetaOffset(self):
+        return self._twoThetaOffset
+
+    @twoThetaOffset.getter
+    def twoThetaOffset(self):
+        return self._twoThetaOffset
+
+    @twoThetaOffset.setter
+    def twoThetaOffset(self,dTheta):
+        self._twoThetaOffset = dTheta
+        self.twoTheta = np.repeat((np.linspace(0,132,1152) + self._detector_position + self._twoThetaOffset)[np.newaxis],self.counts.shape[1],axis=0)
         self.calculateQ()
 
     @property
@@ -523,6 +539,9 @@ class DataFile(object):
             self.Q = np.linalg.norm(self.q,axis=0)
         else:
             self.Q = np.array([np.linalg.norm(self.q,axis=0)])
+
+        if hasattr(self,'wavelength'):
+            self.correctedTwoTheta = 2.0*np.rad2deg(np.arcsin(self.wavelength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
         
 
     def generateMask(self,maskingFunction = maskFunction, **pars):
