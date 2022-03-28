@@ -37,7 +37,7 @@ class DataSet(object):
 
     def _getData(self):
         # Collect parameters listed below across data files into self
-        for parameter in ['counts','monitor','twoTheta','correctedTwoTheta','fileName','pixelPosition','waveLength','mask','normalization','normalizationFile','time','temperature']:
+        for parameter in ['counts','monitor','twoTheta','correctedTwoTheta','fileName','pixelPosition','wavelength','mask','normalization','normalizationFile','time','temperature']:
             setattr(self,parameter,np.array([getattr(d,parameter) for d in self]))
 
         
@@ -923,10 +923,10 @@ class DataSet(object):
         else:
             samName ='Unknown! Combined different sample names'
         
-        if np.all([np.isclose(x,self.waveLength[0]) for x in self.waveLength[1:]]):
-            waveLength = self.waveLength[0]
+        if np.all([np.isclose(x,self.wavelength[0]) for x in self.wavelength[1:]]):
+            wavelength = self.wavelength[0]
         else:
-            waveLength ='Unknown! Combined different Wavelengths'
+            wavelength ='Unknown! Combined different Wavelengths'
         
 
         # reshape intensity and err to fit into (10,x)
@@ -940,7 +940,7 @@ class DataSet(object):
         
         ## Generate output to DMC file format
         titleLine = "DMC, "+samName
-        paramLine = "lambda={:9.5f}, T={:8.3f}, dT={:7.3f}, Date='{}'".format(waveLength,meanTemp,stdTemp,self[0].startTime)#.decode("utf-8"))
+        paramLine = "lambda={:9.5f}, T={:8.3f}, dT={:7.3f}, Date='{}'".format(wavelength,meanTemp,stdTemp,self[0].startTime)#.decode("utf-8"))
         paramLine2= ' '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
         
         dataLinesInt = '\n'.join([' '+' '.join(["{:6.0f}.".format(x).replace('nan.','    ') for x in line]) for line in intensity])
@@ -1107,10 +1107,10 @@ class DataSet(object):
         else:
             samName ='Unknown! Combined different sample names'
 
-        if np.all([np.isclose(x,self.waveLength[0]) for x in self.waveLength[1:]]):
-            waveLength = self.waveLength[0]
+        if np.all([np.isclose(x,self.wavelength[0]) for x in self.wavelength[1:]]):
+            wavelength = self.wavelength[0]
         else:
-            waveLength ='Unknown! Combined different Wavelengths'
+            wavelength ='Unknown! Combined different Wavelengths'
         
         temperatures = np.array([df.temperature for df in self])
         meanTemp = np.mean(temperatures)
@@ -1124,7 +1124,7 @@ class DataSet(object):
         else:
             year,fileNumbers = _tools.numberStringGenerator(self.fileName)
         
-        titleLine1 = f"# DMC at SINQ, PSI: Sample name = {samName}, wavelength = {str(waveLength)[:5]} AA, T = {str(meanTemp)[:5]} K"
+        titleLine1 = f"# DMC at SINQ, PSI: Sample name = {samName}, wavelength = {str(wavelength)[:5]} AA, T = {str(meanTemp)[:5]} K"
         titleLine2 = "# Filelist='dmc:{}:{}'".format(year,fileNumbers)
         titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
 
