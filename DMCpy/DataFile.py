@@ -397,9 +397,6 @@ class DataFile(object):
         # Above line makes an implicit call to the self.calculateQ method!
         
         self.calculateQ()
-
-        self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
-
         self.generateMask(maskingFunction=None)
 
 
@@ -540,8 +537,12 @@ class DataFile(object):
         else:
             self.Q = np.array([np.linalg.norm(self.q,axis=0)])
 
-        if hasattr(self,'wavelength'):
-            self.correctedTwoTheta = 2.0*np.rad2deg(np.arcsin(self.wavelength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
+        try:
+            self.correctedTwoTheta = 2.0*np.rad2deg(np.arcsin(self.waveLength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
+            self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
+        except:
+            pass
+
         
 
     def generateMask(self,maskingFunction = maskFunction, **pars):
