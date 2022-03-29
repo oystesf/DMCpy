@@ -129,7 +129,7 @@ class DataSet(object):
         self._getData()
 
     @_tools.KwargChecker()
-    def sumDetector(self,twoThetaBins=None,applyNormalization=True,correctedTwoTheta=True):
+    def sumDetector(self,twoThetaBins=None,applyNormalization=True,correctedTwoTheta=True,dTheta=0.125):
         """Find intensity as function of either twoTheta or correctedTwoTheta
 
         Kwargs:
@@ -163,7 +163,6 @@ class DataSet(object):
         if twoThetaBins is None:
             anglesMin = np.min(twoTheta)
             anglesMax = np.max(twoTheta)
-            dTheta = 0.5
             twoThetaBins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
 
         if self.type.lower() == 'singlecrystal':
@@ -188,7 +187,7 @@ class DataSet(object):
     
 
     @_tools.KwargChecker(function=plt.errorbar,include=_tools.MPLKwargs)
-    def plotTwoTheta(self,ax=None,twoThetaBins=None,applyNormalization=True,correctedTwoTheta=True,**kwargs):
+    def plotTwoTheta(self,ax=None,twoThetaBins=None,applyNormalization=True,correctedTwoTheta=True,dTheta=0.125,**kwargs):
         """Plot intensity as function of correctedTwoTheta or twoTheta
 
         Kwargs:
@@ -219,7 +218,7 @@ class DataSet(object):
         
         
         twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor = self.sumDetector(twoThetaBins=twoThetaBins,applyNormalization=applyNormalization,\
-                                                                                       correctedTwoTheta=correctedTwoTheta)
+                                                                                       correctedTwoTheta=correctedTwoTheta,dTheta=dTheta)
 
         TwoThetaPositions = 0.5*(twoThetaBins[:-1]+twoThetaBins[1:])
 
@@ -835,7 +834,7 @@ class DataSet(object):
         return positionVector,I
 
 
-    def export_PSI_format(self,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
+    def export_PSI_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
 
         """
         The function takes a data set and merge the files.
@@ -845,13 +844,15 @@ class DataSet(object):
         
         Kwargs:
             
-            - dTheta (Float): stepsize of binning if no nins is given (default is 0.2)
+            - dTheta (Float): stepsize of binning if no nins is given (default is 0.125)
             
             - twoThetaOffset (float): Linear shift of two theta, default is 0. To be used if a4 in hdf file is incorrect
             
-            - Bins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.2)
+            - Bins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.125)
             
             - outFile (str): String that will be used for outputfile. Default is automatic generated name.
+
+            - outFolder (str): Path to folder data will be saved. Default is current working directory.
             
         - Arguments for automatic file name:
                 
@@ -867,7 +868,7 @@ class DataSet(object):
             
         Kwargs for sumDetector:
 
-            - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.2 Deg)
+            - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
                 
             - applyNormalization (bool): Use normalization files (default True)
                 
@@ -1012,11 +1013,14 @@ class DataSet(object):
                 saveFile += "_" + fileNumbers.replace(',','_')  
         else:
             saveFile = str(outFile.replace('.dat',''))
-            
-        with open(saveFile+".dat",'w') as sf:
+
+        if outFolder is None:
+            outFolder = os.getcwd()
+
+        with open(os.path.join(outFolder,saveFile)+".dat",'w') as sf:
             sf.write(fileString)
 
-    def export_xye_format(self,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
+    def export_xye_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
 
         """
         The function takes a data set and merge the files.
@@ -1025,13 +1029,15 @@ class DataSet(object):
         
         Kwargs:
             
-            - dTheta (Float): stepsize of binning if no nins is given (default is 0.2)
+            - dTheta (Float): stepsize of binning if no nins is given (default is 0.125)
             
             - twoThetaOffset (float): Linear shift of two theta, default is 0. To be used if a4 in hdf file is incorrect
             
-            - Bins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.2)
+            - Bins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.125)
             
             - outFile (str): String that will be used for outputfile. Default is automatic generated name.
+
+            - outFolder (str): Path to folder data will be saved. Default is current working directory.
             
         - Arguments for automatic file name:
                 
@@ -1047,7 +1053,7 @@ class DataSet(object):
             
         Kwargs for sumDetector:
 
-            - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.2 Deg)
+            - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
                 
             - applyNormalization (bool): Use normalization files (default True)
                 
@@ -1142,8 +1148,11 @@ class DataSet(object):
                 saveFile += "_" + fileNumbers.replace(',','_') 
         else:
             saveFile = str(outFile.replace('.xye',''))
-            
-        with open(saveFile+".xye",'w') as sf:
+
+        if outFolder is None:
+            outFolder = os.getcwd()
+
+        with open(os.path.join(outFolder,saveFile)+".xye",'w') as sf:
             sf.write(titleLine1+"\n")    
             sf.write(titleLine2+"\n") 
             sf.write(titleLine3+"\n") 
@@ -1181,7 +1190,7 @@ class DataSet(object):
     
             
             
-def add(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
+def add(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
 
     """
     
@@ -1198,6 +1207,8 @@ def add(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bin
         - folder (str): Path to directory for data files, default is current working directory
         
         - outFile (str): string for name of outfile (given without extension)
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - PSI (bool): Export PSI format. Default is True
         
@@ -1217,7 +1228,7 @@ def add(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bin
         
     Kwargs for sumDetector:
 
-        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.2 Deg)
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyNormalization (bool): Use normalization files (default True)
             
@@ -1232,6 +1243,8 @@ def add(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bin
 
     if folder is None:
         folder = os.getcwd()
+    if outFolder is None:
+        outFolder = os.getcwd()
         
     listOfDataFiles = str()
     
@@ -1249,9 +1262,9 @@ def add(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bin
                 df.monitor = np.ones_like(df.monitor)
             print('I got ehre 2')
         if PSI == True:
-            ds.export_PSI_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)    
+            ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
         if xye == True:
-            ds.export_xye_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)      
+            ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
     else:
         print("Cannot export! Something wrong with input")       
 
@@ -1261,7 +1274,7 @@ def add(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bin
 
 
         
-def export(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
+def export(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
 
     """
     
@@ -1282,6 +1295,8 @@ def export(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,
         - xye (bool): Export xye format. Default is True
         
         - outFile (str): string for name of outfile (given without extension)
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
     - Arguments for automatic file name:
             
@@ -1297,7 +1312,7 @@ def export(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,
         
     Kwargs for sumDetector:
 
-        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.2 Deg)
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyNormalization (bool): Use normalization files (default True)
             
@@ -1312,6 +1327,8 @@ def export(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,
 
     if folder is None:
         folder = os.getcwd()
+    if outFolder is None:
+        outFolder = os.getcwd()
     
     if type(listinput) == tuple:
         for elemnt in listinput:
@@ -1325,9 +1342,9 @@ def export(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,
                     if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
                         df.monitor = np.ones_like(df.monitor)
                 if PSI == True:
-                    ds.export_PSI_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
                 if xye == True:
-                    ds.export_xye_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)      
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
             except:
                 print(f"Cannot export! File is wrong format: {elemnt}")
     else:
@@ -1340,7 +1357,7 @@ def export(*listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,
 
 
 
-def export_from(startFile,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
+def export_from(startFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
     
     """
     
@@ -1357,6 +1374,8 @@ def export_from(startFile,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffse
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
         
@@ -1374,7 +1393,7 @@ def export_from(startFile,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffse
         
     Kwargs for sumDetector:
 
-        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.2 Deg)
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyNormalization (bool): Use normalization files (default True)
             
@@ -1386,7 +1405,9 @@ def export_from(startFile,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffse
     """
     if folder is None:
         folder = os.getcwd()
-    
+    if outFolder is None:
+        outFolder = os.getcwd()
+
     hdf_files = [f for f in os.listdir(folder) if f.endswith('.hdf')]
     last_hdf = hdf_files[-1]
 
@@ -1406,9 +1427,9 @@ def export_from(startFile,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffse
                 if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
                     df.monitor = np.ones_like(df.monitor)
             if PSI == True:
-                ds.export_PSI_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)    
+                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
             if xye == True:
-                ds.export_xye_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)      
+                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
         except:
             print(f"Cannot export! File is wrong format: {file}")
             
@@ -1418,7 +1439,7 @@ def export_from(startFile,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffse
 
 
 
-def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
+def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
 
     """
     
@@ -1437,6 +1458,8 @@ def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,dTheta=0.2,tw
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
         
@@ -1454,7 +1477,7 @@ def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,dTheta=0.2,tw
         
     Kwargs for sumDetector:
 
-        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.2 Deg)
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyNormalization (bool): Use normalization files (default True)
             
@@ -1468,7 +1491,9 @@ def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,dTheta=0.2,tw
     """
     if folder is None:
         folder = os.getcwd()
-        
+    if outFolder is None:
+        outFolder = os.getcwd()
+
     fileList = list(range(startFile,endFile+1))
     
     for file in fileList:    
@@ -1482,9 +1507,9 @@ def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,dTheta=0.2,tw
                 if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
                     df.monitor = np.ones_like(df.monitor)
             if PSI == True:
-                ds.export_PSI_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)    
+                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
             if xye == True:
-                ds.export_xye_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)      
+                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
         except:
             print(f"Cannot export! File is wrong format: {file}")
 
@@ -1497,7 +1522,7 @@ def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,dTheta=0.2,tw
 
 
 
-def export_list(listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=True,magneticField=False,electricField=False,fileNumber=True):
+def export_list(listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
 
     """
     
@@ -1514,6 +1539,8 @@ def export_list(listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffse
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
         
@@ -1531,7 +1558,7 @@ def export_list(listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffse
         
     Kwargs for sumDetector:
 
-        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.2 Deg)
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyNormalization (bool): Use normalization files (default True)
             
@@ -1546,6 +1573,8 @@ def export_list(listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffse
 
     if folder is None:
         folder = os.getcwd()
+    if outFolder is None:
+        outFolder = os.getcwd()
         
     for file in listinput:   
         file = str(file)
@@ -1558,9 +1587,9 @@ def export_list(listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffse
                 if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
                     df.monitor = np.ones_like(df.monitor)
             if PSI == True:
-                ds.export_PSI_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)    
+                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
             if xye == True:
-                ds.export_xye_format(dTheta,twoThetaOffset,bins,outFile,applyNormalization,correctedTwoTheta,sampleName,temperature,magneticField,electricField,fileNumber)      
+                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
         except:
             print(f"Cannot export! File is wrong format: {file}")
             
@@ -1569,7 +1598,7 @@ def export_list(listinput,PSI=True,xye=True,folder=None,dTheta=0.2,twoThetaOffse
                 
 
                 
-def subtract_PSI(file1,file2,outFile=None,folder=None):
+def subtract_PSI(file1,file2,outFile=None,folder=None,outFolder=None):
 
     """
     
@@ -1582,8 +1611,12 @@ def subtract_PSI(file1,file2,outFile=None,folder=None):
         - PSI (bool): Subtract PSI format. Default is True
         
         - xye (bool): Subtract xye format. Default is True
+
+        - folder (str): Path to directory for data files, default is current working directory
         
         - outFile (str): string for name of outfile (given without extension)
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory.
                 
     Example:
         >>> subtract('DMC_565.dat','DMC_573')
@@ -1658,7 +1691,10 @@ def subtract_PSI(file1,file2,outFile=None,folder=None):
 
     print(f'Subtracting PSI: {file1}.dat minus {file2}.dat') 
 
-    with open(saveFile+".dat",'w') as sf:
+    if outFolder is None:
+        outFolder = os.getcwd()
+
+    with open(os.path.join(outFolder,saveFile)+".dat",'w') as sf:
         sf.write(fileString)
     
     
@@ -1666,7 +1702,7 @@ def subtract_PSI(file1,file2,outFile=None,folder=None):
 # subtract_PSI('DMC_565','DMC_573')
 
 
-def subtract_xye(file1,file2,outFile=None,folder=None):
+def subtract_xye(file1,file2,outFile=None,folder=None,outFolder=None):
 
     """
     
@@ -1679,8 +1715,12 @@ def subtract_xye(file1,file2,outFile=None,folder=None):
         - PSI (bool): Subtract PSI format. Default is True
         
         - xye (bool): Subtract xye format. Default is True
+
+        - folder (str): Path to directory for data files, default is current working directory
         
-        - outFile (str): string for name of outfile (given without extension)    
+        - outFile (str): string for name of outfile (given without extension)
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory. 
         
     Example:
         >>> subtract('DMC_565.xye','DMC_573')
@@ -1689,7 +1729,7 @@ def subtract_xye(file1,file2,outFile=None,folder=None):
     
     if folder is None:
         folder = os.getcwd()
-        
+    
     data1 = np.genfromtxt(os.path.join(folder,file1.replace('.xye','')+'.xye'), delimiter='  ')
     data2 = np.genfromtxt(os.path.join(folder,file2.replace('.xye','')+'.xye'), delimiter='  ')  
     
@@ -1730,7 +1770,10 @@ def subtract_xye(file1,file2,outFile=None,folder=None):
 
     print(f'Subtracting xye: {file1}.xye minus {file2}.xye')    
 
-    with open(saveFile+".xye",'w') as sf:
+    if outFolder is None:
+        outFolder = os.getcwd()
+
+    with open(os.path.join(outFolder,saveFile)+".xye",'w') as sf:
         sf.write('# ' + str(info1) + "\n")   
         sf.write("# subtracted file: \n") 
         sf.write('# ' + str(info2) + "\n") 
@@ -1740,7 +1783,7 @@ def subtract_xye(file1,file2,outFile=None,folder=None):
         
     # subtract_xye('DMC_565','DMC_573')
 
-def subtract(file1,file2,PSI=True,xye=True,outFile=None,folder=None):
+def subtract(file1,file2,PSI=True,xye=True,outFile=None,folder=None,outFolder=None):
     """
 
     This function takes two files and export a differnce curve with correct uncertainties. 
@@ -1753,7 +1796,11 @@ def subtract(file1,file2,PSI=True,xye=True,outFile=None,folder=None):
         
         - xye (bool): Subtract xye format. Default is True
         
-        - outFile (str): string for name of outfile (given without extension)    
+        - folder (str): Path to directory for data files, default is current working directory
+        
+        - outFile (str): string for name of outfile (given without extension)
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory. 
         
     Example:
         >>> subtract('DMC_565.xye','DMC_573')
@@ -1769,12 +1816,12 @@ def subtract(file1,file2,PSI=True,xye=True,outFile=None,folder=None):
 
     if PSI == True:
         try:
-            subtract_PSI(file1,file2,outFile,folder=folder)
+            subtract_PSI(file1,file2,outFile,folder=folder,outFolder=outFolder)
         except:
             print('Cannot subtract PSI format files')
     if xye == True:
         try:
-            subtract_xye(file1,file2,outFile,folder=folder)
+            subtract_xye(file1,file2,outFile,folder=folder,outFolder=outFolder)
         except:
             print('Cannot subtract xye format files')
         
@@ -1812,8 +1859,9 @@ def export_help():
     print(" ")
     print(" Most important kewords and aguments:")
     print(" ")
-    print("     - dTheta (float): stepsize of binning if no bins is given (default is 0.2)")
+    print("     - dTheta (float): stepsize of binning if no bins is given (default is 0.125)")
     print("     - outFile (str): String that will be used for outputfile. Default is automatic generated name.")
+    print("     - outFolder (str): Path to folder data will be saved. Default is current working directory.")
     print("     - twoThetaOffset (float): Linear shift of two theta, default is 0. To be used if a4 in hdf file is incorrect")
     print(" ")
     print(" Arguments for automatic file name:")
