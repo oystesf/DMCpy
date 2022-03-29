@@ -28,7 +28,7 @@ class Sample(object):
     @_tools.KwargChecker()
     def __init__(self,a=1.0,b=1.0,c=1.0,alpha=90,beta=90,gamma=90,sample=None,name='Unknown',projectionVector1=None, projectionVector2 = None):
 
-        self.UB = np.eye(3)
+        
         if isinstance(sample,hdf._hl.group.Group):
             self.name = np.array(sample.get('name'))[0].decode()
             if self.name is None or self.name == '':
@@ -40,7 +40,7 @@ class Sample(object):
                 self.unitCell = unitCell
             else:
                 self.unitCell = [1,1,1,90,90,90]
-
+            self.UB = self.B
             
             
         elif np.all([a is not None,b is not None, c is not None]):
@@ -56,7 +56,7 @@ class Sample(object):
             self.plane_vector2 = r2
 
             self.planeNormal = np.cross(self.plane_vector1[:3],self.plane_vector2[:3])
-            
+            self.UB = self.B
             
             # cell = TasUBlib.calcCell(self.unitCell)
 
