@@ -7,47 +7,45 @@ def Tester():
     from DMCpy import DataSet,DataFile
     import numpy as np
     
-    file = r'C:/Users/lass_j/Documents/DMC_2021/dmc2021n000590.hdf'
+    file = r'C:/Users/lass_j/Documents/DMC_2021/dmc2021n009003.hdf'
     
-    A3 = np.arange(0,118,0.5) # known a3 range
-    
-    twoThetaPosition = np.array([-18])
-    # Load data file with corrected A3 range
-    df = DataFile.DataFile(file,A3=A3,twoThetaPosition=twoThetaPosition)
+    df = DataFile.loadDataFile(file)
     
     # Use above data file in data set. Must be inserted as a list
     ds = DataSet.DataSet([df])
     
+    ds.autoAlignScatteringPlane(scatteringNormal=np.array([1,-1,0],dtype=float))
+
     Viewer = ds.Viewer3D(0.03,0.03,0.03)
     
     # Set the color bar limits to 0 and 60
-    Viewer.set_clim(0,60)
+    Viewer.set_clim(0,20)
     
     
     # Find the number of steps and set viewer to middel value
     # This can also be done interactively in the viewer by pressing up or down,
     # or by scrolling the mouse wheel or clicking the sliding bar.
     zSteps = Viewer.Z.shape[-1]
-    Viewer.setPlane(int(zSteps/2))
+    Viewer.setPlane(int(zSteps/2)-1)
     
     fig = Viewer.ax.get_figure()
     fig.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/Center2.png',format='png',dpi=300)
     
     #  Change programatically to the next plane
-    Viewer.setPlane(int(zSteps/2)+1)
+    Viewer.setPlane(int(zSteps/2))
     fig2 = Viewer.ax.get_figure()
     fig2.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/Center2_2.png',format='png',dpi=300)
     
     
     # Instead of only stepping through the data with the Qx and Qy in the plane
-    # one can flip the view by clicking 0, 1, or 2 in the interative view,
+    # one can flip the view by clicking 0, 1, or 2 in the interactive view,
     # or do it programmatically by
     
     Viewer.changeAxis(0)
     xSteps = Viewer.X.shape[-1]
     # Notice that the shape of X, Y, and Z changes when the axis is flipped! 
     # The last dimension is alway 'orthogonal' to the view.
-    Viewer.setPlane(79)
+    Viewer.setPlane(174)
     
     fig3 = Viewer.ax.get_figure()
     fig3.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/Center0.png',format='png',dpi=300)
@@ -75,11 +73,11 @@ introText = 'In a single crystal experiment, the first step is to gain an overvi
 +'+-----------------+------------------------------------------------------+ \n'\
 +'|        2        | Change plotting such that Qz is constant             | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
-+'|  \+ or UpArrow  | Increment step along constant axis                   | \n'\
++'|  + or UpArrow   | Increment step along constant axis                   | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
 +'|  Page Up        | Increment 10 steps along constant axis               | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
-+'| \- or DownArrow | Decrement step along constant axis                   | \n'\
++'| - or DownArrow  | Decrement step along constant axis                   | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
 +'|  Page Down      | Decrement 10 steps along constant axis               | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
