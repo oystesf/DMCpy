@@ -3,6 +3,7 @@ import numpy as np
 from difflib import SequenceMatcher
 import os.path
 import cProfile, pstats, io
+from itertools import product
 
 
 MPLKwargs = ['agg_filter','alpha','animated','antialiased or aa','clip_box','clip_on','clip_path','color or c','contains','dash_capstyle','dash_joinstyle','dashes','drawstyle','figure','fillstyle','gid','label','linestyle or ls','linewidth or lw','marker','markeredgecolor or mec','markeredgewidth or mew','markerfacecolor or mfc','markerfacecoloralt or mfcalt','markersize or ms','markevery','path_effects','picker','pickradius','rasterized','sketch_params','snap','solid_capstyle','solid_joinstyle','transform','url','visible','xdata','ydata','zorder']
@@ -486,3 +487,184 @@ def profile(fnc):
         return retval
 
     return inner
+
+
+
+class CentreOfMass(object):
+    """Small helper class holding a center of gravity and its weight"""
+    def __init__(self,position,weight):
+        x,y,z = position
+        self.x = x
+        self.y = y
+        self.z = z
+        self.weight = weight
+        self.originals = [[position,weight]]
+        
+    def addPoint(self,position,weight=1.0):
+        totalWeight = self.weight+weight
+        newPosition = np.sum([self.position*self.weight,position*weight],axis=0)/totalWeight
+        self.position = newPosition
+        self.weight=totalWeight
+        self.originals.append([position,weight])
+        
+    @property
+    def position(self):
+        return np.array([self.x,self.y,self.z])
+    
+    @position.setter
+    def position(self,newPosition):
+        x,y,z = newPosition
+        self.x = x
+        self.y = y
+        self.z = z
+        
+    def __str__(self):
+        return "CentreOfMass at ({},{},{}) with weight {}".format(*self.position,self.weight)
+        
+def distance(a,b,dx=1,dy=1,dz=1):
+    """Calculate distance with variable metric"""
+    return np.linalg.norm(np.dot(a-b,[dx,dy,dz]))
+
+
+
+def clusterPoints(positions,weights=None,distanceThreshold=0.01, shufflePoints=True, distanceFunction=None):
+    """Combine positions within dinstance threshold into centres of gravity with the provided weights
+    
+    Args:
+        
+        - positions (list [n,3]): List of positions to be combined
+        
+    Kwargs:
+        
+        - weights (list [n]): Weights corresponding to positions (default None -> ones)
+        
+        - distanceThreshold (float): Distance within which points are to be combined (default 0.01)
+        
+        - shufflePoints (bool): If True, shuffle the provided positions and correspondingly their weights (default False)
+        
+        - distanceFunction (function): Function to calculate distance (default None -> np.linalg.norm)
+        
+    Returns:
+        
+        - 
+        
+    Note:
+        
+        In situations where the positions provided are correlated it can happen that 
+        the found centres of gravity are different than expected.
+        
+    
+    """
+    positions = np.asarray(positions)
+    
+    if distanceFunction is None:
+        distanceFunction = lambda a,b: np.linalg.norm(a-b)
+    if weights is None:
+        weights = np.zeros(len(positions))
+    else:
+        weights = np.asarray(weights)
+        
+    if shufflePoints:
+        shuffled = np.concatenate([positions,weights.reshape(-1,1)],axis=1)
+        np.random.shuffle(shuffled)
+        positions = shuffled[:,:3]
+        weights = shuffled[:,-1]
+        
+    centres = [CentreOfMass(weight=weights[0],position=positions[0])]
+    
+    for I,(pos,weight) in enumerate(zip(positions[1:],weights[1:])):
+        #if np.mod(I,100):
+            #print(I,'len(peak) = ',len(peaks))
+        posUsed = False
+        for p in centres:
+            if distanceFunction(p.position,pos)<distanceThreshold:
+                p.addPoint(pos,weight=weight)
+                posUsed = True
+                break
+            
+        if not posUsed:
+            centres.append(CentreOfMass(pos,weight))
+    return centres
+
+
+def calculateTriplets(reflections,normalized=False):
+    """Calculate cross product triples between all points
+    
+    Args: 
+        
+        - reflections (list [n,3]): List of reflections to use
+        
+    Kwargs:
+        
+        - normalized (bool): Normalize the length of normal (default False)
+        
+    """
+    tripletNormal = []
+     
+    points = [np.squeeze(a) for a in np.vsplit(reflections, reflections.shape[0])]
+    np.random.shuffle(points)
+    # Calculate the cross product of the vectors connecting 3 random points
+    
+    for a1, a2, a3 in product(points, repeat=3):
+        # find cross product
+        normal = np.cross(a2 - a1, a3 - a1)
+        
+        # if length of cross product is 0, continue
+        if np.allclose(normal, 0, atol=1e-2):
+            continue
+        if normalized:
+            # make it normalized and make it 'mostly positive'
+            normal /= np.linalg.norm(normal)
+            normal*=np.sign(np.sum(normal))
+        
+        tripletNormal.append(normal)
+    return tripletNormal
+
+
+def plusMinusGenerator():
+    """generator giving an infinite series following 0, -1, 1, -2, 2, ..."""
+
+    yield 0
+    start = 0
+    while True:
+        if start>0:
+            start=-start
+        else:
+            start=-start+1
+        yield start
+
+
+def calculateHKLWithinQLimitsGenerator(BMatrix,QMin=0,QMax=10):
+    """Generator to calculate all HKLs within a range of Qs"""
+    for h in plusMinusGenerator():
+        for k in plusMinusGenerator():
+            for l in plusMinusGenerator():
+                q = np.linalg.norm(np.dot(BMatrix,[h,k,l]))
+                if (q>QMax*1.5):
+                    break
+                if q>QMin and q<QMax:
+                    yield [h,k,l]
+            if np.linalg.norm(np.dot(BMatrix,[h,k,0]))>QMax*1.5:
+                break
+        if np.linalg.norm(np.dot(BMatrix,[h,0,0]))>QMax*1.5:
+            break
+    
+
+
+
+def calculateHKLWithinQLimits(BMatrix,QMin=0,QMax=10):
+    positions = []
+    
+    for h in plusMinusGenerator():
+        for k in plusMinusGenerator():
+            for l in plusMinusGenerator():
+                q = np.linalg.norm(np.dot(BMatrix,[h,k,l]))
+                if (q>QMax*1.5):
+                    break
+                if q>QMin and q<QMax:
+                    positions.append([h,k,l])
+            if np.linalg.norm(np.dot(BMatrix,[h,k,0]))>QMax*1.5:
+                break
+        if np.linalg.norm(np.dot(BMatrix,[h,0,0]))>QMax*1.5:
+            break
+    return positions
