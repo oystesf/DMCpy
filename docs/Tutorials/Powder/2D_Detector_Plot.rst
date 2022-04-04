@@ -29,7 +29,7 @@ The simplets data set on the DMC instrument is that of a powder measured with on
    
 
 At the current stage, a normalization file for the 2D detector is not present and thus a dummy is created. Running the above code generates the following images showing neutron intensity as function of 2Theta and out of plane position:
- .. figure:: Plot2DPowderDetector.png
+ .. figure:: Plot2DPowderDetector_new_and_better.png
   :width: 100%
   :align: center
 
