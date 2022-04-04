@@ -29,12 +29,12 @@ def Tester():
     Viewer.setPlane(int(zSteps/2)-1)
     
     fig = Viewer.ax.get_figure()
-    fig.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/Center2.png',format='png',dpi=300)
+    fig.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/CenterMiddel.png',format='png',dpi=300)
     
     #  Change programatically to the next plane
     Viewer.setPlane(int(zSteps/2))
     fig2 = Viewer.ax.get_figure()
-    fig2.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/Center2_2.png',format='png',dpi=300)
+    fig2.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/CenterAboveMiddel.png',format='png',dpi=300)
     
     
     # Instead of only stepping through the data with the Qx and Qy in the plane
@@ -48,7 +48,7 @@ def Tester():
     Viewer.setPlane(174)
     
     fig3 = Viewer.ax.get_figure()
-    fig3.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/Center0.png',format='png',dpi=300)
+    fig3.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/CenterQx.png',format='png',dpi=300)
     
     
     
@@ -73,11 +73,11 @@ introText = 'In a single crystal experiment, the first step is to gain an overvi
 +'+-----------------+------------------------------------------------------+ \n'\
 +'|        2        | Change plotting such that Qz is constant             | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
-+'|  + or UpArrow   | Increment step along constant axis                   | \n'\
++'| \+ or UpArrow   | Increment step along constant axis                   | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
 +'|  Page Up        | Increment 10 steps along constant axis               | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
-+'| - or DownArrow  | Decrement step along constant axis                   | \n'\
++'|\- or DownArrow  | Decrement step along constant axis                   | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
 +'|  Page Down      | Decrement 10 steps along constant axis               | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
@@ -97,11 +97,11 @@ outroText = 'The above code takes the data from the A3 scan file dmc2021n000590,
 +'such that weaker peaks are visible. It is possible to slightly tweak the color scale directly in the Viewer 3D by using the '\
 +'sliders to the right of the color bar. Notice: When saving the figure these slides are rendered invisible. The end results are shown below:'\
 +'\n\nFirst data overview with Qz slightly positive and Qx and Qy in the plane\n'\
-+'\n.. figure:: Center2.png \n  :width: 50%\n  :align: center\n\n '\
++'\n.. figure:: CenterMiddel.png \n  :width: 50%\n  :align: center\n\n '\
 +'\n\nOne step \'higher\' up along Qz in the same scattering plane\n'\
-+'\n.. figure:: Center2_2.png \n  :width: 50%\n  :align: center\n\n '\
++'\n.. figure:: CenterAboveMiddel.png \n  :width: 50%\n  :align: center\n\n '\
 +'\n\nFlipping of the scattering plane axis to 0, i.e. with Qx being constant\n'\
-+'\n.. figure:: Center0.png \n  :width: 50%\n  :align: center\n\n '
++'\n.. figure:: CenterQx.png \n  :width: 50%\n  :align: center\n\n '
 
 
 introText = title+'\n'+'^'*len(title)+'\n'+introText

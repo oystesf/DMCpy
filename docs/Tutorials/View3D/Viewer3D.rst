@@ -15,11 +15,11 @@ The Viewer 3D is an interactive plotting function which allows a look through th
 +-----------------+------------------------------------------------------+ 
 |        2        | Change plotting such that Qz is constant             | 
 +-----------------+------------------------------------------------------+ 
-|  + or UpArrow   | Increment step along constant axis                   | 
+| \+ or UpArrow   | Increment step along constant axis                   | 
 +-----------------+------------------------------------------------------+ 
 |  Page Up        | Increment 10 steps along constant axis               | 
 +-----------------+------------------------------------------------------+ 
-| - or DownArrow  | Decrement step along constant axis                   | 
+|\- or DownArrow  | Decrement step along constant axis                   | 
 +-----------------+------------------------------------------------------+ 
 |  Page Down      | Decrement 10 steps along constant axis               | 
 +-----------------+------------------------------------------------------+ 
@@ -85,7 +85,7 @@ The above code takes the data from the A3 scan file dmc2021n000590, changes the 
 
 First data overview with Qz slightly positive and Qx and Qy in the plane
 
-.. figure:: Center2.png 
+.. figure:: CenterMiddel.png 
   :width: 50%
   :align: center
 
@@ -93,7 +93,7 @@ First data overview with Qz slightly positive and Qx and Qy in the plane
 
 One step 'higher' up along Qz in the same scattering plane
 
-.. figure:: Center2_2.png 
+.. figure:: CenterAboveMiddel.png 
   :width: 50%
   :align: center
 
@@ -101,7 +101,7 @@ One step 'higher' up along Qz in the same scattering plane
 
 Flipping of the scattering plane axis to 0, i.e. with Qx being constant
 
-.. figure:: Center0.png 
+.. figure:: CenterQx.png 
   :width: 50%
   :align: center
 
