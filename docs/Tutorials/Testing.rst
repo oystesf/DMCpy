@@ -9,7 +9,7 @@ This is a simple test script to check that all is working as expected. Below sho
    import matplotlib.pyplot as plt
    
    fig,ax = plt.subplots()
-   fig.savefig('figure0.png',format='png')
+   fig.savefig('figure0.png',format='png'),r'docs/Tutorials/TEST.png'),format='png',dpi=300)
    
 
 Showcasing functionality

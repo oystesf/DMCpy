@@ -3,8 +3,8 @@ import numpy as np
 import pickle as pickle
 import matplotlib.pyplot as plt
 import pandas as pd
-
-from DMCpy import DataFile, _tools, Viewer3D
+import os
+from DMCpy import DataFile, _tools, Viewer3D, RLUAxes, TasUBlibDEG
 
 
 class DataSet(object):
@@ -29,7 +29,7 @@ class DataSet(object):
             if isinstance(dataFiles,(str,DataFile.DataFile)): # If either string or DataFile instance wrap in a list
                 dataFiles = [dataFiles]
             try:
-                self.dataFiles = [DataFile.DataFile(dF) if isinstance(dF,(str)) else dF for dF in dataFiles]
+                self.dataFiles = [DataFile.loadDataFile(dF) if isinstance(dF,(str)) else dF for dF in dataFiles]
             except TypeError:
                 raise AttributeError('Provided dataFiles attribute is not iterable, filepath, or of type DataFile. Got {}'.format(dataFiles))
             
@@ -37,14 +37,11 @@ class DataSet(object):
 
     def _getData(self):
         # Collect parameters listed below across data files into self
-        for parameter in ['counts','monitor','twoTheta','correctedTwoTheta','fileName','pixelPosition','waveLength','mask','normalization','normalizationFile','time']:
+        for parameter in ['counts','monitor','twoTheta','correctedTwoTheta','fileName','pixelPosition','wavelength','mask','normalization','normalizationFile','time','temperature']:
             setattr(self,parameter,np.array([getattr(d,parameter) for d in self]))
 
-        # Collect parameters from sample into self
-        for parameter in ['sample_temperature']:
-            setattr(self,parameter,np.array([getattr(d.sample,parameter) for d in self]))
-
-        types = [df.scanType for df in self]
+        
+        types = [df.fileType for df in self]
         if len(types)>1:
             if not np.all([types[0] == t for t in types[1:]]):
                 raise AttributeError('Provided data files have different types!\n'+'\n'.join([df.fileName+': '+df.scanType for df in self]))
@@ -90,7 +87,7 @@ class DataSet(object):
                 item = [item]
             for f in item:
                 if isinstance(f,str):
-                    f = DataFile.DataFile(f)
+                    f = DataFile.loadDataFile(f)
                 self.dataFiles.append(f)
         except Exception as e:
             raise(e)
@@ -103,6 +100,19 @@ class DataSet(object):
             raise IndexError('Provided index {} is out of bounds for DataSet with length {}.'.format(index,len(self.dataFiles)))
         self._getData
 
+
+    @property
+    def sample(self):
+        return [df.sample for df in self]
+
+    @sample.getter
+    def sample(self):
+        return [df.sample for df in self]
+
+    @sample.setter
+    def sample(self,sample):
+        for df in self:
+            df.sample = sample
 
     def generateMask(self,maskingFunction = DataFile.maskFunction, **pars):
         """Generate mask to applied to data in data file
@@ -119,7 +129,7 @@ class DataSet(object):
         self._getData()
 
     @_tools.KwargChecker()
-    def sumDetector(self,twoThetaBins=None,applyNormalization=True,correctedTwoTheta=True):
+    def sumDetector(self,twoThetaBins=None,applyNormalization=True,correctedTwoTheta=True,dTheta=0.125):
         """Find intensity as function of either twoTheta or correctedTwoTheta
 
         Kwargs:
@@ -153,18 +163,14 @@ class DataSet(object):
         if twoThetaBins is None:
             anglesMin = np.min(twoTheta)
             anglesMax = np.max(twoTheta)
-            dTheta = 0.5
             twoThetaBins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
 
-        
-        if self.type.upper() == 'A3':
+        if self.type.lower() == 'singlecrystal':
             monitorRepeated = np.array([np.ones_like(df.counts)*df.monitor.reshape(-1,1,1) for df in self])
         else:
             monitorRepeated = np.repeat(np.repeat(self.monitor[:,np.newaxis,np.newaxis],self.counts.shape[-2],axis=1),self.counts.shape[-1],axis=2)
             monitorRepeated.shape = self.counts.shape
 
-        
-        
         summedRawIntensity, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=self.counts[np.logical_not(self.mask)])
 
         if applyNormalization:
@@ -173,7 +179,7 @@ class DataSet(object):
             summedMonitor, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=monitorRepeated[np.logical_not(self.mask)])
 
         inserted, _  = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins)
-
+        
         normalizedIntensity = summedRawIntensity/summedMonitor
         normalizedIntensityError =  np.sqrt(summedRawIntensity)/summedMonitor
 
@@ -181,7 +187,7 @@ class DataSet(object):
     
 
     @_tools.KwargChecker(function=plt.errorbar,include=_tools.MPLKwargs)
-    def plotTwoTheta(self,ax=None,twoThetaBins=None,applyNormalization=True,correctedTwoTheta=True,**kwargs):
+    def plotTwoTheta(self,ax=None,twoThetaBins=None,applyNormalization=True,correctedTwoTheta=True,dTheta=0.125,**kwargs):
         """Plot intensity as function of correctedTwoTheta or twoTheta
 
         Kwargs:
@@ -212,12 +218,12 @@ class DataSet(object):
         
         
         twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor = self.sumDetector(twoThetaBins=twoThetaBins,applyNormalization=applyNormalization,\
-                                                                                       correctedTwoTheta=correctedTwoTheta)
+                                                                                       correctedTwoTheta=correctedTwoTheta,dTheta=dTheta)
 
         TwoThetaPositions = 0.5*(twoThetaBins[:-1]+twoThetaBins[1:])
 
         if not 'fmt' in kwargs:
-            kwargs['fmt'] = '-.'
+            kwargs['fmt'] = '-'
 
         if ax is None:
             fig,ax = plt.subplots()
@@ -265,7 +271,7 @@ class DataSet(object):
         
         twoTheta = self.twoTheta
 
-        if self.type.upper() in ['A3','POWDER']:
+        if self.type.lower() in ['singlecrystal','powder']:
             shape = self.counts.shape
             
             intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,:,np.newaxis,np.newaxis]).reshape(-1,shape[2],shape[3])
@@ -278,7 +284,7 @@ class DataSet(object):
             
 
         if masking is True: # If masking, apply self.mask
-            intensityMatrix[np.logical_not(mask)] = np.nan
+            intensityMatrix[mask] = np.nan
 
         # Find plotting limits (For 2D pixel limits found later)
         thetaLimits = [f(twoTheta) for f in [np.min,np.max]]
@@ -292,7 +298,7 @@ class DataSet(object):
         
 
         if not hasattr(kwargs,'fmt'):
-            kwargs['fmt']='.-'
+            kwargs['fmt']='-'
 
         if self.type.upper() == 'OLD DATA': # Data is 1D, plot using errorbar
             ax.titles = [df.fileName for df in self]
@@ -367,7 +373,7 @@ class DataSet(object):
                 
                 ax.set_ylabel('Intensity [arb]')
 
-        elif self.type.upper() == 'A3':
+        elif self.type.lower() == 'singlecrystal':
             
             
             ax.A3 = np.concatenate([df.A3 for df in self],axis=0)
@@ -500,7 +506,7 @@ class DataSet(object):
 
 
         if not 'fmt' in kwargs:
-            kwargs['fmt']='.-'
+            kwargs['fmt']='_'
 
         if not 'masking' in kwargs:
             kwargs['masking']= True
@@ -535,8 +541,8 @@ class DataSet(object):
         fig.tight_layout()
         return Ax
 
-    def Viewer3D(self,dqx,dqy,dqz,rlu=False,axis=2, raw=False,  log=False, grid = True, outputFunction=print, 
-                 cmap='viridis'):
+    def Viewer3D(self,dqx,dqy,dqz,rlu=True,axis=2, raw=False,  log=False, grid = True, outputFunction=print, 
+                 cmap='viridis',smart=False):
 
         """Generate a 3D view of all data files in the DatSet.
         
@@ -565,17 +571,1516 @@ class DataSet(object):
             - cmap (str): Name of color map used for plot (default viridis)
         
         """
+
         if rlu:
-            #raise NotImplementedError('Currently, only plotting using Q space is supported.')
-            pos = np.array(np.concatenate([np.einsum('ij,jk',df.UBInv,df.q.reshape(3,-1)) for df in self],axis=-1))
+            rluAxesQxQy = self.createRLUAxes(projection=2)#**kwargs)
+            figure = rluAxesQxQy.get_figure()
+            figure.delaxes(rluAxesQxQy)
+            rluAxesQxQz = self.createRLUAxes(figure=figure,projection=1)
+            figure.delaxes(rluAxesQxQz)
+            rluAxesQyQz = self.createRLUAxes(figure=figure,projection=0)
+            figure.delaxes(rluAxesQyQz)
+            axes = [rluAxesQyQz,rluAxesQxQz,rluAxesQxQy]
+
 
         else:
-            pos = np.array(np.concatenate([df.q.reshape(3,-1) for df in self],axis=-1))
+            axes = None
 
-        if not raw:
-            data = np.concatenate([df.intensity.flatten()  for df in self])
+        Data,bins = self.binData3D(dqx,dqy,dqz,rlu=rlu,raw=raw,smart=smart)
+
+        return Viewer3D.Viewer3D(Data,bins,axis=axis, ax=axes, grid=grid, log=log, outputFunction=outputFunction, cmap=cmap)
+
+    def binData3D(self,dqx,dqy,dqz,rlu=True,raw=False,smart=False):
+
+        maximas = []
+        minimas = []
+        for df in self:
+            if rlu:
+                pos = np.einsum('ij,jk',df.sample.ROT,df.q.reshape(3,-1))
+                maximas.append(np.max(pos,axis=1))
+                minimas.append(np.min(pos,axis=1))
+            else:
+                maximas.append(np.max(df.q.reshape(3,-1),axis=1))
+                minimas.append(np.min(df.q.reshape(3,-1),axis=1))
+
+        maximas = np.max(maximas,axis=0)
+        minimas = np.min(minimas,axis=0)
+        extremePositions = np.array([minimas,maximas]).T
+        bins = _tools.calculateBins(dqx,dqy,dqz,extremePositions)
+
+        returndata = None
+        for df in self:
+            
+            
+
+            if rlu:
+                pos = np.einsum('ij,j...',df.sample.ROT,df.q).transpose(0,3,1,2) # shape -> steps,3,128,1152
+
+            else:
+                pos = df.q.transpose(1,0,2,3)# shape -> steps,3,128,1152
+
+            if not raw:
+                data = df.intensity#[np.logical_not(df.mask)]/df.normalization[np.logical_not(df.mask)] # shape steps,128,1152
+            else:
+                data = df.counts#[np.logical_not(df.mask)] # shape steps,128,1152
+            # if smart:
+            #     for p,d,mon in zip(pos,data,df.monitor):
+            #         localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=p.reshape(3,-1),data=d.flatten(),bins = bins)
+
+            #         if returndata is None:
+            #             returndata = localReturndata
+            #             returndata[-1]*=mon
+            #         else:
+            #             returndata[-1]*=mon
+            #             for data,newData in zip(returndata,localReturndata):
+            #                 data+=newData
+            if True:
+                pos = pos.transpose(1,0,2,3)
+                localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=pos.reshape(3,-1),data=data.flatten(),bins = bins)
+
+                if returndata is None:
+                    returndata = localReturndata
+                    returndata[-1]*=df.monitor[0]
+                else:
+                    returndata[-1]*=df.monitor[0]
+                    for data,newData in zip(returndata,localReturndata):
+                        data+=newData
+                    
+
+        intensities = np.divide(returndata[0],returndata[1])
+        NaNs = returndata[1]==0
+        intensities[NaNs]=np.nan
+        return intensities,bins
+
+    @_tools.KwargChecker()
+    @_tools.overWritingFunctionDecorator(RLUAxes.createRLUAxes)
+    def createRLUAxes(*args,**kwargs): # pragma: no cover
+        raise RuntimeError('This code is not meant to be run but rather is to be overwritten by decorator. Something is wrong!! Should run {}'.format(RLUAxes.createRLUAxes))
+
+        
+    def cut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True,**kwargs):
+        """Cut data from P1 to P2 in steps of stepSize [1/AA] width a cylindrical width [1/AA]
+
+        Args:
+
+            - P1 (list): Start position for cut in either (Qx,Qy,Qz) or (H,K,L)
+
+            - P2 (list): End position for cut in either (Qx,Qy,Qz) or (H,K,L)
+
+        Kwargs:
+
+            - rlu (bool): If True, P1 and P2 are in HKL, otherwise in QxQyQz (default True)
+
+            - stepSize (float): Size of bins along cut direction in units of [1/AA] (default 0.01)
+
+            - width (float): Integration width orthogonal to cut in units of [1/AA] (default 0.02)
+
+            - raw (bool): If True, do not normalize data (default False)
+
+            - optimize (bool): If True, perform optimized cutting (default True)
+
+        Returns:
+
+            - Pos,Int....
+            
+
+        """
+        intensities = None
+        for df in self:
+            if rlu:
+                QStart = df.sample.calculateHKLToQxQyQz(*P1)
+                QStop  = df.sample.calculateHKLToQxQyQz(*P2)
+            else:
+                QStart = P1
+                QStop  = P2
+            
+            
+            directionVector = (QStop-QStart).reshape(3,1)
+            length = np.linalg.norm(directionVector)
+            if np.isclose(length,0.0):
+                raise AttributeError('The vector connecting the cut points has length 0. Received P1={}, P2={}'.format(','.join([str(x) for x in P1]),','.join([str(x) for x in P2])))
+            directionVector*=1.0/length
+            
+            stopAlong = np.dot(QStop-QStart,directionVector)[0]
+            sign = np.sign(stopAlong)
+            
+            bins = np.arange(-stepSize*0.5,np.abs(stopAlong)+stepSize*0.51,stepSize)
+            
+            intensity = []
+            pos = []
+            
+            
+            if not raw:
+                data = df.intensity
+            else:
+                data = df.counts
+            if optimize:
+               
+                optimizationStepInPlane = 0.005
+                optimizationStepInPlane = np.min([optimizationStepInPlane,width*0.6])
+                
+                ## Define boundig box
+                direction = QStop-QStart
+                directionLength=np.linalg.norm(direction)
+                direction*=1.0/directionLength
+                orthogonal = np.cross(direction,np.array([0,0,1]))
+                
+                # Factor between actual cut and width used for cutoff
+                expansionFactior = 1.5
+                effectiveWidth = expansionFactior*width
+                    
+                if not np.isclose(np.abs(np.dot(direction,[0,0,1])),1.0): # If cut is not along z
+                    # Points for bounding box
+                    startEdge = QStart.reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonal.reshape(3,1)-stepSize*direction.reshape(3,1)
+                    endEdge = QStop.reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonal.reshape(3,1)+stepSize*direction.reshape(3,1)
+                    rightEdge = QStart.reshape(3,1)+0.5*effectiveWidth*orthogonal.reshape(3,1)+np.arange(-stepSize,directionLength+stepSize,optimizationStepInPlane)*direction.reshape(3,1)
+                    leftEdge =  QStart.reshape(3,1)-0.5*effectiveWidth*orthogonal.reshape(3,1)+np.arange(-stepSize,directionLength+stepSize,optimizationStepInPlane)*direction.reshape(3,1)
+                    
+                    checkPositions = np.concatenate([startEdge,endEdge,rightEdge,leftEdge],axis=1)
+                
+                else: # if cut is along z
+                    orthogonalX = np.array([1,0,0])
+                    orthogonalY = np.array([0,1,0])
+                    startEdge = np.mean([QStart,QStop],axis=0).reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonalX.reshape(3,1)-effectiveWidth*orthogonalY.reshape(3,1)
+                    endEdge = np.mean([QStart,QStop],axis=0).reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonalX.reshape(3,1)+effectiveWidth*orthogonalY.reshape(3,1)
+                    rightEdge = np.mean([QStart,QStop],axis=0).reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonalY.reshape(3,1)-effectiveWidth*orthogonalX.reshape(3,1)
+                    leftEdge =  np.mean([QStart,QStop],axis=0).reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonalY.reshape(3,1)+effectiveWidth*orthogonalX.reshape(3,1)
+                    
+                    checkPositions = np.concatenate([startEdge,endEdge,rightEdge,leftEdge],axis=1)
+                
+                # Calcualte the corresponding A3 and A4 positons
+                E = np.power(df.ki[1,0][0]/0.694692,2.0)
+                A3,A4 = np.array([TasUBlibDEG.converterToA3A4(*pos,E,E) for pos in checkPositions.T]).T
+                
+                # remove nan-values
+                A4NonNaN = np.logical_not(np.isnan(A4))
+                A3 = A3[A4NonNaN]
+                A4 = A4[A4NonNaN]
+
+                
+                A3Min,A3Max = [f(A3) for f in [np.nanmin,np.nanmax]]
+                A4Min,A4Max = [f(A4) for f in [np.nanmin,np.nanmax]]
+                
+                
+                # Find and sort ascending the indices        
+                twoThetaIdx = np.sort(np.array([np.argmin(np.abs(df.twoTheta[0]-tt)) for tt in [A4Min,A4Max]]))
+                A3Idx = np.sort(np.array([np.argmin(np.abs(df.A3-a3)) for a3 in [A3Min,A3Max]]))
+
+                if not np.isclose(np.abs(np.dot(direction,[0,0,1])),1.0):
+                    maxQz = np.max([QStart[2],QStop[2]])+widthZ*expansionFactior
+                    minQz = np.min([QStart[2],QStop[2]])-widthZ*expansionFactior
+                    qzIdx = np.array(np.sort(np.array([np.argmin(np.abs(w-df.q[2,0,:,0])) for w in [minQz,maxQz]])))
+                else:
+                    qzIdx = np.array([0,df.counts.shape[1]])#np.sort(np.array([np.argmin(np.abs(p[2]-df.q[2,0,:,0])) for p in [P1,P2]])))
+                
+                mask = np.zeros_like(df.counts,dtype=bool)
+                mask[A3Idx[0]:A3Idx[1]+1,
+                        qzIdx[0]:qzIdx[1]+1,
+                        twoThetaIdx[0]:twoThetaIdx[1]+1]=True
+                
+                data = data[mask]
+                relativePosition = df.q[:,mask]-QStart.reshape(3,-1)
+                
+            else:
+                # along = np.einsum('ij,i...->...j',relativePosition,directionVector)
+                
+                # orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+                
+                # orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+                # test1 = (orthogonal<width).flatten()
+                # test2 = (along[0]>-stepSize).flatten()
+                # test3 = (along[0]<np.linalg.norm(stopAlong)+stepSize).flatten()
+                
+                # insideQ = np.all([test1,test2,test3],axis=0)
+            
+                # intensity = data.flatten()[insideQ]
+                # pos = sign*along.flatten()[insideQ]
+                
+            #else:
+                relativePosition = df.q.reshape(3,-1)-QStart.reshape(3,-1)
+            
+            along = np.einsum('ij,i...->...j',relativePosition,directionVector)
+                
+            orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+            
+            orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+            test1 = (orthogonal<width*0.5).flatten()
+            test2 = (along[0]>-stepSize).flatten()
+            test3 = (along[0]<np.linalg.norm(stopAlong)+stepSize).flatten()
+            
+            insideQ = np.all([test1,test2,test3],axis=0)
+        
+            intensity = data.flatten()[insideQ]
+            pos = sign*along.flatten()[insideQ]
+
+                
+        
+            if intensities is None:
+                intensities = np.histogram(pos,bins=bins,weights=intensity)[0]
+                normCounts = np.histogram(pos,bins=bins)[0]
+                monitors = np.full_like(intensities,df.monitor[0])
+            else:
+                intensities+=np.histogram(pos,bins=bins,weights=intensity)[0]
+                normCounts+=np.histogram(pos,bins=bins)[0]
+                monitors += np.full_like(intensities,df.monitor[0])
+        
+        I = np.divide(intensities,monitors)
+        I[normCounts==0]=np.nan
+        binCentres = 0.5*(bins[:-1]+bins[1:])
+        
+        positionVector = directionVector*binCentres+QStart.reshape(3,1)
+        if rlu:
+            positionVector = np.array([self[-1].sample.calculateQxQyQzToHKL(*bC) for bC in positionVector.T]).T
+        return positionVector,I
+
+
+    def autoAlignScatteringPlane(self,scatteringNormal,threshold=30,dx=0.04,dy=0.04,dz=0.08,distanceThreshold=0.15):
+        """Automatically align scattering plane and peaks within
+        
+        Args:
+            
+            - scatteringNormal (vector 3D): Normal to the scattering plane in HKL
+            
+            
+        Kwargs:
+            
+            - threshold (float): Thresholding for intensities within the 3D binned data used in peak search (default 30)
+            
+            - dx (float): size of 3D binning along Qx (default 0.04)
+            
+            - dy (float): size of 3D binning along Qy (default 0.04)
+            
+            - dz (float): size of 3D binning along Qz (default 0.08)
+            
+            - distanceThreshold (float): Distance in 1/AA where peaks are clustered together (default 0.15)
+          
+            
+        This methods is an attempt to automatically align the scattering plane of all data files
+        within the DataSet. The algorithm works as follows for each data file individually :
+            
+            1) Perform a 3D binning of data in to equi-sized bins with size (dx,dy,dz)
+            
+            2) "Peaks" are defined as all positions having intensities>threshold
+        
+            3) These peaks are clustered together if closer than 0.02 1/AA and centre of gravity
+               using intensity is applied to find common centre.
+               
+            4) Above step is repeated with custom distanceThreshold
+        
+            5) Plane normals are found as cross products between all vectors connecting 
+               all found peaks -> Gives a list of approximately NPeaks*(NPeaks-1)*(NPeaks-2)
+               
+            6) Plane normals are clustered and most common is used
+        
+            7) Peaks are rotated into the scattering plane
+        
+            8) Within the plane all found peaks are projected along the 'nice' plane vectors and
+               the peak having the scattering length closest to an integer multiple of either is
+               chosen for alignment
+               
+            9) Rotation within the plane is found by rotating the found peak either along x or y 
+               depending on which projection vector was closest
+               
+           10) Sample is updated with found rotations.
+        
+        
+        On the sample object, the peak used for alignment within the scattering plane is
+        saved as sample.peakUsedForAlignment as a dictionary with 'HKL' and 'QxQyQz' holding
+        suggested HKL point and original QxQyQz position.
+        
+        
+        """
+        
+        for df in self:
+            
+            # 1) 
+            Intensities,bins = _tools.binData3D(dx,dy,dz,df.q.reshape(3,-1),df.intensity)
+            Intensities = np.divide(Intensities[0],Intensities[1])
+            
+            
+            # 2)
+            possiblePeaks = Intensities>threshold
+            ints = Intensities[possiblePeaks]
+            
+            centerPoints = [b[:-1,:-1,:-1]+0.5*dB for b,dB in zip(bins,[dx,dy,dz])]
+            
+            positions = np.array([b[possiblePeaks] for b in centerPoints]).T
+            
+            
+            
+            # 3) assuming worse resolution out of plane
+            distanceFunctionLocal = lambda a,b: _tools.distance(a,b,dx=1.0,dy=1.0,dz=0.5)
+            peaksInitial = _tools.clusterPoints(positions,ints,distanceThreshold=0.02,distanceFunction=distanceFunctionLocal) 
+            
+            peakPositions = [p.position for p in peaksInitial]
+            peakWeights   = [p.weight for p in peaksInitial]
+            
+            # 4) 
+            peaks = _tools.clusterPoints(peakPositions,peakWeights,distanceThreshold=distanceThreshold,distanceFunction=distanceFunctionLocal)
+            
+            
+            foundPeakPositions = np.array([p.position for p in peaks])
+            
+            
+            # 5) 
+            tripletNormal = _tools.calculateTriplets(foundPeakPositions,normalized=True)
+            
+            
+            # 6) Combine the normal vectors closest to each other.
+            normalVectors = _tools.clusterPoints(tripletNormal,np.ones(len(tripletNormal)),distanceThreshold=0.01)
+            
+            # Find the most frequent normal vector as the one with highest weight
+            bestNormalVector = normalVectors[np.argmax([p.weight for p in normalVectors])].position
+            
+            # 7) 
+            # Find rotation matrix transforming bestNormalVector to lay along the z-axis
+            # Rotation is performed around the vector perpendicular to bestNormalVector and z-axis
+            rotationVector = np.cross([0,0,1.0],bestNormalVector)
+            rotationVector*=1.0/np.linalg.norm(rotationVector)
+            # Rotation angle is given by the regular cosine relation, but due to z being [0,0,1] and both normal
+            
+            theta = np.arccos(bestNormalVector[2]) # dot(bestNormalVector,[0,0,1])/(lengths) <-- both unit vectors
+            
+            RotationToScatteringPlane = _tools.rotMatrix(rotationVector, theta,deg=False)
+                
+            # Rotated all found peaks to the scattering plane
+            rotatedPeaks = np.einsum('ji,...j->...i',RotationToScatteringPlane,foundPeakPositions)
+            
+            # 8) Start by finding in plane vectors using provided scattering plane normal
+            scatteringNormal = _tools.LengthOrder(np.asarray(scatteringNormal,dtype=float)) # 
+            
+            # Calculate into Q
+            scatteringNormalB = np.dot(df.sample.B,scatteringNormal)
+            
+            # Find two main "nice" vectors in the scattering plane by finding a vector orthogonal to scatteringNormalB
+            InPlaneGuess = np.cross(scatteringNormalB,np.array([1,-1,0]))
+            
+            # If scatteringNormalB happens to be along [1,-1,0] we just try again!
+            if np.isclose(np.linalg.norm(InPlaneGuess),0.0,atol=1e-3):
+                InPlaneGuess = np.cross(scatteringNormalB,np.array([1,1,0]))
+                
+            # planeVector1 is ensured to be orthogonal to scatteringNormalB 
+            # (rounding is needed to better beautify the vector)
+            planeVector1 = np.round(np.cross(InPlaneGuess,scatteringNormalB),4)
+            planeVector1 = _tools.LengthOrder(planeVector1)
+            
+            # Second vector is radially found orthogonal to scatteringNormalB and planeVector1
+            planeVector2 = np.round(np.cross(scatteringNormalB,planeVector1),4)
+            planeVector2 = _tools.LengthOrder(planeVector2)
+            
+            # Try to align the last free rotation within the scattering plane by calculating
+            # the length of the scattering vectors for the peaks and compare to moduli of 
+            # planeVector1 and planeVector2
+            
+            lengthPeaksInPlane = np.linalg.norm(rotatedPeaks,axis=1)
+            
+            planeVector1Length = np.linalg.norm(np.dot(df.sample.B,planeVector1))
+            planeVector2Length = np.linalg.norm(np.dot(df.sample.B,planeVector2))
+            
+            projectionAlongPV1 = lengthPeaksInPlane/planeVector1Length
+            projectionAlongPV2 = lengthPeaksInPlane/planeVector2Length
+            
+            # Initialize the along1 and along2 with False to force while loop
+            along1 = [False]
+            along2 = [False]
+            
+            atol = 0.001
+            # While there are no peaks found along with a modulus close to 0/1 along the main directions 
+            # iteratively increase tolerance (atol)
+            while np.sum(along1)+np.sum(along2) == 0: 
+                atol+=0.001
+                along1 = np.array([np.logical_or(np.isclose(x,0.0,atol=atol),np.isclose(x,1.0,atol=atol)) for x in np.mod(projectionAlongPV1,1)])
+                along2 = np.array([np.logical_or(np.isclose(x,0.0,atol=atol),np.isclose(x,1.0,atol=atol)) for x in np.mod(projectionAlongPV2,1)])
+                
+                
+            
+            # Either we found a peak along planeVector1 or planeVector2
+            if np.sum(along1)> 0:
+                foundPosition = rotatedPeaks[along1][0]
+                axisOffset = 0.0 # We want planeVector1 to be along the x-axis
+                peakUsedForAlignment = {'HKL':   planeVector1*projectionAlongPV1[along1][0],
+                                        'QxQyQz':foundPeakPositions[along1][0]}
+            
+            else:
+                foundPosition = rotatedPeaks[along2][0]
+                axisOffset = 90.0 # planeVector2 is along the y-axis, e.i. 90 deg rotated from x
+                peakUsedForAlignment = {'HKL':   planeVector2*projectionAlongPV2[along2][0],
+                                        'QxQyQz':foundPeakPositions[along2][0]}
+        
+        
+            
+            # 9) 
+            # Calculate the actual position of the peak found along planeVector1 or planeVector2
+            offsetA3 = np.rad2deg(np.arctan2(foundPosition[1],foundPosition[0]))-axisOffset
+            
+            # Find rotation matrix which is around the z-axis and has angle of -offsetA3
+            rotation = np.dot(_tools.rotMatrix(np.array([0,0,1.0]),-offsetA3),RotationToScatteringPlane.T)
+            
+            
+            # 10) 
+            # sample rotation has now been found (converts between instrument 
+            # qx,qy,qz to qx along planeVector1 and qy along planeVector2)
+            
+            sample = df.sample
+            sample.ROT = rotation
+            sample.P1 = _tools.LengthOrder(planeVector1)
+            sample.P2 = _tools.LengthOrder(planeVector2)
+            sample.P3 = _tools.LengthOrder(scatteringNormal)
+            
+            sample.projectionVectors = np.array([sample.P1,sample.P2,sample.P3]).T
+            
+            sample.projectionB = np.diag(np.linalg.norm(np.dot(sample.projectionVectors.T,sample.B),axis=1))
+            sample.UB = np.dot(sample.ROT.T,np.dot(sample.projectionB,np.linalg.inv(sample.projectionVectors)))
+            
+            sample.peakUsedForAlignment = peakUsedForAlignment
+        
+
+    def export_PSI_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+
+        """
+        The function takes a data set and merge the files.
+        Outputs a .dat file in PSI format (Fullprof inst. 8)
+        Saves the file with input name
+        Data files used in the export is given in output file
+        
+        Kwargs:
+            
+            - dTheta (Float): stepsize of binning if no nins is given (default is 0.125)
+            
+            - twoThetaOffset (float): Linear shift of two theta, default is 0. To be used if a4 in hdf file is incorrect
+            
+            - Bins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.125)
+            
+            - outFile (str): String that will be used for outputfile. Default is automatic generated name.
+
+            - outFolder (str): Path to folder data will be saved. Default is current working directory.
+            
+        - Arguments for automatic file name:
+                
+            - sampleName (bool): Include sample name in filename. Default is True.
+        
+            - temperature (bool): Include temperature in filename. Default is True.
+        
+            - magneticField (bool): Include magnetic field in filename. Default is False.
+        
+            - electricField (bool): Include electric field in filename. Default is False.
+        
+            - fileNumber (bool): Include sample number in filename. Default is True.
+            
+        Kwargs for sumDetector:
+
+            - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
+                
+            - applyNormalization (bool): Use normalization files (default True)
+                
+            - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+            
+        Returns:
+            
+            .dat file in PSI format with input name
+            
+        Note: Input is a data set.
+            
+        Example:
+            >>> inputNumber = _tools.fileListGenerator(565,folder)
+            >>> ds = DataSet.DataSet(inputNumber)
+            >>> for df in ds:
+            ...    if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+            ...        df.monitor = np.ones_like(df.monitor)
+            >>> export_PSI_format(ds)
+        
+        """
+
+        twoTheta = self.twoTheta
+        
+        anglesMin = np.min(twoTheta)
+        anglesMax = np.max(twoTheta)
+        
+        if bins is None:
+            bins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
+        
+        bins,intensity,err,monitor = self.sumDetector(bins,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta)
+        
+        bins = bins + twoThetaOffset
+        
+        # find mean monitor
+        meanMonitor = np.median(monitor)
+        intensity[np.isnan(intensity)] = -1
+        
+        # rescale intensity and err
+        intensity*=meanMonitor
+        err*=meanMonitor
+        
+        step = np.mean(np.diff(bins))
+        start = bins[0]+0.5*step
+        stop = bins[-1]-0.5*step
+        
+        temperatures = [df.temperature for df in self]
+        meanTemp = np.mean(temperatures)
+        stdTemp = np.std(temperatures)
+
+        if np.all([x == self.sample[0].name for x in [s.name for s in self.sample[1:]]]):
+            samName = self.sample[0].name        #.decode("utf-8")
         else:
-            data = np.concatenate([df.counts.flatten()  for df in self])
-        Data,bins = _tools.binData3D(dqx,dqy,dqz,pos=pos,data=data)
+            samName ='Unknown! Combined different sample names'
+        
+        if np.all([np.isclose(x,self.wavelength[0]) for x in self.wavelength[1:]]):
+            wavelength = self.wavelength[0]
+        else:
+            wavelength ='Unknown! Combined different Wavelengths'
+        
 
-        return Viewer3D.Viewer3D(Data,bins,axis=axis, grid=grid, log=log, outputFunction=outputFunction, cmap=cmap)
+        # reshape intensity and err to fit into (10,x)
+        intNum = len(intensity)
+        
+        # How many empty values to add to allow reshape
+        addEmpty = int(10*np.ceil(intNum/10.0)-intNum)
+        
+        intensity = np.concatenate([intensity,addEmpty*[np.nan]]).reshape(-1,10)
+        err = np.concatenate([err,addEmpty*[np.nan]]).reshape(-1,10)
+        
+        ## Generate output to DMC file format
+        titleLine = "DMC, "+samName
+        paramLine = "lambda={:9.5f}, T={:8.3f}, dT={:7.3f}, Date='{}'".format(wavelength,meanTemp,stdTemp,self[0].startTime)#.decode("utf-8"))
+        paramLine2= ' '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
+        
+        dataLinesInt = '\n'.join([' '+' '.join(["{:6.0f}.".format(x).replace('nan.','    ') for x in line]) for line in intensity])
+        dataLinesErr = '\n'.join([' '+' '.join(["{:7.1f}".format(x).replace('nan.','    ') for x in line]) for line in err])
+        
+        ## Generate bottom information part
+        if len(self) == 1:
+            year = 2022
+            fileNumbers = str(int(self.fileName[0].split('n')[-1].split('.')[0]))
+        else:
+            year,fileNumbers = _tools.numberStringGenerator(self.fileName)
+        
+        fileList = " Filelist='dmc:{}:{}'".format(year,fileNumbers)
+        
+        minmax = [np.nanmin,np.nanmax]
+        
+        twoThetaStart = self.twoTheta[:,0]
+        twoTheta = [np.min(twoThetaStart),np.max(twoThetaStart)]
+        Counts = [int(func(intensity)) for func in minmax]
+        numor = fileNumbers.replace('-',' ')
+        Npkt = len(bins) - 1        
+        
+        owner = self[-1].user#.decode("utf-8")
+        a1 = self[-1].monochromatorRotationAngle[0]
+        a2 = self[-1].monochromatorTakeoffAngle[0]
+        a3 = self[-1].A3[0]
+        mcv = self[-1].monochromatorCurvature[0]
+        mtx = self[-1].monochromatorTranslationLower[0]
+        mty = self[-1].monochromatorTranslationUpper[0]
+        mgu = self[-1].monochromatorGoniometerUpper[0]
+        mgl = self[-1].monochromatorGoniometerLower[0]
+        
+        bMon = [df.protonBeam for df in self]
+        pMon = [df.monitor for df in self]
+        sMon = [[0.0]]
+        
+        timeMin, timeMax = [func(self.time) for func in minmax]
+        sMonMin, sMonMax = [func(sMon) for func in minmax]
+        bMonMin, bMonMax = [func(bMon) for func in minmax]
+        aMon = np.mean([0.0 for df in self])
+        pMonMin, pMonMax = [func(pMon) for func in minmax]
+        muR = 0.0                           #self[-1].sample.sample_mur[0]
+        preset = self[-1].mode      #.decode("utf-8")
+        
+        paramLines = []
+        paramLines.append(" a4={:1.1f}. {:1.1f}.; Counts={} {}; Numor={}; Npkt={}; owner='{}'".format(*twoTheta,*Counts,numor,Npkt,owner))
+        paramLines.append('  a1={:4.2f}; a2={:3.2f}; a3={:3.2f}; mcv={:3.2f}; mtx={:3.2f}; mty={:3.2f}; mgu={:4.3f}; mgl={:4.3f}; '.format(a1,a2,a3,mcv,mtx,mty,mgu,mgl))
+        paramLines.append('  time={:4.4f} {:4.4f}; sMon={:4.0f}. {:4.0f}.; bMon={:3.0f}. {:3.0f}.; aMon={:1.0f}'.format(timeMin,timeMax,sMonMin,sMonMax,bMonMin,bMonMax,aMon))
+        paramLines.append("  pMon={:7.0f}. {:7.0f}.; muR={:1.0f}.; Preset='{}'".format(float(pMonMin),float(pMonMax),muR,preset))
+        paramLines.append("  calibration='{}'".format(self[-1].normalizationFile))
+        paramLines.append("")
+        fileString = '\n'.join([titleLine,paramLine,paramLine2,dataLinesInt,dataLinesErr,fileList,*paramLines])
+        
+        # get magnetic field
+        # get electric field
+        mag = "not defined"
+        elec = "not defined"
+        
+        if outFile is None:
+            saveFile = "DMC"
+            if sampleName == True:
+                saveFile += f"_{samName[:6]}"
+            if temperature == True:
+                saveFile += "_" + str(meanTemp).replace(".","p")[:3] + "K"
+            if magneticField == True:
+                saveFile += "_" + mag + "T"
+            if electricField == True:
+                saveFile += "_" + elec + "keV"
+            if fileNumber == True:
+                saveFile += "_" + fileNumbers.replace(',','_')  
+        else:
+            saveFile = str(outFile.replace('.dat',''))
+
+        if outFolder is None:
+            outFolder = os.getcwd()
+
+        with open(os.path.join(outFolder,saveFile)+".dat",'w') as sf:
+            sf.write(fileString)
+
+    def export_xye_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+
+        """
+        The function takes a data set and merge the files.
+        Outputs a .xye file in with a comment line with info and xye data
+        Saves the file with input name
+        
+        Kwargs:
+            
+            - dTheta (Float): stepsize of binning if no nins is given (default is 0.125)
+            
+            - twoThetaOffset (float): Linear shift of two theta, default is 0. To be used if a4 in hdf file is incorrect
+            
+            - Bins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.125)
+            
+            - outFile (str): String that will be used for outputfile. Default is automatic generated name.
+
+            - outFolder (str): Path to folder data will be saved. Default is current working directory.
+            
+        - Arguments for automatic file name:
+                
+            - sampleName (bool): Include sample name in filename. Default is True.
+        
+            - temperature (bool): Include temperature in filename. Default is True.
+        
+            - magneticField (bool): Include magnetic field in filename. Default is False.
+        
+            - electricField (bool): Include electric field in filename. Default is False.
+        
+            - fileNumber (bool): Include sample number in filename. Default is True.
+            
+        Kwargs for sumDetector:
+
+            - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
+                
+            - applyNormalization (bool): Use normalization files (default True)
+                
+            - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+            
+        Returns:
+            
+            .xye file in with a comment line with info and xye data
+        
+        Note: Input is a data set.
+            
+        Example:
+            >>> inputNumber = _tools.fileListGenerator(565,folder)
+            >>> ds = DataSet.DataSet(inputNumber)
+            >>> for df in ds:
+            ...    if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+            ...        df.monitor = np.ones_like(df.monitor)
+            >>> export_xye_format(ds)
+            
+        """
+
+        twoTheta = self.twoTheta
+        
+        anglesMin = np.min(twoTheta)
+        anglesMax = np.max(twoTheta)
+        
+        if bins is None:
+            bins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
+        
+        bins,intensity,err,monitor = self.sumDetector(bins,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta)
+        
+        bins = bins + twoThetaOffset
+        
+        # find mean monitor
+        meanMonitor = np.median(monitor)
+        intensity[np.isnan(intensity)] = -1
+        
+        # rescale intensity and err
+        intensity*=meanMonitor
+        err*=meanMonitor
+        
+        step = np.mean(np.diff(bins))
+        start = np.min(bins)+0.5*step
+        stop = np.max(bins)-0.5*step
+        
+        Centres=0.5*(bins[1:]+bins[:-1])
+        saveData = np.array([Centres,intensity,err])
+        
+        if np.all([x == self.sample[0].name for x in [s.name for s in self.sample[1:]]]):
+            samName = self.sample[0].name        #.decode("utf-8")
+        else:
+            samName ='Unknown! Combined different sample names'
+
+        if np.all([np.isclose(x,self.wavelength[0]) for x in self.wavelength[1:]]):
+            wavelength = self.wavelength[0]
+        else:
+            wavelength ='Unknown! Combined different Wavelengths'
+        
+        temperatures = np.array([df.temperature for df in self])
+        meanTemp = np.mean(temperatures)
+        
+        # fileNumbers = str(self.fileName) 
+        # fileNumbers_short = str(int(self.fileName[0].split('n')[-1].split('.')[0]))  # 
+        
+        if len(self) == 1:
+            year = 2022
+            fileNumbers = str(int(self.fileName[0].split('n')[-1].split('.')[0]))
+        else:
+            year,fileNumbers = _tools.numberStringGenerator(self.fileName)
+        
+        titleLine1 = f"# DMC at SINQ, PSI: Sample name = {samName}, wavelength = {str(wavelength)[:5]} AA, T = {str(meanTemp)[:5]} K"
+        titleLine2 = "# Filelist='dmc:{}:{}'".format(year,fileNumbers)
+        titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
+
+            
+        # get magnetic field
+        # get electric field
+        mag = "not defined"
+        elec = "not defined"
+        
+        if outFile is None:
+            saveFile = "DMC"
+            if sampleName == True:
+                saveFile += f"_{samName[:6]}"
+            if temperature == True:
+                saveFile += "_" + str(meanTemp).replace(".","p")[:3] + "K"
+            if magneticField == True:
+                saveFile += "_" + mag + "T"
+            if electricField == True:
+                saveFile += "_" + elec + "keV"
+            if fileNumber == True:
+                saveFile += "_" + fileNumbers.replace(',','_') 
+        else:
+            saveFile = str(outFile.replace('.xye',''))
+
+        if outFolder is None:
+            outFolder = os.getcwd()
+
+        with open(os.path.join(outFolder,saveFile)+".xye",'w') as sf:
+            sf.write(titleLine1+"\n")    
+            sf.write(titleLine2+"\n") 
+            sf.write(titleLine3+"\n") 
+            np.savetxt(sf,saveData.T,delimiter='  ')
+            sf.close()
+        
+
+    def updateDataFiles(self,key,value):
+        if np.all([hasattr(df,key) for df in self]): # all datafiles have the key
+            try:
+                length = len(value)
+            except TypeError:
+                length = 1
+            
+            if length == len(self): # input has the same length as number of data files! Apply individually
+                if length == 1:
+                    value = [value]
+                for v,df in zip(value,self):
+                    setattr(df,key,v)
+            elif length == 1:
+                for df in self:
+                    setattr(df,key,value)
+            else:
+                raise AttributeError('Length of DataSet is {} but received {} values for {}'.format(len(self),length,key))
+                
+            self._getData() # update!
+            
+        else:
+            missing = len(self)-np.sum([hasattr(df,key) for df in self])
+            if missing == 0:
+                raise AttributeError('DataFiles do not contain',key)
+            else:
+                raise AttributeError('Not all DataFiles do not contain',key)
+            
+    
+            
+            
+def add(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+
+    """
+    
+    Takes a set/series file numbers and export a added/merged file. 
+    The input is read as a tuple and can be formatted as int, str, list, and several arguments separated by comma can be given. 
+    If one argument is a list or str, multiple filenumbers can be given inside.
+    
+    Exports PSI and xye format file for all scans. 
+    
+    Kwargs:
+        
+        - listinput (tuple): The function will add/merge all elements of the tuple/list. Files can be given as int, str, list.
+        
+        - folder (str): Path to directory for data files, default is current working directory
+        
+        - outFile (str): string for name of outfile (given without extension)
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory.
+        
+        - PSI (bool): Export PSI format. Default is True
+        
+        - xye (bool): Export xye format. Default is True
+        
+    - Arguments for automatic file name:
+            
+        - sampleName (bool): Include sample name in filename. Default is True.
+    
+        - temperature (bool): Include temperature in filename. Default is True.
+    
+        - magneticField (bool): Include magnetic field in filename. Default is False.
+    
+        - electricField (bool): Include electric field in filename. Default is False.
+    
+        - fileNumber (bool): Include sample number in filename. Default is True.
+        
+    Kwargs for sumDetector:
+
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
+            
+        - applyNormalization (bool): Use normalization files (default True)
+            
+        - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+        
+    Example:    
+        >>> add(565,566,567,(570),'571-573',[574],sampleName=False,temperature=False)
+        
+        output:
+            DMC_565-567_570-574 as both .dat and xye files
+    """    
+
+    if folder is None:
+        folder = os.getcwd()
+    if outFolder is None:
+        outFolder = os.getcwd()
+        
+    listOfDataFiles = str()
+    
+    if type(listinput) == tuple:
+        for elemnt in listinput:
+            elemnt = str(elemnt)
+            elemnt = elemnt.replace('"','').replace("'","").replace('(','').replace(')','').replace('[','').replace(']','').strip(',')
+            listOfDataFiles += f"{elemnt},"
+        print(f"Export of added files: {listOfDataFiles[:-1]}")
+        inputNumber = _tools.fileListGenerator(listOfDataFiles[:-1],folder)
+        print(inputNumber)
+        ds = DataSet(inputNumber)
+        for df in ds:
+            if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+                df.monitor = np.ones_like(df.monitor)
+            print('I got ehre 2')
+        if PSI == True:
+            ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+        if xye == True:
+            ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
+    else:
+        print("Cannot export! Something wrong with input")       
+
+
+# add(565,566,567,(570),'571-573',[574],sampleName=False,temperature=False)
+
+
+
+        
+def export(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+
+    """
+    
+    Takes a set file numbers and export induvidually. 
+    The input is read as a tuple and can be formatted as int, str, list, and arguments separated by comma is export induvidually. 
+    If one argument is a list or str, multiple filenumbers can be given inside, and they will be added/merged.
+    
+    Exports PSI and xye format file for all scans. 
+    
+    Kwargs:
+        
+        - listinput (tuple): the function will export all elements of the tuple/list inducidually. Files can be merged by [], '', and () notation.
+        
+        - folder (str): Path to directory for data files, default is current working directory
+        
+        - PSI (bool): Export PSI format. Default is True
+        
+        - xye (bool): Export xye format. Default is True
+        
+        - outFile (str): string for name of outfile (given without extension)
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory.
+        
+    - Arguments for automatic file name:
+            
+        - sampleName (bool): Include sample name in filename. Default is True.
+    
+        - temperature (bool): Include temperature in filename. Default is True.
+    
+        - magneticField (bool): Include magnetic field in filename. Default is False.
+    
+        - electricField (bool): Include electric field in filename. Default is False.
+    
+        - fileNumber (bool): Include sample number in filename. Default is True.
+        
+    Kwargs for sumDetector:
+
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
+            
+        - applyNormalization (bool): Use normalization files (default True)
+            
+        - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+        
+    Example:    
+        >>> export(565,'566',[567,568,570,571],'570-573',(574,575),sampleName=None,temperature=False)  
+        
+        output: DMC_565, DMC_566, DMC_567_568_570_571, DMC_570-573, DMC_574-575 as both .dat and xye files
+        
+    """    
+
+    if folder is None:
+        folder = os.getcwd()
+    if outFolder is None:
+        outFolder = os.getcwd()
+    
+    if type(listinput) == tuple:
+        for elemnt in listinput:
+            elemnt = str(elemnt)
+            elemnt = elemnt.replace('"','').replace("'","").replace('(','').replace(')','').replace('[','').replace(']','').strip(',')
+            print(f"Export of: {elemnt}")
+            inputNumber = _tools.fileListGenerator(elemnt,folder)
+            try:
+                ds = DataSet(inputNumber)
+                for df in ds:
+                    if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+                        df.monitor = np.ones_like(df.monitor)
+                if PSI == True:
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                if xye == True:
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
+            except:
+                print(f"Cannot export! File is wrong format: {elemnt}")
+    else:
+        print("Cannot export! Something wrong with input")
+        
+
+# export(565,'566',[567,568,570,571],'570-573',(574,575),sampleName=False,temperature=False)  
+        
+
+
+
+
+def export_from(startFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+    
+    """
+    
+    Takes a starting file number and export xye format file for all the following files in the folder.
+
+    Exports PSI and xye format file for all scans. 
+    
+    Kwargs:
+        
+        - startFile (int): First file number for export
+        
+        - folder (str): Path to directory for data files, default is current working directory
+        
+        - PSI (bool): Export PSI format. Default is True
+        
+        - xye (bool): Export xye format. Default is True
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory.
+        
+        - all from export_PSI_format and export_xye_format
+        
+    - Arguments for automatic file name:
+            
+        - sampleName (bool): Include sample name in filename. Default is True.
+    
+        - temperature (bool): Include temperature in filename. Default is True.
+    
+        - magneticField (bool): Include magnetic field in filename. Default is False.
+    
+        - electricField (bool): Include electric field in filename. Default is False.
+    
+        - fileNumber (bool): Include sample number in filename. Default is True.
+        
+    Kwargs for sumDetector:
+
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
+            
+        - applyNormalization (bool): Use normalization files (default True)
+            
+        - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+        
+    Example:       
+        >>> export_from(590,sampleName=False,temperature=False)    
+        
+    """
+    if folder is None:
+        folder = os.getcwd()
+    if outFolder is None:
+        outFolder = os.getcwd()
+
+    hdf_files = [f for f in os.listdir(folder) if f.endswith('.hdf')]
+    last_hdf = hdf_files[-1]
+
+    numberOfFiles = int(last_hdf.strip('.hdf').split('n')[-1]) - int(startFile)
+    
+    fileList = list(range(startFile,startFile+numberOfFiles))
+    
+    for file in fileList:  
+
+        file = str(file)
+        file = file.replace('"','').replace("'","").replace('(','').replace(')','').replace('[','').replace(']','').replace(' ','').strip(',')
+        print(f"Export of: {file}")
+        try:
+            inputNumber = _tools.fileListGenerator(file,folder)
+            ds = DataSet(inputNumber)
+            for df in ds:
+                if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+                    df.monitor = np.ones_like(df.monitor)
+            if PSI == True:
+                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+            if xye == True:
+                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
+        except:
+            print(f"Cannot export! File is wrong format: {file}")
+            
+# export_from(587,sampleName=False,temperature=False)    
+
+
+
+
+
+def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+
+    """
+    
+    Takes a starting file number and a end file number, export for all scans between (including start and end)
+
+    Exports PSI and xye format file for all scans. 
+    
+    Kwargs:
+        
+        - startFile (int): First file number for export
+        
+        - endFile (int): Final file number for export
+        
+        - folder (str): Path to directory for data files, default is current working directory
+        
+        - PSI (bool): Export PSI format. Default is True
+        
+        - xye (bool): Export xye format. Default is True
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory.
+        
+        - all from export_PSI_format and export_xye_format
+        
+    - Arguments for automatic file name:
+            
+        - sampleName (bool): Include sample name in filename. Default is True.
+    
+        - temperature (bool): Include temperature in filename. Default is True.
+    
+        - magneticField (bool): Include magnetic field in filename. Default is False.
+    
+        - electricField (bool): Include electric field in filename. Default is False.
+    
+        - fileNumber (bool): Include sample number in filename. Default is True.
+        
+    Kwargs for sumDetector:
+
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
+            
+        - applyNormalization (bool): Use normalization files (default True)
+            
+        - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+        
+    Example:     
+        >>> export_from_to(565,570,sampleName=False,temperature=False)
+        
+        output: DMC_565, DMC_566, DMC_567, DMC_568, DMC_569, DMC__570 as both .xye and .dat files
+        
+    """
+    if folder is None:
+        folder = os.getcwd()
+    if outFolder is None:
+        outFolder = os.getcwd()
+
+    fileList = list(range(startFile,endFile+1))
+    
+    for file in fileList:    
+        file = str(file)
+        file = file.replace('"','').replace("'","").replace('(','').replace(')','').replace('[','').replace(']','').replace(' ','').strip(',')
+        print(f"Export of: {file}")
+        try:
+            inputNumber = _tools.fileListGenerator(file,folder)
+            ds = DataSet(inputNumber)
+            for df in ds:
+                if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+                    df.monitor = np.ones_like(df.monitor)
+            if PSI == True:
+                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+            if xye == True:
+                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
+        except:
+            print(f"Cannot export! File is wrong format: {file}")
+
+
+# export_from_to(565,570,sampleName=False,temperature=False)
+
+
+
+
+
+
+
+def export_list(listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+
+    """
+    
+    Takes a list and export all elements induvidually. If a list is given inside the list, these files will be added/merged.
+
+    Exports PSI and xye format file for all scans. 
+    
+    Kwargs:
+        
+        - list input (list: List of files that will be exported.
+        
+        - folder (str): Path to directory for data files, default is current working directory
+        
+        - PSI (bool): Export PSI format. Default is True
+        
+        - xye (bool): Export xye format. Default is True
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory.
+        
+        - all from export_PSI_format and export_xye_format
+        
+    - Arguments for automatic file name:
+            
+        - sampleName (bool): Include sample name in filename. Default is True.
+    
+        - temperature (bool): Include temperature in filename. Default is True.
+    
+        - magneticField (bool): Include magnetic field in filename. Default is False.
+    
+        - electricField (bool): Include electric field in filename. Default is False.
+    
+        - fileNumber (bool): Include sample number in filename. Default is True.
+        
+    Kwargs for sumDetector:
+
+        - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
+            
+        - applyNormalization (bool): Use normalization files (default True)
+            
+        - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+        
+    Example:    
+        >>> export_list([565,566,567,[569,570]],sampleName=False,temperature=False) 
+        
+        output: DMC_565, DMC_566, DMC_567, DMC_569_570 as both .xye and .dat files
+        
+    """    
+
+    if folder is None:
+        folder = os.getcwd()
+    if outFolder is None:
+        outFolder = os.getcwd()
+        
+    for file in listinput:   
+        file = str(file)
+        file = file.replace('"','').replace("'","").replace('(','').replace(')','').replace('[','').replace(']','').replace(' ','').strip(',')
+        print(f"Export of: {file}")           
+        try:
+            inputNumber = _tools.fileListGenerator(file,folder)
+            ds = DataSet(inputNumber)
+            for df in ds:
+                if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
+                    df.monitor = np.ones_like(df.monitor)
+            if PSI == True:
+                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+            if xye == True:
+                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
+        except:
+            print(f"Cannot export! File is wrong format: {file}")
+            
+
+# export_list([565,566,567,[569,570]],sampleName=False,temperature=False)            
+                
+
+                
+def subtract_PSI(file1,file2,outFile=None,folder=None,outFolder=None):
+
+    """
+    
+    This function takes two .dat files in PSI format and export a differnce curve with correct uncertainties. 
+    
+    The second file is scaled after the monitor of the first file.
+    
+    Kwargs:
+        
+        - PSI (bool): Subtract PSI format. Default is True
+        
+        - xye (bool): Subtract xye format. Default is True
+
+        - folder (str): Path to directory for data files, default is current working directory
+        
+        - outFile (str): string for name of outfile (given without extension)
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory.
+                
+    Example:
+        >>> subtract('DMC_565.dat','DMC_573')
+    
+    """
+
+    if folder is None:
+        folder = os.getcwd()
+        
+    with open(os.path.join(folder,file1.replace('.dat','')+'.dat'),'r') as rf:
+        allinfo1 = rf.readlines()
+        rf.close()
+
+    with open(os.path.join(folder,file2.replace('.dat','')+'.dat'),'r') as rf:
+        allinfo2 = rf.readlines()
+        rf.close()    
+
+    info1 = allinfo1[:3] 
+    info2 = allinfo2[:3] 
+
+    if info1[2].split(',')[0].split(',')[0] != info2[2].split(',')[0].split(',')[0]:
+        return print('Not same range of files! Cannot subtract.')          
+        
+    infoStr1 = (info1[2].split(',')[0].strip('#').replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('  ',' '))
+    infoArr1 = [float(x) for x in infoStr1[1:].split(' ')]
+
+    infoStr2 = (info2[2].split(',')[0].strip('#').replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('  ',' '))
+    infoArr2 = [float(x) for x in infoStr2[1:].split(' ')]
+        
+    monitor1 = infoArr1[3]
+    monitor2 = infoArr2[3]
+    monitorRatio = monitor1/monitor2    
+    dataPoints = int((infoArr1[2]-infoArr1[0]) / infoArr1[1]) + 1
+    subInt = []
+    subErr = []
+    
+    dataLines = int(np.ceil(dataPoints/10)) 
+    commentlines = 3
+    
+    for intLines in range(dataLines): 
+        subIntList = []
+        subErrList = []
+        intline1= allinfo1[intLines+commentlines]
+        intline2= allinfo2[intLines+commentlines]
+        errline1= allinfo1[intLines+dataLines+commentlines]
+        errline2= allinfo2[intLines+dataLines+commentlines]
+        intensity1 = [float(x) for x in intline1[:-2].replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('nan','').replace('na','').split(' ') if x != '' ]  
+        intensity2 = [float(x) for x in intline2[:-2].replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('nan','').replace('na','').split(' ') if x != '' ] 
+        err1 = [float(x) for x in errline1[:-2].replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('nan','').replace('na','').split(' ') if x != '' ] 
+        err2 = [float(x) for x in errline2[:-2].replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('nan','').replace('na','').split(' ') if x != '' ] 
+        for i, j in zip(intensity1,intensity2):
+            subIntList.append(i-j*monitorRatio)
+        for h, k in zip(err1,err2):
+            subErrList.append(np.sqrt(h**2 + monitorRatio**2 * k**2))
+        subInt.append(subIntList)
+        subErr.append(subErrList)
+    
+    titleLine = str(info1[0]).strip('\n') + ', subtracted: ' + str(info2[0])  + str(info1[1]) + str(info1[2]).strip('\n')
+    dataLinesInt = '\n'.join([' '+' '.join(["{:6.0f}.".format(x) for x in line]) for line in subInt])
+    dataLinesErr = '\n'.join([' '+' '.join(["{:7.1f}".format(x) for x in line]) for line in subErr])
+    indexParamLines = dataLines*2 + commentlines
+    paramLine1 = '\n'.join([str(line).strip('\n') for line in allinfo1[indexParamLines:]])
+    paramLine2 = ' subtracted:'
+    paramLine3 = str(info2[0])  + str(info1[1]) + str(info1[2]).strip('\n')
+    paramLine4 = ''.join([str(line) for line in allinfo2[indexParamLines:]])
+    fileString = '\n'.join([titleLine,dataLinesInt,dataLinesErr,paramLine1,paramLine2,paramLine3,paramLine4])
+    
+    if outFile is None:
+        saveFile = file1.replace('.dat','') + '_sub_' + file2.replace('.dat','')
+    else:
+        saveFile = str(outFile.replace('.dat',''))
+
+    print(f'Subtracting PSI: {file1}.dat minus {file2}.dat') 
+
+    if outFolder is None:
+        outFolder = os.getcwd()
+
+    with open(os.path.join(outFolder,saveFile)+".dat",'w') as sf:
+        sf.write(fileString)
+    
+    
+    
+# subtract_PSI('DMC_565','DMC_573')
+
+
+def subtract_xye(file1,file2,outFile=None,folder=None,outFolder=None):
+
+    """
+    
+    This function takes two .xye files and export a differnce curve with correct uncertainties. 
+    
+    The second file is scaled after the monitor of the first file.
+    
+    Kwargs:
+        
+        - PSI (bool): Subtract PSI format. Default is True
+        
+        - xye (bool): Subtract xye format. Default is True
+
+        - folder (str): Path to directory for data files, default is current working directory
+        
+        - outFile (str): string for name of outfile (given without extension)
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory. 
+        
+    Example:
+        >>> subtract('DMC_565.xye','DMC_573')
+        
+    """
+    
+    if folder is None:
+        folder = os.getcwd()
+    
+    data1 = np.genfromtxt(os.path.join(folder,file1.replace('.xye','')+'.xye'), delimiter='  ')
+    data2 = np.genfromtxt(os.path.join(folder,file2.replace('.xye','')+'.xye'), delimiter='  ')  
+    
+    with open(os.path.join(folder,file1.replace('.xye','')+'.xye'),'r') as rf:
+        info1 = rf.readlines()[:3]
+        rf.close()
+
+    with open(os.path.join(folder,file2.replace('.xye','')+'.xye'),'r') as rf:
+        info2 = rf.readlines()[:3]
+        rf.close()
+
+    if info1[2].split(',')[0].split(',')[0] != info2[2].split(',')[0].split(',')[0]:
+        return print('Not same range of files! Cannot subtract.')          
+        
+    infoStr1 = (info1[2].split(',')[0].strip('#').replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('  ',' '))
+    infoArr1 = [float(x) for x in infoStr1[1:].split(' ')]
+
+    infoStr2 = (info2[2].split(',')[0].strip('#').replace('  ',' ').replace('  ',' ').replace('  ',' ').replace('  ',' '))
+    infoArr2 = [float(x) for x in infoStr2[1:].split(' ')]
+
+    monitorRatio = infoArr1[3]/infoArr2[3]
+
+    subInt = np.subtract(data1[:,1], np.multiply(monitorRatio,(data2[:,1])))
+
+    intErr2 = monitorRatio * data2[:,2]
+    
+    subErr = 0 * data2[:,1]
+    
+    for i in range(len(data1[:,2])):
+        subErr[i] = np.sqrt( (data1[i,2])**2 + (intErr2[i])**2 ) 
+    
+    saveData = np.array([data1[:,0],subInt,subErr])
+
+    if outFile is None:
+        saveFile = file1.replace('.xye','') + '_sub_' + file2.replace('.xye','')
+    else:
+        saveFile = str(outFile.replace('.xye',''))
+
+    print(f'Subtracting xye: {file1}.xye minus {file2}.xye')    
+
+    if outFolder is None:
+        outFolder = os.getcwd()
+
+    with open(os.path.join(outFolder,saveFile)+".xye",'w') as sf:
+        sf.write('# ' + str(info1) + "\n")   
+        sf.write("# subtracted file: \n") 
+        sf.write('# ' + str(info2) + "\n") 
+        np.savetxt(sf,saveData.T,delimiter='  ')
+        sf.close()
+
+        
+    # subtract_xye('DMC_565','DMC_573')
+
+def subtract(file1,file2,PSI=True,xye=True,outFile=None,folder=None,outFolder=None):
+    """
+
+    This function takes two files and export a differnce curve with correct uncertainties. 
+
+    The second file is scaled after the monitor of the first file.
+
+    Kwargs:
+        
+        - PSI (bool): Subtract PSI format. Default is True
+        
+        - xye (bool): Subtract xye format. Default is True
+        
+        - folder (str): Path to directory for data files, default is current working directory
+        
+        - outFile (str): string for name of outfile (given without extension)
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory. 
+        
+    Example:
+        >>> subtract('DMC_565.xye','DMC_573')
+
+    """
+
+
+    if folder is None:
+        folder = os.getcwd()
+
+    file1 = file1.replace('.xye','').replace('.dat','')
+    file2 = file2.replace('.xye','').replace('.dat','')
+
+    if PSI == True:
+        try:
+            subtract_PSI(file1,file2,outFile,folder=folder,outFolder=outFolder)
+        except:
+            print('Cannot subtract PSI format files')
+    if xye == True:
+        try:
+            subtract_xye(file1,file2,outFile,folder=folder,outFolder=outFolder)
+        except:
+            print('Cannot subtract xye format files')
+        
+        
+#subtract('DMC_565.xye','DMC_573')
+
+def sort_export():
+    
+    pass
+
+def export_help(): 
+    print(" ")
+    print(" The following commands are avaliable for export of powder data in DMCpy:")
+    print(" ")
+    print("     export, add, export_from, export_from_to, export_list")
+    print(" ")
+    print(" They export both PSI and xye format by default. Can be deactivated by the arguments PSI=False and xye=False")
+    print(" ")
+    print('      - export: For export of induvidual sets of scan files. Files can be merged by [] or "" notation, i.e. list or strings.')
+    print('      - add: TThe function adds/merge all the files given. ')
+    print("      - export_from: For export of all data files in a folder after a startfile")
+    print("      - export_from_to: It exports all files between and including two given files")
+    print("      - export_list: Takes a list and export all the files separatly. If a list is given inside the list, the files will be merged ")
+    print(" ")
+    print(" Examples:  ")
+    print('      >>> export(565,"566",[567,568,570,571],"570-573",(574,575),sampleName=False,temperature=False)  ')
+    print("      >>> add(565,566,567,(570),'571-573',[574],sampleName=False,temperature=False) ")
+    print("      >>> export_from(590,fileNumber=True)  ")
+    print("      >>> export_from_to(565,570,dTheta=0.25,twoThetaOffset=2.0)")
+    print("      >>> export_list([565,566,567,570],temperature=False,xye=False)")
+    print("      >>> export_list([565,566,567,[568,569,570]]) # This is an example of list inside a list. 568,569,570 will be merged in this case. ")
+    print('      >>> add("565,567,570-573",outFile="mergefilename")')
+    print('      >>> export(565,folder=r"Path\To\Data\Folder")   #Note r"..." notation')      
+    print(" ")
+    print(" ")
+    print(" Most important kewords and aguments:")
+    print(" ")
+    print("     - dTheta (float): stepsize of binning if no bins is given (default is 0.125)")
+    print("     - outFile (str): String that will be used for outputfile. Default is automatic generated name.")
+    print("     - outFolder (str): Path to folder data will be saved. Default is current working directory.")
+    print("     - twoThetaOffset (float): Linear shift of two theta, default is 0. To be used if a4 in hdf file is incorrect")
+    print(" ")
+    print(" Arguments for automatic file name:")
+    print(" ")
+    print("     - sampleName (bool): Include sample name in filename. Default is True.")
+    print("     - temperature (bool): Include temperature in filename. Default is True.")
+    print("     - fileNumber (bool): Include sample number in filename. Default is True.")
+    print("     - magneticField (bool): Include magnetic field in filename. Default is False.")
+    print("     - electricField (bool): Include electric field in filename. Default is False.")
+    print(" ")
+    print(" ")
+    print(" There is also a subtract function for subtracting PSI format files and xye format files. ")    
+    print(" The files are normalized to the onitor of the first dataset.")
+    print(" Input is two existing filenames with or without extenstion. ")
+    print(" PSI and xye format can be deactivated by PSI = False and xye = False")    
+    print(" Alternatively can subtract_PSI or subtract_xye be used")
+    print(" ")
+    print("      >>> subtract('DMC_565.xye','DMC_573')")    
+    print(" ")
+    
+

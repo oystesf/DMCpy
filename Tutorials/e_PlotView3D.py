@@ -7,50 +7,48 @@ def Tester():
     from DMCpy import DataSet,DataFile
     import numpy as np
     
-    file = r'C:/Users/lass_j/Documents/DMC_2021/dmc2021n000590.hdf'
+    file = r'C:/Users/lass_j/Documents/DMC_2021/dmc2021n009003.hdf'
     
-    A3 = np.arange(0,118,0.5) # known a3 range
-    
-    twoThetaPosition = np.array([-18])
-    # Load data file with corrected A3 range
-    df = DataFile.DataFile(file,A3=A3,twoThetaPosition=twoThetaPosition)
+    df = DataFile.loadDataFile(file)
     
     # Use above data file in data set. Must be inserted as a list
     ds = DataSet.DataSet([df])
     
+    ds.autoAlignScatteringPlane(scatteringNormal=np.array([1,-1,0],dtype=float))
+
     Viewer = ds.Viewer3D(0.03,0.03,0.03)
     
     # Set the color bar limits to 0 and 60
-    Viewer.set_clim(0,60)
+    Viewer.set_clim(0,20)
     
     
     # Find the number of steps and set viewer to middel value
     # This can also be done interactively in the viewer by pressing up or down,
     # or by scrolling the mouse wheel or clicking the sliding bar.
     zSteps = Viewer.Z.shape[-1]
-    Viewer.setPlane(int(zSteps/2))
+    Viewer.setPlane(int(zSteps/2)-1)
     
     fig = Viewer.ax.get_figure()
-    fig.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/Center2.png',format='png',dpi=300)
+    fig.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/CenterMiddel.png',format='png',dpi=300)
     
     #  Change programatically to the next plane
-    Viewer.setPlane(int(zSteps/2)+1)
+    Viewer.setPlane(int(zSteps/2))
     fig2 = Viewer.ax.get_figure()
-    fig2.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/Center2_2.png',format='png',dpi=300)
+    fig2.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/CenterAboveMiddel.png',format='png',dpi=300)
     
     
     # Instead of only stepping through the data with the Qx and Qy in the plane
-    # one can flip the view by clicking 0, 1, or 2 in the interative view,
+    # one can flip the view by clicking 0, 1, or 2 in the interactive view,
     # or do it programmatically by
     
     Viewer.changeAxis(0)
     xSteps = Viewer.X.shape[-1]
     # Notice that the shape of X, Y, and Z changes when the axis is flipped! 
     # The last dimension is alway 'orthogonal' to the view.
-    Viewer.setPlane(79)
+    Viewer.setPlane(174)
     
     fig3 = Viewer.ax.get_figure()
-    fig3.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/Center0.png',format='png',dpi=300)
+    fig3.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D/CenterQx.png',format='png',dpi=300)
     
     
     
@@ -75,11 +73,11 @@ introText = 'In a single crystal experiment, the first step is to gain an overvi
 +'+-----------------+------------------------------------------------------+ \n'\
 +'|        2        | Change plotting such that Qz is constant             | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
-+'|  \+ or UpArrow  | Increment step along constant axis                   | \n'\
++'| \+ or UpArrow   | Increment step along constant axis                   | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
 +'|  Page Up        | Increment 10 steps along constant axis               | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
-+'| \- or DownArrow | Decrement step along constant axis                   | \n'\
++'|\- or DownArrow  | Decrement step along constant axis                   | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
 +'|  Page Down      | Decrement 10 steps along constant axis               | \n'\
 +'+-----------------+------------------------------------------------------+ \n'\
@@ -99,11 +97,11 @@ outroText = 'The above code takes the data from the A3 scan file dmc2021n000590,
 +'such that weaker peaks are visible. It is possible to slightly tweak the color scale directly in the Viewer 3D by using the '\
 +'sliders to the right of the color bar. Notice: When saving the figure these slides are rendered invisible. The end results are shown below:'\
 +'\n\nFirst data overview with Qz slightly positive and Qx and Qy in the plane\n'\
-+'\n.. figure:: Center2.png \n  :width: 50%\n  :align: center\n\n '\
++'\n.. figure:: CenterMiddel.png \n  :width: 50%\n  :align: center\n\n '\
 +'\n\nOne step \'higher\' up along Qz in the same scattering plane\n'\
-+'\n.. figure:: Center2_2.png \n  :width: 50%\n  :align: center\n\n '\
++'\n.. figure:: CenterAboveMiddel.png \n  :width: 50%\n  :align: center\n\n '\
 +'\n\nFlipping of the scattering plane axis to 0, i.e. with Qx being constant\n'\
-+'\n.. figure:: Center0.png \n  :width: 50%\n  :align: center\n\n '
++'\n.. figure:: CenterQx.png \n  :width: 50%\n  :align: center\n\n '
 
 
 introText = title+'\n'+'^'*len(title)+'\n'+introText

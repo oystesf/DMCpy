@@ -1,5 +1,6 @@
 import sys 
-sys.path.append('/home/lass/Dropbox/PhD/Software/DMCpy/')
+import os
+# sys.path.append('/home/lass/Dropbox/PhD/Software/DMCpy/')
 
 from Tutorial_Class import Tutorial
 
@@ -9,7 +10,7 @@ def Tester():
     import matplotlib.pyplot as plt
 
     fig,ax = plt.subplots()
-    fig.savefig(r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/TEST.png',format='png',dpi=300)
+    fig.savefig(os.path.join(os.getcwd(),r'docs/Tutorials/TEST.png'),format='png',dpi=300)
     
 title = 'Test of Tutorials!'
 
@@ -24,7 +25,7 @@ introText = title+'\n'+'^'*len(title)+'\n'+introText
 
 
     
-Example = Tutorial('Testing',introText,outroText,Tester,fileLocation = r'C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials')
+Example = Tutorial('Testing',introText,outroText,Tester,fileLocation = os.path.join(os.getcwd(),r'docs/Tutorials'))
 
 def test_Testing():
     Example.test()
