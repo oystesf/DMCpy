@@ -537,12 +537,8 @@ class DataFile(object):
         else:
             self.Q = np.array([np.linalg.norm(self.q,axis=0)])
 
-        try:
-            self.correctedTwoTheta = 2.0*np.rad2deg(np.arcsin(self.waveLength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
-            self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
-        except:
-            pass
-
+        self.correctedTwoTheta = 2.0*np.rad2deg(np.arcsin(self.wavelength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
+        self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
         
 
     def generateMask(self,maskingFunction = maskFunction, **pars):
@@ -702,14 +698,14 @@ class DataFile(object):
             
             detector = DMC.create_group('detector')
             detector.attrs['NX_class'] = np.string_('NXdetector')
-            
-            if self.fileType.lower() == 'singlecrystal':
-                data = detector.create_dataset('data',data=self.counts)
+
+            if self.fileType.lower() != 'singlecrystal':
+                position = detector.create_dataset('detector_position',data=np.array(self.twoThetaPosition))
             else:
-                data = detector.create_dataset('data',data=self.counts[0])
-            data.attrs['signal'] = np.int32(1)
-            data.attrs['target'] = np.string_('/entry/DMC/detector/data')
+                position = detector.create_dataset('detector_position',data=np.fill(len(self),self.twoThetaPosition))
             
+            position.attrs['units'] = np.string_('degree')
+
             summedCounts = detector.create_dataset('summed_counts',data=self.counts.sum(axis=0))
             summedCounts.attrs['units'] = np.string_('counts')
             
@@ -739,7 +735,7 @@ class DataFile(object):
             
             
             for key,value in HDFTranslation.items():
-                if key in ['counts','summedCounts','wavelength']: continue
+                if key in ['counts','summedCounts','wavelength','detector_position']: continue
                 if 'sample' in value: continue
                 selfValue = HDFTypes[key](getattr(self,key))
                 
@@ -765,11 +761,16 @@ class DataFile(object):
             data.attrs['signal'] = np.string_('data')
             
             if self.fileType.lower() != 'singlecrystal':
-                Data = data.create_dataset('data',data=self.counts[0])
+                Data = data.create_dataset('data',data=self.counts[0],compression=compression)
             else:
-                Data = data.create_dataset('data',data=self.counts)
+                Data = data.create_dataset('data',data=self.counts,compression=compression)
             Data.attrs['units'] = np.string_('A')
             
+            # Create link to data in the right place
+            data = detector['data'] = Data
+            data.attrs['signal'] = np.int32(1)
+            data.attrs['target'] = np.string_('/entry/DMC/detector/data')
+
             
             entry['monitor/monitor'].attrs['units'] = np.string_('counts')
 
