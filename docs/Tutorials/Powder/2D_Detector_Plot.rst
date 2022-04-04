@@ -25,6 +25,7 @@ The simplets data set on the DMC instrument is that of a powder measured with on
    
    fig = ax.get_figure()
    fig.set_size_inches(20, 2.5)
+   fig.tight_layout()
    fig.savefig('figure0.png',format='png')
    
 
