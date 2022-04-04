@@ -24,7 +24,7 @@ def Tester():
     
     fig = ax.get_figure()
     fig.set_size_inches(20, 2.5)
-    fig.savefig(os.path.join(os.getcwd(),r'docs/Tutorials/Powder/Plot2DPowderDetector.png'),format='png',dpi=300)
+    fig.savefig(r'docs/Tutorials/Powder/Plot2DPowderDetector.png',format='png',dpi=300)
     
 title = 'Detector Overview Powder'
 

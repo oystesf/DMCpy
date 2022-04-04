@@ -25,7 +25,7 @@ The simplets data set on the DMC instrument is that of a powder measured with on
    
    fig = ax.get_figure()
    fig.set_size_inches(20, 2.5)
-   fig.savefig('figure0.png',format='png'),r'docs/Tutorials/Powder/Plot2DPowderDetector.png'),format='png',dpi=300)
+   fig.savefig('figure0.png',format='png')
    
 
 At the current stage, a normalization file for the 2D detector is not present and thus a dummy is created. Running the above code generates the following images showing neutron intensity as function of 2Theta and out of plane position:
