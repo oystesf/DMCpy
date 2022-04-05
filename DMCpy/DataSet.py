@@ -658,7 +658,50 @@ class DataSet(object):
         raise RuntimeError('This code is not meant to be run but rather is to be overwritten by decorator. Something is wrong!! Should run {}'.format(RLUAxes.createRLUAxes))
 
         
-    def cut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True,**kwargs):
+    def plotCut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True,ax=None,**kwargs):
+        """Cut and plot data from P1 to P2 in steps of stepSize [1/AA] width a cylindrical width [1/AA]
+
+        Args:
+
+            - P1 (list): Start position for cut in either (Qx,Qy,Qz) or (H,K,L)
+
+            - P2 (list): End position for cut in either (Qx,Qy,Qz) or (H,K,L)
+
+        Kwargs:
+
+            - rlu (bool): If True, P1 and P2 are in HKL, otherwise in QxQyQz (default True)
+
+            - stepSize (float): Size of bins along cut direction in units of [1/AA] (default 0.01)
+
+            - width (float): Integration width orthogonal to cut in units of [1/AA] (default 0.02)
+
+            - raw (bool): If True, do not normalize data (default False)
+
+            - optimize (bool): If True, perform optimized cutting (default True)
+
+            - ax (matplotlib.axes): If None, a new is created (default None)
+
+            - kwargs: All other kwargs are provided to the scatter plot of the axis
+
+        Returns:
+
+            - Pos,Int,Ax
+            
+
+        """
+
+        hkl,I = self.cut1D(P1=P1,P2=P2,rlu=rlu,stepSize=stepSize,width=width,widthZ=widthZ,raw=raw,optimize=optimize)
+        if ax is None:
+            ax  = generate1DAxis(P1,P2,rlu=rlu)
+
+
+        X = ax.calculatePositionInv(*hkl)
+        ax.scatter(X,I,**kwargs)
+
+        ax.get_figure().tight_layout()
+        return hkl,I,ax
+
+    def cut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True):
         """Cut data from P1 to P2 in steps of stepSize [1/AA] width a cylindrical width [1/AA]
 
         Args:
@@ -2084,3 +2127,130 @@ def export_help():
     print(" ")
     
 
+from matplotlib.ticker import FuncFormatter
+
+def generate1DAxis(q1,q2,rlu=True,outputFunction=print):
+    fig,ax = plt.subplots()
+    ax = plt.gca()
+    q1 = np.asarray(q1,dtype=float)
+    q2 = np.asarray(q2,dtype=float)
+    
+    if rlu:
+        variables = ['H','K','L']
+    else:
+        variables = ['Qx','Qy','Qz']
+    
+        # Start points defined form cut
+    ax.startPoint = q1
+    ax.endPoint = q2
+    
+    
+    # plot direction is q2-q1, without normalization making all x points between 0 and 1
+    
+    ax.plotDirection = _tools.LengthOrder(np.array(q2-q1)).reshape(-1,1)
+    
+    # Calculate the needed precision for x-axis plot
+    def calculateXPrecision(ax):
+        # Find diff for current view
+        diffPlotPosition = np.diff(ax.get_xlim())[0]
+        diffAlongPlot = ax.plotDirection*diffPlotPosition
+        
+        numTicks = len(ax.xaxis.get_ticklocs())
+        
+        # take the smallest value which is chaning (i.e. is along the plot direction)
+        minChange = np.min(np.abs(diffAlongPlot[ax.plotDirection.T.flatten()!=0])) /numTicks 
+        
+        
+        # find the largest integer closest to the wanted precision
+        ax.set_precision(int(-np.floor(np.log10(minChange)))+1)
+    
+
+    def calculateIndex(binDistance,x):
+        idx = np.argmin(np.abs(binDistance-x))
+        return idx
+    
+    def calculatePosition(ax,x):
+        if isinstance(x,(np.ndarray)):
+            return (x*ax.plotDirection.T+ax.startPoint)
+        else:
+            return (x*ax.plotDirection.T+ax.startPoint).flatten()
+    
+    def calculatePositionInv(ax,h,k,l):
+        HKL = np.asarray([h,k,l])
+        return np.dot((HKL-ax.startPoint.reshape(3,1)).T,ax.plotDirection)/(np.dot(ax.plotDirection.T,ax.plotDirection)).T
+        # return np.dot((HKL-ax.startPoint.reshape(3,1)).T,ax.plotDirection.reshape(3,1))/(np.dot(ax.plotDirection.T,ax.plotDirection))
+    
+    # Add methods to the axis
+    
+    
+
+    ax._x_precision = 2
+    ax.fmtPrecisionString = '{:.'+str(2)+'f}'
+    # Dynamic add setter and getter to ax.precision
+    
+    def set_precision(ax,value):
+        ax._x_precision = value
+        ax.fmtPrecisionString = '{:.'+str(ax._x_precision)+'f}'
+        ax.get_figure().tight_layout()
+        
+    
+    
+    ax.calculatePosition = lambda x: calculatePosition(ax,x)
+    ax.calculatePositionInv = lambda h,k,l: calculatePositionInv(ax,h,k,l)
+    
+    ax.calculateIndex = lambda x: calculateIndex(ax.Data['binDistance'],x)
+    ax.calculateXPrecision = calculateXPrecision
+    ax.set_precision = lambda value: set_precision(ax,value)
+    ax.calculateXPrecision(ax)
+    
+    # Format the x label as well as the format_coord
+    if rlu==False:
+        xlabel = r'[$Q_x [\AA^{-1}]$, $Q_y [\AA^{-1}]$, $Q_z [\AA^{-1}]$]'
+        
+        ax.set_xlabel(xlabel)
+        def format_coord(x,y,ax):# pragma: no cover
+            qx,qy,qz = ax.calculatePosition(x)
+            return  "qx = {0:.3e}, qy = {1:.3e}, qz = {2:.3e}, I = {3:0.4e}".format(qx,qy,qz,y)
+    else:
+        xlabel = '[$Q_h$ [RLU], $Q_k$ [RLU], $Q_l$ [RLU]]'
+        ax.set_xlabel(xlabel)
+        
+        def format_coord(x,y,ax):# pragma: no cover
+            h,k,l = ax.calculatePosition(x)
+            return  "H = {0:.3e}, K = {1:.3e}, L = {2:.3e}, I = {3:0.4e}".format(h,k,l,y)
+        
+    
+    # Create a custom major formatter to show the multi-D position on the x-axis
+    def major_formatter(ax,tickPosition,tickNumber):
+        positions = list(ax.calculatePosition(tickPosition))
+        return '\n'.join([ax.fmtPrecisionString.format(pos) for pos in positions])
+    
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda x,i: major_formatter(ax,x,i)))
+    
+    # Create the onclick behaviour
+    def onclick(event,ax,outputFunction):# pragma: no cover
+        if ax.in_axes(event):
+            try:
+                C = ax.get_figure().canvas.cursor().shape() # Only works for pyQt5 backend
+            except:
+                pass
+            else:
+                if C != 0: # Cursor corresponds to arrow
+                    return
+    
+            x = event.xdata
+            y = event.ydata
+            printString = ax.format_coord(x,y)
+            
+            outputFunction(printString)
+    
+    
+    # connect methods
+    ax.format_coord = lambda x,y: format_coord(x,y,ax)
+    ax._button_press_event = ax.figure.canvas.mpl_connect('button_press_event',lambda event:onclick(event,ax,outputFunction=outputFunction))
+    
+    ax.callbacks.connect('xlim_changed',ax.calculateXPrecision)
+    # Make the layouyt fit
+    ax.get_figure().tight_layout()
+
+    return ax

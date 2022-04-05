@@ -17,6 +17,8 @@ Main text about the tutorials below..
 
    View3D/Viewer3D.rst
 
+   View3D/Cut3D.rst
+
    Testing.rst
 
 
