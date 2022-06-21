@@ -811,7 +811,7 @@ class DataFile(object):
         return np.divide(self.counts,self.normalization)
 
     def InteractiveViewer(self,**kwargs):
-        if not self.scanType.lower() in ['singlecrystal','powder'] :
+        if not self.fileType.lower() in ['singlecrystal','powder'] :
             raise AttributeError('Interactive Viewer can only be used for the new data files. Either for powder or for a single crystal A3 scan')
         return InteractiveViewer.InteractiveViewer(self.intensity,self.twoTheta,self.pixelPosition,self.A3,scanParameter = 'A3',scanValueUnit='deg',colorbar=True,**kwargs)
 
