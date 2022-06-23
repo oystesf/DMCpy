@@ -115,11 +115,8 @@ def test_calibration():
 
     # year not covered in calibration data
     fileName = 'dmc2019n000250.hdf'
-    try:
-        calibData,calibName = DataFile.findCalibration(fileName)
-        assert(False)
-    except FileNotFoundError:
-        assert True
+    calibData,calibName = DataFile.findCalibration(fileName)
+    assert(calibName=='None')
 
 
 def test_decoding():
