@@ -72,8 +72,13 @@ def findCalibration(fileName):
 
     # Calibration files do not cover the wanted year
     if not year in calibrationDict.keys():
-        raise FileNotFoundError('Calibration files for year {} (extracted from file name "{}") is'.format(year,fileName)+\
+        warnings.warn('Calibration files for year {} (extracted from file name "{}") is'.format(year,fileName)+\
             ' not covered in calibration tables. Please update to newest version by invoking "pip install --upgrade DMCpy"')
+        calibration = np.ones_like((128,1152))
+        calibrationName = 'None'
+        return calibration,calibrationName
+        #raise FileNotFoundError('Calibration files for year {} (extracted from file name "{}") is'.format(year,fileName)+\
+        #    ' not covered in calibration tables. Please update to newest version by invoking "pip install --upgrade DMCpy"')
 
     yearCalib = calibrationDict[year]
     
@@ -414,9 +419,10 @@ class DataFile(object):
             
             if self.fileType.lower() == "singlecrystal": # A3 scan
                 self.normalization = np.repeat(self.normalization,self.counts.shape[0],axis=0)
-                self.normalization.shape = self.counts.shape
+                #self.normalization.shape = self.counts.shape
+                self.normalization = self.normalization.reshape(self.counts.shape)
             else:
-                self.normalization.shape = self.counts.shape
+                self.normalization = self.normalization.reshape(self.counts.shape)
 
     def __len__(self):
         if hasattr(self,'counts'):
@@ -702,7 +708,7 @@ class DataFile(object):
             if self.fileType.lower() != 'singlecrystal':
                 position = detector.create_dataset('detector_position',data=np.array(self.twoThetaPosition))
             else:
-                position = detector.create_dataset('detector_position',data=np.fill(len(self),self.twoThetaPosition))
+                position = detector.create_dataset('detector_position',data=np.full(len(self),self.twoThetaPosition))
             
             position.attrs['units'] = np.string_('degree')
 
@@ -735,7 +741,7 @@ class DataFile(object):
             
             
             for key,value in HDFTranslation.items():
-                if key in ['counts','summedCounts','wavelength','detector_position']: continue
+                if key in ['counts','summedCounts','wavelength','detector_position','twoThetaPosition']: continue
                 if 'sample' in value: continue
                 selfValue = HDFTypes[key](getattr(self,key))
                 
@@ -811,7 +817,7 @@ class DataFile(object):
         return np.divide(self.counts,self.normalization)
 
     def InteractiveViewer(self,**kwargs):
-        if not self.scanType.lower() in ['singlecrystal','powder'] :
+        if not self.fileType.lower() in ['singlecrystal','powder'] :
             raise AttributeError('Interactive Viewer can only be used for the new data files. Either for powder or for a single crystal A3 scan')
         return InteractiveViewer.InteractiveViewer(self.intensity,self.twoTheta,self.pixelPosition,self.A3,scanParameter = 'A3',scanValueUnit='deg',colorbar=True,**kwargs)
 
