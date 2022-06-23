@@ -708,7 +708,7 @@ class DataFile(object):
             if self.fileType.lower() != 'singlecrystal':
                 position = detector.create_dataset('detector_position',data=np.array(self.twoThetaPosition))
             else:
-                position = detector.create_dataset('detector_position',data=np.fill(len(self),self.twoThetaPosition))
+                position = detector.create_dataset('detector_position',data=np.full(len(self),self.twoThetaPosition))
             
             position.attrs['units'] = np.string_('degree')
 
@@ -741,7 +741,7 @@ class DataFile(object):
             
             
             for key,value in HDFTranslation.items():
-                if key in ['counts','summedCounts','wavelength','detector_position']: continue
+                if key in ['counts','summedCounts','wavelength','detector_position','twoThetaPosition']: continue
                 if 'sample' in value: continue
                 selfValue = HDFTypes[key](getattr(self,key))
                 
