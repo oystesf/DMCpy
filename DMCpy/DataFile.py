@@ -72,8 +72,13 @@ def findCalibration(fileName):
 
     # Calibration files do not cover the wanted year
     if not year in calibrationDict.keys():
-        raise FileNotFoundError('Calibration files for year {} (extracted from file name "{}") is'.format(year,fileName)+\
+        warnings.warn('Calibration files for year {} (extracted from file name "{}") is'.format(year,fileName)+\
             ' not covered in calibration tables. Please update to newest version by invoking "pip install --upgrade DMCpy"')
+        calibration = np.ones_like((128,1152))
+        calibrationName = 'None'
+        return calibration,calibrationName
+        #raise FileNotFoundError('Calibration files for year {} (extracted from file name "{}") is'.format(year,fileName)+\
+        #    ' not covered in calibration tables. Please update to newest version by invoking "pip install --upgrade DMCpy"')
 
     yearCalib = calibrationDict[year]
     
@@ -414,9 +419,10 @@ class DataFile(object):
             
             if self.fileType.lower() == "singlecrystal": # A3 scan
                 self.normalization = np.repeat(self.normalization,self.counts.shape[0],axis=0)
-                self.normalization.shape = self.counts.shape
+                #self.normalization.shape = self.counts.shape
+                self.normalization = self.normalization.reshape(self.counts.shape)
             else:
-                self.normalization.shape = self.counts.shape
+                self.normalization = self.normalization.reshape(self.counts.shape)
 
     def __len__(self):
         if hasattr(self,'counts'):
