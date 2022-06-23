@@ -27,11 +27,3 @@ except FileNotFoundError:
 
     with open(foundFile,'rb') as f:
         calibrationDict = pickle.load(f)
-    #raise FileNotFoundError
-
-    
-calib2021 = {'limits':np.array([1]),
-             'names':np.array(['Mockup']),
-             'Mockup':np.ones((1152,128))}
-
-calibrationDict[2021] = calib2021
