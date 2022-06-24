@@ -4,6 +4,7 @@ import pickle as pickle
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
+import json, os, time
 from DMCpy import DataFile, _tools, Viewer3D, RLUAxes, TasUBlibDEG
 
 
@@ -1078,7 +1079,7 @@ class DataSet(object):
             sample.peakUsedForAlignment = peakUsedForAlignment
         
 
-    def export_PSI_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+    def export_PSI_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
 
         """
         The function takes a data set and merge the files.
@@ -1101,14 +1102,16 @@ class DataSet(object):
         - Arguments for automatic file name:
                 
             - sampleName (bool): Include sample name in filename. Default is True.
+
+            - sampleTitle (bool): Include sample title in filename. Default is True.
         
-            - temperature (bool): Include temperature in filename. Default is True.
+            - temperature (bool): Include temperature in filename. Default is False.
         
             - magneticField (bool): Include magnetic field in filename. Default is False.
         
             - electricField (bool): Include electric field in filename. Default is False.
         
-            - fileNumber (bool): Include sample number in filename. Default is True.
+            - fileNumber (bool): Include sample number in filename. Default is False.
             
         Kwargs for sumDetector:
 
@@ -1167,6 +1170,11 @@ class DataSet(object):
         else:
             samName ='Unknown! Combined different sample names'
         
+        if np.all([x == self[0].title for x in [s.title for s in self[1:]]]):
+            samTitle = self[0].title        #.decode("utf-8")
+        else:
+            samTitle ='Unknown! Combined different sample titles'
+
         if np.all([np.isclose(x,self.wavelength[0]) for x in self.wavelength[1:]]):
             wavelength = self.wavelength[0]
         else:
@@ -1247,6 +1255,8 @@ class DataSet(object):
             saveFile = "DMC"
             if sampleName == True:
                 saveFile += f"_{samName[:6]}"
+            if sampleTitle ==True:
+                saveFile += f"_{samTitle[:6]}"
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:3] + "K"
             if magneticField == True:
@@ -1264,7 +1274,7 @@ class DataSet(object):
         with open(os.path.join(outFolder,saveFile)+".dat",'w') as sf:
             sf.write(fileString)
 
-    def export_xye_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+    def export_xye_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
 
         """
         The function takes a data set and merge the files.
@@ -1286,14 +1296,16 @@ class DataSet(object):
         - Arguments for automatic file name:
                 
             - sampleName (bool): Include sample name in filename. Default is True.
+
+            - sampleTitle (bool): Include sample title in filename. Default is True.
         
-            - temperature (bool): Include temperature in filename. Default is True.
+            - temperature (bool): Include temperature in filename. Default is False.
         
             - magneticField (bool): Include magnetic field in filename. Default is False.
         
             - electricField (bool): Include electric field in filename. Default is False.
         
-            - fileNumber (bool): Include sample number in filename. Default is True.
+            - fileNumber (bool): Include sample number in filename. Default is False.
             
         Kwargs for sumDetector:
 
@@ -1351,6 +1363,11 @@ class DataSet(object):
         else:
             samName ='Unknown! Combined different sample names'
 
+        if np.all([x == self[0].title for x in [s.title for s in self[1:]]]):
+            samTitle = self[0].title        #.decode("utf-8")
+        else:
+            samTitle ='Unknown! Combined different sample titles'
+
         if np.all([np.isclose(x,self.wavelength[0]) for x in self.wavelength[1:]]):
             wavelength = self.wavelength[0]
         else:
@@ -1368,7 +1385,7 @@ class DataSet(object):
         else:
             year,fileNumbers = _tools.numberStringGenerator(self.fileName)
         
-        titleLine1 = f"# DMC at SINQ, PSI: Sample name = {samName}, wavelength = {str(wavelength)[:5]} AA, T = {str(meanTemp)[:5]} K"
+        titleLine1 = f"# DMC at SINQ, PSI: Sample name = {samName}, title = {samTitle}, wavelength = {str(wavelength)[:5]} AA, T = {str(meanTemp)[:5]} K"
         titleLine2 = "# Filelist='dmc:{}:{}'".format(year,fileNumbers)
         titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
 
@@ -1382,6 +1399,8 @@ class DataSet(object):
             saveFile = "DMC"
             if sampleName == True:
                 saveFile += f"_{samName[:6]}"
+            if sampleTitle ==True:
+                saveFile += f"_{samTitle[:6]}"
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:3] + "K"
             if magneticField == True:
@@ -1434,7 +1453,7 @@ class DataSet(object):
     
             
             
-def add(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+def add(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
 
     """
     
@@ -1461,14 +1480,16 @@ def add(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,two
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
+
+        - sampleTitle (bool): Include sample title in filename. Default is True.
     
-        - temperature (bool): Include temperature in filename. Default is True.
+        - temperature (bool): Include temperature in filename. Default is False.
     
         - magneticField (bool): Include magnetic field in filename. Default is False.
     
         - electricField (bool): Include electric field in filename. Default is False.
     
-        - fileNumber (bool): Include sample number in filename. Default is True.
+        - fileNumber (bool): Include sample number in filename. Default is False.
         
     Kwargs for sumDetector:
 
@@ -1499,16 +1520,11 @@ def add(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,two
             listOfDataFiles += f"{elemnt},"
         print(f"Export of added files: {listOfDataFiles[:-1]}")
         inputNumber = _tools.fileListGenerator(listOfDataFiles[:-1],folder)
-        print(inputNumber)
         ds = DataSet(inputNumber)
-        for df in ds:
-            if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
-                df.monitor = np.ones_like(df.monitor)
-            print('I got ehre 2')
         if PSI == True:
-            ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+            ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
         if xye == True:
-            ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
+            ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
     else:
         print("Cannot export! Something wrong with input")       
 
@@ -1518,7 +1534,7 @@ def add(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,two
 
 
         
-def export(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+def export(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
 
     """
     
@@ -1545,14 +1561,16 @@ def export(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
+
+        - sampleTitle (bool): Include sample title in filename. Default is True.
     
-        - temperature (bool): Include temperature in filename. Default is True.
+        - temperature (bool): Include temperature in filename. Default is False.
     
         - magneticField (bool): Include magnetic field in filename. Default is False.
     
         - electricField (bool): Include electric field in filename. Default is False.
     
-        - fileNumber (bool): Include sample number in filename. Default is True.
+        - fileNumber (bool): Include sample number in filename. Default is False.
         
     Kwargs for sumDetector:
 
@@ -1586,9 +1604,9 @@ def export(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,
                     if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
                         df.monitor = np.ones_like(df.monitor)
                 if PSI == True:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
                 if xye == True:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
             except:
                 print(f"Cannot export! File is wrong format: {elemnt}")
     else:
@@ -1601,7 +1619,7 @@ def export(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,
 
 
 
-def export_from(startFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+def export_from(startFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
     
     """
     
@@ -1626,14 +1644,16 @@ def export_from(startFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
+
+        - sampleTitle (bool): Include sample title in filename. Default is True.
     
-        - temperature (bool): Include temperature in filename. Default is True.
+        - temperature (bool): Include temperature in filename. Default is False.
     
         - magneticField (bool): Include magnetic field in filename. Default is False.
     
         - electricField (bool): Include electric field in filename. Default is False.
     
-        - fileNumber (bool): Include sample number in filename. Default is True.
+        - fileNumber (bool): Include sample number in filename. Default is False.
         
     Kwargs for sumDetector:
 
@@ -1671,9 +1691,9 @@ def export_from(startFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.
                 if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
                     df.monitor = np.ones_like(df.monitor)
             if PSI == True:
-                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
             if xye == True:
-                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
+                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
         except:
             print(f"Cannot export! File is wrong format: {file}")
             
@@ -1683,7 +1703,7 @@ def export_from(startFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.
 
 
 
-def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
 
     """
     
@@ -1710,14 +1730,16 @@ def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,outFolder=Non
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
+
+        - sampleTitle (bool): Include sample title in filename. Default is True.
     
-        - temperature (bool): Include temperature in filename. Default is True.
+        - temperature (bool): Include temperature in filename. Default is False.
     
         - magneticField (bool): Include magnetic field in filename. Default is False.
     
         - electricField (bool): Include electric field in filename. Default is False.
     
-        - fileNumber (bool): Include sample number in filename. Default is True.
+        - fileNumber (bool): Include sample number in filename. Default is False.
         
     Kwargs for sumDetector:
 
@@ -1751,9 +1773,9 @@ def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,outFolder=Non
                 if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
                     df.monitor = np.ones_like(df.monitor)
             if PSI == True:
-                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
             if xye == True:
-                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
+                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
         except:
             print(f"Cannot export! File is wrong format: {file}")
 
@@ -1766,7 +1788,7 @@ def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,outFolder=Non
 
 
 
-def export_list(listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+def export_list(listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
 
     """
     
@@ -1791,14 +1813,16 @@ def export_list(listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
+
+        - sampleTitle (bool): Include sample title in filename. Default is True.
     
-        - temperature (bool): Include temperature in filename. Default is True.
+        - temperature (bool): Include temperature in filename. Default is False.
     
         - magneticField (bool): Include magnetic field in filename. Default is False.
     
         - electricField (bool): Include electric field in filename. Default is False.
     
-        - fileNumber (bool): Include sample number in filename. Default is True.
+        - fileNumber (bool): Include sample number in filename. Default is False.
         
     Kwargs for sumDetector:
 
@@ -1831,9 +1855,9 @@ def export_list(listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.
                 if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
                     df.monitor = np.ones_like(df.monitor)
             if PSI == True:
-                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
             if xye == True:
-                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
+                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
         except:
             print(f"Cannot export! File is wrong format: {file}")
             
@@ -2072,9 +2096,113 @@ def subtract(file1,file2,PSI=True,xye=True,outFile=None,folder=None,outFolder=No
         
 #subtract('DMC_565.xye','DMC_573')
 
-def sort_export():
+def DMCsort(filelist,sortKey):
     
-    pass
+    names =  DataFile.shallowRead(filelist,[str(sortKey)])
+    
+    listOfFiles = []
+    listOfTitles = []
+
+    for name in names:
+        listOfFiles.append(name['file'])
+        listOfTitles.append(name[sortKey])
+        
+    sumFile = {}
+
+    for file,title in zip(listOfFiles,listOfTitles):
+        if title in sumFile:
+            pass
+        else:
+            sumFile[title] = [file]
+
+    return sumFile
+
+
+def sortExport(fileList,dataFolder=None,PSI=True,xye=True,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+              
+    localSettingsFile = os.path.join(os.environ['LNSG_HOME'],'DMCpySettings.json')
+    if not os.path.isfile(localSettingsFile):
+        print('Cannot find local settings file (',localSettingsFile,')')
+        
+    else:
+        with open(localSettingsFile) as f:
+            experiment = json.load(f)
+            if dataFolder is None:
+                dataFolder = '/afs/psi.ch/project/sinqdata/{0}/dmc/{1}'.format(experiment['year'],experiment['proposalNumber'])
+                # dataFolder = r'C:\Users\fjellv_o\switchdrive\DMC\test/{0}/{1}'.format(experiment['year'],experiment['proposalNumber'])
+            
+    sampleSort = DMCsort(_tools.fileListGenerator(fileList,dataFolder),'sampleName')
+    
+    sampleTitleSort = {}
+    
+    for key in sampleSort.keys():
+        if key == '':
+            sampleTitleSort = DMCsort(sampleSort[key],'title')
+        else:
+            sampleTitleSort = DMCsort(sampleSort[key],'title')
+        for key in sampleTitleSort.keys():
+            year, fileNumbers = _tools.numberStringGenerator(sampleTitleSort[key])
+            DataSet.add(fileNumbers,folder=dataFolder,PSI=PSI,xye=xye,outFolder=outFolder,dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)
+  
+
+def sortExportLong(fileListLong,dataFolder=None,PSI=True,xye=True,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+              
+    if dataFolder is None:
+        dataFolder = os.getcwd()    
+    
+    sampleSort = DMCsort(fileListLong,'sampleName')
+    
+    sampleTitleSort = {}
+    
+    for key in sampleSort.keys():
+        if key == '':
+            pass
+        else:
+            sampleTitleSort = DMCsort(sampleSort[key],'title')
+        for key in sampleTitleSort.keys():
+            year, fileNumbers = _tools.numberStringGenerator(sampleTitleSort[key])
+            DataSet.add(fileNumbers,folder=dataFolder,PSI=PSI,xye=xye,outFolder=outFolder,dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)
+ 
+
+def listGenerator(start=None,end=None):
+        
+    localSettingsFile = os.path.join(os.environ['LNSG_HOME'],'DMCpySettings.json')
+    if not os.path.isfile(localSettingsFile):
+        print('Cannot find local settings file (',localSettingsFile,')')
+        
+    else:
+        with open(localSettingsFile) as f:
+            experiment = json.load(f)
+            dataFolder = '/afs/psi.ch/project/sinqdata/{0}/dmc/{1}'.format(experiment['year'],experiment['proposalNumber'])
+            # dataFolder = r'C:\Users\fjellv_o\switchdrive\DMC\test/{0}/{1}'.format(experiment['year'],experiment['proposalNumber'])
+            
+    hdf_files = [f for f in os.listdir(dataFolder) if f.endswith('.hdf')]
+    
+    if start is None:
+        start = int(hdf_files[0].strip('.hdf').split('n')[-1])
+    if end is None:
+        end = int(hdf_files[-1].strip('.hdf').split('n')[-1])
+        
+    print('generating sorted list for: ', start, ' to ', end)
+    
+    fileList = list(range(start,end+1))
+    fileList = str(fileList)
+    fileList = fileList.replace('"','').replace("'","").replace('(','').replace(')','').replace('[','').replace(']','').replace(' ','').strip(',')
+    
+    fileListLong = _tools.fileListGenerator(fileList,dataFolder)
+    
+    return fileList, fileListLong, dataFolder
+
+
+def sleepExport(sleep_time,start=None,end=None,PSI=True,xye=True,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+          
+    Flag = True
+    while Flag:
+        fileList, fileListLong, dataFolder = listGenerator(start=start,end=end)
+        sortExportLong(fileListLong,dataFolder,PSI=PSI,xye=xye,outFolder=outFolder,dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)
+        print(f'waiting {sleep_time} s')
+        time.sleep(float(sleep_time)) 
+
 
 def export_help(): 
     print(" ")
