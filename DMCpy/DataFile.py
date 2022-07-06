@@ -322,6 +322,10 @@ def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
     df.initializeQ()
     df.loadNormalization()
 
+    year,month,date = [int(x) for x in df.startTime.split(' ')[0].split('-')]
+    if year == 2022:
+        df.mask[0,-2,:] = True
+
     return df
 
 
@@ -556,12 +560,14 @@ class DataFile(object):
         self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
         
 
-    def generateMask(self,maskingFunction = maskFunction, **pars):
+    def generateMask(self,maskingFunction = maskFunction, replace=True, **pars):
         """Generate mask to applied to data in data file
         
         Kwargs:
 
             - maskingFunction (function): Function called on self.phi to generate mask (default maskFunction)
+
+            - replace (bool): If true new mask replaces old one, otherwise add together (default True)
 
         All other arguments are passed to the masking function.
 
@@ -573,9 +579,15 @@ class DataFile(object):
             raise RuntimeError('DataFile does not contain any counts. Look for self.counts but found nothing.')
 
         if maskingFunction is None:
-            self.mask = np.zeros_like(self.counts,dtype=bool)
+            if replace:
+                self.mask = np.zeros_like(self.counts,dtype=bool)
+            else:
+                self.mask += np.zeros_like(self.counts,dtype=bool)
         else:
-            self.mask = maskingFunction(self.phi,**pars).reshape(*self.counts.shape)
+            if replace:
+                self.mask = maskingFunction(self.phi,**pars).reshape(*self.counts.shape)
+            else:
+                self.mask += maskingFunction(self.phi,**pars).reshape(*self.counts.shape)
         
         
 

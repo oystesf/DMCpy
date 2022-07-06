@@ -115,18 +115,20 @@ class DataSet(object):
         for df in self:
             df.sample = sample
 
-    def generateMask(self,maskingFunction = DataFile.maskFunction, **pars):
+    def generateMask(self,maskingFunction = DataFile.maskFunction, replace=True, **pars):
         """Generate mask to applied to data in data file
         
         Kwargs:
 
             - maskingFunction (function): Function called on self.phi to generate mask (default maskFunction)
 
+            - replace (bool): If true new mask replaces old one, otherwise add together (default True)
+
         All other arguments are passed to the masking function.
 
         """
         for d in self:
-            d.generateMask(maskingFunction,**pars)
+            d.generateMask(maskingFunction,replace=replace,**pars)
         self._getData()
 
     @_tools.KwargChecker()
