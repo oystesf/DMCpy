@@ -1137,7 +1137,7 @@ class DataSet(object):
         
         """
 
-        twoTheta = self.twoTheta
+        twoTheta = np.abs(self.twoTheta)
         
         anglesMin = np.min(twoTheta)
         anglesMax = np.max(twoTheta)
@@ -1331,7 +1331,7 @@ class DataSet(object):
             
         """
 
-        twoTheta = self.twoTheta
+        twoTheta = np.abs(self.twoTheta)
         
         anglesMin = np.min(twoTheta)
         anglesMax = np.max(twoTheta)
