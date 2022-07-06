@@ -117,7 +117,7 @@ HDFTranslation = {'sample':'/entry/sample',
                   'mode':'entry/monitor/mode',
                   'preset':'entry/monitor/preset',
                   'startTime':'entry/start_time',
-                  'time':'entry/monitor/time',
+                  'time':None,# Is to be caught by HDFTranslationAlternatives 'entry/monitor/time',
                   'endTime':'entry/end_time',
                   'comment':'entry/comment',
                   'proposal':'entry/proposal_id',
@@ -137,6 +137,10 @@ HDFTranslation = {'sample':'/entry/sample',
                   'title':'entry/title',
                   'absoluteTime':'entry/control/absolute_time',
                   'protonBeam':'entry/proton_beam/data'
+}
+
+HDFTranslationAlternatives = { # Alternatives to the above list. NOTTICE: The above positions are not checked if an entry in HDFTranslationAlternatives is present
+    'time':['entry/monitor/time','entry/monitor/monitor']
 }
 
 ## Dictionary for holding standard values 
@@ -363,8 +367,13 @@ class DataFile(object):
             for parameter in HDFTranslation.keys():
                 if parameter in ['unitCell','sample','unitCell']:
                     continue
-                
-                if parameter in HDFTranslation:
+                if parameter in HDFTranslationAlternatives:
+                    for entry in HDFTranslationAlternatives[parameter]:
+                        value = np.array(f.get(entry))
+                        if not value.shape == ():
+                            break
+
+                elif parameter in HDFTranslation:
                     value = np.array(f.get(HDFTranslation[parameter]))
                     TrF= HDFTranslationFunctions
                 elif parameter in HDFInstrumentTranslation:
@@ -611,7 +620,9 @@ class DataFile(object):
         count_err = np.sqrt(self.counts)
         intensity_err = count_err/self.monitor.reshape(-1,1,1)
         if applyNormalization:
-            intensity_err*=1.0/self.normalization
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                intensity_err*=1.0/self.normalization
  
 
 
@@ -814,7 +825,9 @@ class DataFile(object):
 
     @property
     def intensity(self):
-        return np.divide(self.counts,self.normalization)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return np.divide(self.counts,self.normalization)
 
     def InteractiveViewer(self,**kwargs):
         if not self.fileType.lower() in ['singlecrystal','powder'] :
