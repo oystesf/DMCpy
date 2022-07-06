@@ -313,7 +313,7 @@ def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
         
     if 'twoThetaPosition' in kwargs:
         if not 'twoTheta' in kwargs:
-            df.twoTheta = np.linspace(0,132,9*128)+df.twoThetaPosition
+            df.twoTheta = np.linspace(0,-132,9*128)+df.twoThetaPosition
         else:
             df.twoTheta = kwargs['twoTheta']
     elif 'twoTheta' in kwargs:
@@ -478,7 +478,7 @@ class DataFile(object):
             self._detector_position = np.array([0.0]*len(self.A3))
         else:
             self._detector_position = np.asarray(twoTheta)
-        self.twoTheta = np.repeat((np.linspace(0,132,1152) + self._detector_position + self._twoThetaOffset)[np.newaxis],self.counts.shape[1],axis=0)
+        self.twoTheta = np.repeat((np.linspace(0,-132,1152) + self._detector_position + self._twoThetaOffset)[np.newaxis],self.counts.shape[1],axis=0)
         if hasattr(self,'_Ki') and hasattr(self,'twoTheta'):
             self.calculateQ()
 
@@ -575,7 +575,7 @@ class DataFile(object):
         if maskingFunction is None:
             self.mask = np.zeros_like(self.counts,dtype=bool)
         else:
-            self.mask = maskingFunction(self.phi,**pars)
+            self.mask = maskingFunction(self.phi,**pars).reshape(*self.counts.shape)
         
         
 
