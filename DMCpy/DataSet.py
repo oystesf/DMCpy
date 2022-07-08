@@ -1281,9 +1281,9 @@ class DataSet(object):
         if outFile is None:
             saveFile = "DMC"
             if sampleName == True:
-                saveFile += f"_{samName[:6]}"
+                saveFile += f"_{samName[:20]}"
             if sampleTitle ==True:
-                saveFile += f"_{samTitle[:6]}"
+                saveFile += f"_{samTitle[:20]}"
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:3] + "K"
             if magneticField == True:
@@ -1432,9 +1432,9 @@ class DataSet(object):
         if outFile is None:
             saveFile = "DMC"
             if sampleName == True:
-                saveFile += f"_{samName[:6]}"
+                saveFile += f"_{samName[:20]}"
             if sampleTitle ==True:
-                saveFile += f"_{samTitle[:6]}"
+                saveFile += f"_{samTitle[:20]}"
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:3] + "K"
             if magneticField == True:
