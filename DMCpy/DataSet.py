@@ -814,7 +814,7 @@ class DataSet(object):
                     leftEdge =  np.mean([QStart,QStop],axis=0).reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonalY.reshape(3,1)+effectiveWidth*orthogonalX.reshape(3,1)
                     
                     checkPositions = np.concatenate([startEdge,endEdge,rightEdge,leftEdge],axis=1)
-                
+                #print(checkPositions)
                 # Calcualte the corresponding A3 and A4 positons
                 E = np.power(df.ki[1,0][0]/0.694692,2.0)
                 A3,A4 = np.array([TasUBlibDEG.converterToA3A4(*pos,E,E) for pos in checkPositions.T]).T
@@ -831,8 +831,9 @@ class DataSet(object):
                 
                 # Find and sort ascending the indices        
                 twoThetaIdx = np.sort(np.array([np.argmin(np.abs(df.twoTheta[0]-tt)) for tt in [A4Min,A4Max]]))
+                
                 A3Idx = np.sort(np.array([np.argmin(np.abs(df.A3-a3)) for a3 in [A3Min,A3Max]]))
-
+                
                 if not np.isclose(np.abs(np.dot(direction,[0,0,1])),1.0):
                     maxQz = np.max([QStart[2],QStop[2]])+widthZ*expansionFactior
                     minQz = np.min([QStart[2],QStop[2]])-widthZ*expansionFactior
@@ -1295,6 +1296,8 @@ class DataSet(object):
                 saveFile += '_HR'
         else:
             saveFile = str(outFile.replace('.dat',''))
+            if useMask == True:
+                saveFile += '_HR'
 
         if outFolder is None:
             outFolder = os.getcwd()
@@ -1444,6 +1447,8 @@ class DataSet(object):
                 saveFile += '_HR'
         else:
             saveFile = str(outFile.replace('.xye',''))
+            if useMask == True:
+                saveFile += '_HR'
 
         if outFolder is None:
             outFolder = os.getcwd()
