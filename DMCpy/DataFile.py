@@ -117,7 +117,7 @@ HDFTranslation = {'sample':'/entry/sample',
                   'mode':'entry/monitor/mode',
                   'preset':'entry/monitor/preset',
                   'startTime':'entry/start_time',
-                  'time':'entry/monitor/time',
+                  'time':None,# Is to be caught by HDFTranslationAlternatives 'entry/monitor/time',
                   'endTime':'entry/end_time',
                   'comment':'entry/comment',
                   'proposal':'entry/proposal_id',
@@ -137,6 +137,10 @@ HDFTranslation = {'sample':'/entry/sample',
                   'title':'entry/title',
                   'absoluteTime':'entry/control/absolute_time',
                   'protonBeam':'entry/proton_beam/data'
+}
+
+HDFTranslationAlternatives = { # Alternatives to the above list. NOTTICE: The above positions are not checked if an entry in HDFTranslationAlternatives is present
+    'time':['entry/monitor/time','entry/monitor/monitor']
 }
 
 ## Dictionary for holding standard values 
@@ -309,7 +313,7 @@ def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
         
     if 'twoThetaPosition' in kwargs:
         if not 'twoTheta' in kwargs:
-            df.twoTheta = np.linspace(0,132,9*128)+df.twoThetaPosition
+            df.twoTheta = np.linspace(0,-132,9*128)+df.twoThetaPosition
         else:
             df.twoTheta = kwargs['twoTheta']
     elif 'twoTheta' in kwargs:
@@ -317,6 +321,10 @@ def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
     
     df.initializeQ()
     df.loadNormalization()
+
+    year,month,date = [int(x) for x in df.startTime.split(' ')[0].split('-')]
+    if year == 2022:
+        df.mask[0,-2,:] = True
 
     return df
 
@@ -363,8 +371,13 @@ class DataFile(object):
             for parameter in HDFTranslation.keys():
                 if parameter in ['unitCell','sample','unitCell']:
                     continue
-                
-                if parameter in HDFTranslation:
+                if parameter in HDFTranslationAlternatives:
+                    for entry in HDFTranslationAlternatives[parameter]:
+                        value = np.array(f.get(entry))
+                        if not value.shape == ():
+                            break
+
+                elif parameter in HDFTranslation:
                     value = np.array(f.get(HDFTranslation[parameter]))
                     TrF= HDFTranslationFunctions
                 elif parameter in HDFInstrumentTranslation:
@@ -469,7 +482,7 @@ class DataFile(object):
             self._detector_position = np.array([0.0]*len(self.A3))
         else:
             self._detector_position = np.asarray(twoTheta)
-        self.twoTheta = np.repeat((np.linspace(0,132,1152) + self._detector_position + self._twoThetaOffset)[np.newaxis],self.counts.shape[1],axis=0)
+        self.twoTheta = np.repeat((np.linspace(0,-132,1152) + self._detector_position + self._twoThetaOffset)[np.newaxis],self.counts.shape[1],axis=0)
         if hasattr(self,'_Ki') and hasattr(self,'twoTheta'):
             self.calculateQ()
 
@@ -547,12 +560,14 @@ class DataFile(object):
         self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
         
 
-    def generateMask(self,maskingFunction = maskFunction, **pars):
+    def generateMask(self,maskingFunction = maskFunction, replace=True, **pars):
         """Generate mask to applied to data in data file
         
         Kwargs:
 
             - maskingFunction (function): Function called on self.phi to generate mask (default maskFunction)
+
+            - replace (bool): If true new mask replaces old one, otherwise add together (default True)
 
         All other arguments are passed to the masking function.
 
@@ -564,9 +579,15 @@ class DataFile(object):
             raise RuntimeError('DataFile does not contain any counts. Look for self.counts but found nothing.')
 
         if maskingFunction is None:
-            self.mask = np.zeros_like(self.counts,dtype=bool)
+            if replace:
+                self.mask = np.zeros_like(self.counts,dtype=bool)
+            else:
+                self.mask += np.zeros_like(self.counts,dtype=bool)
         else:
-            self.mask = maskingFunction(self.phi,**pars)
+            if replace:
+                self.mask = maskingFunction(self.phi,**pars).reshape(*self.counts.shape)
+            else:
+                self.mask += maskingFunction(self.phi,**pars).reshape(*self.counts.shape)
         
         
 
@@ -611,7 +632,9 @@ class DataFile(object):
         count_err = np.sqrt(self.counts)
         intensity_err = count_err/self.monitor.reshape(-1,1,1)
         if applyNormalization:
-            intensity_err*=1.0/self.normalization
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                intensity_err*=1.0/self.normalization
  
 
 
@@ -814,7 +837,9 @@ class DataFile(object):
 
     @property
     def intensity(self):
-        return np.divide(self.counts,self.normalization)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return np.divide(self.counts,self.normalization)
 
     def InteractiveViewer(self,**kwargs):
         if not self.fileType.lower() in ['singlecrystal','powder'] :
