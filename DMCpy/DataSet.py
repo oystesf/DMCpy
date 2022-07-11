@@ -1680,7 +1680,7 @@ def exportAll(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dataYear=N
     The input is read as a tuple and can be formatted as int, str, list, and arguments separated by comma is export induvidually. 
     If one argument is a list or str, multiple filenumbers can be given inside, and they will be added/merged.
     
-    Exports PSI and xye format file for all scans. 
+    Exports PSI and xye format file for all scans.  
     
     Kwargs:
         
