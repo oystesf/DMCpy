@@ -1103,7 +1103,7 @@ class DataSet(object):
             sample.peakUsedForAlignment = peakUsedForAlignment
         
 
-    def export_PSI_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,useMask=False,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+    def export_PSI_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,useMask=False,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
         """
         The function takes a data set and merge the files.
@@ -1123,6 +1123,10 @@ class DataSet(object):
 
             - outFolder (str): Path to folder data will be saved. Default is current working directory.
             
+            - useMask (bool): export file with angular mask. Default is False
+
+            - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
+            
         - Arguments for automatic file name:
                 
             - sampleName (bool): Include sample name in filename. Default is True.
@@ -1136,6 +1140,8 @@ class DataSet(object):
             - electricField (bool): Include electric field in filename. Default is False.
         
             - fileNumber (bool): Include sample number in filename. Default is False.
+            
+            - waveLength (bool): Include waveLength in filename. Default is False. 
             
         Kwargs for sumDetector:
 
@@ -1218,7 +1224,7 @@ class DataSet(object):
         err = np.concatenate([err,addEmpty*[np.nan]]).reshape(-1,10)
         
         ## Generate output to DMC file format
-        titleLine = "DMC, "+samName
+        titleLine = "DMC, "+samName+", "+samTitle
         paramLine = "lambda={:9.5f}, T={:8.3f}, dT={:7.3f}, Date='{}'".format(wavelength,meanTemp,stdTemp,self[0].startTime)#.decode("utf-8"))
         paramLine2= ' '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
         
@@ -1285,11 +1291,13 @@ class DataSet(object):
             if sampleTitle ==True:
                 saveFile += f"_{samTitle[:20]}"
             if temperature == True:
-                saveFile += "_" + str(meanTemp).replace(".","p")[:3] + "K"
+                saveFile += "_" + str(meanTemp).replace(".","p")[:4] + "K"
             if magneticField == True:
                 saveFile += "_" + mag + "T"
             if electricField == True:
                 saveFile += "_" + elec + "keV"
+            if waveLength == True:
+                saveFile += "_{}keV".format(str(wavelength).replace('.','p')[6])
             if fileNumber == True:
                 saveFile += "_" + fileNumbers.replace(',','_') 
             if useMask == True:
@@ -1305,7 +1313,7 @@ class DataSet(object):
         with open(os.path.join(outFolder,saveFile)+".dat",'w') as sf:
             sf.write(fileString)
 
-    def export_xye_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,useMask=False,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+    def export_xye_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,useMask=False,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
         """
         The function takes a data set and merge the files.
@@ -1323,6 +1331,10 @@ class DataSet(object):
             - outFile (str): String that will be used for outputfile. Default is automatic generated name.
 
             - outFolder (str): Path to folder data will be saved. Default is current working directory.
+
+            - useMask (bool): export file with angular mask. Default is False
+
+            - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
             
         - Arguments for automatic file name:
                 
@@ -1337,6 +1349,8 @@ class DataSet(object):
             - electricField (bool): Include electric field in filename. Default is False.
         
             - fileNumber (bool): Include sample number in filename. Default is False.
+
+            - waveLength (bool): Include waveLength in filename. Default is False. 
             
         Kwargs for sumDetector:
 
@@ -1436,11 +1450,13 @@ class DataSet(object):
             if sampleTitle ==True:
                 saveFile += f"_{samTitle[:20]}"
             if temperature == True:
-                saveFile += "_" + str(meanTemp).replace(".","p")[:3] + "K"
+                saveFile += "_" + str(meanTemp).replace(".","p")[:4] + "K"
             if magneticField == True:
                 saveFile += "_" + mag + "T"
             if electricField == True:
                 saveFile += "_" + elec + "keV"
+            if waveLength == True:
+                saveFile += "_{}keV".format(str(wavelength).replace('.','p')[6])
             if fileNumber == True:
                 saveFile += "_" + fileNumbers.replace(',','_') 
             if useMask == True:
@@ -1491,7 +1507,7 @@ class DataSet(object):
     
             
             
-def add(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,useMask=True,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+def add(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,useMask=True,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
     """
     
@@ -1503,17 +1519,23 @@ def add(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,two
     
     Kwargs:
         
-        - listinput (tuple): The function will add/merge all elements of the tuple/list. Files can be given as int, str, list.
+        - startFile (int): First file number for export
+        
+        - endFile (int): Final file number for export
         
         - folder (str): Path to directory for data files, default is current working directory
-        
-        - outFile (str): string for name of outfile (given without extension)
-
-        - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
+
+        - outFolder (str): Path to folder data will be saved. Default is current working directory.
+        
+        - all from export_PSI_format and export_xye_format
+
+        - useMask (bool): export file with angular mask. Default is True
+
+        - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
     - Arguments for automatic file name:
             
@@ -1528,6 +1550,8 @@ def add(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,two
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
+
+        - waveLength (bool): Include waveLength in filename. Default is False. 
         
     Kwargs for sumDetector:
 
@@ -1560,13 +1584,13 @@ def add(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,two
         inputNumber = _tools.fileListGenerator(listOfDataFiles[:-1],folder)
         ds = DataSet(inputNumber)
         if PSI == True:
-            ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+            ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
             if useMask is not False:
-                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
         if xye == True:
-            ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
+            ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength) 
             if useMask is not False:
-                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
         else:
             print("Cannot export! Something wrong with input")       
 
@@ -1576,7 +1600,7 @@ def add(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,two
 
 
         
-def export(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,useMask=True,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+def export(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,useMask=True,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
     """
     
@@ -1588,17 +1612,23 @@ def export(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,
     
     Kwargs:
         
-        - listinput (tuple): the function will export all elements of the tuple/list inducidually. Files can be merged by [], '', and () notation.
+        - startFile (int): First file number for export
+        
+        - endFile (int): Final file number for export
         
         - folder (str): Path to directory for data files, default is current working directory
         
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
-        
-        - outFile (str): string for name of outfile (given without extension)
 
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
+        
+        - all from export_PSI_format and export_xye_format
+
+        - useMask (bool): export file with angular mask. Default is True
+
+        - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
     - Arguments for automatic file name:
             
@@ -1613,6 +1643,8 @@ def export(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
+
+        - waveLength (bool): Include waveLength in filename. Default is False. 
         
     Kwargs for sumDetector:
 
@@ -1646,13 +1678,13 @@ def export(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,
                     if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
                         df.monitor = np.ones_like(df.monitor)
                 if PSI == True:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                     if useMask is not False:
-                        ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                        ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if xye == True:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength) 
                     if useMask is not False:
-                        ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                        ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
             except:
                 print(f"Cannot export! File is wrong format: {elemnt}")
     else:
@@ -1665,7 +1697,7 @@ def export(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,
 
 
 
-def export_from(startFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,useMask=True,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+def export_from(startFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,useMask=True,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
     
     """
     
@@ -1677,6 +1709,8 @@ def export_from(startFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.
         
         - startFile (int): First file number for export
         
+        - endFile (int): Final file number for export
+        
         - folder (str): Path to directory for data files, default is current working directory
         
         - PSI (bool): Export PSI format. Default is True
@@ -1686,6 +1720,10 @@ def export_from(startFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
+
+        - useMask (bool): export file with angular mask. Default is True
+
+        - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
     - Arguments for automatic file name:
             
@@ -1700,6 +1738,8 @@ def export_from(startFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
+
+        - waveLength (bool): Include waveLength in filename. Default is False. 
         
     Kwargs for sumDetector:
 
@@ -1737,13 +1777,13 @@ def export_from(startFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.
                 if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
                     df.monitor = np.ones_like(df.monitor)
             if PSI == True:
-                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if useMask is not False:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if xye == True:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength) 
                     if useMask is not False:
-                        ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                        ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
         except:
             print(f"Cannot export! File is wrong format: {file}")
             
@@ -1753,7 +1793,7 @@ def export_from(startFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.
 
 
 
-def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,useMask=True,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,useMask=True,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
     """
     
@@ -1776,6 +1816,10 @@ def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,outFolder=Non
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
+
+        - useMask (bool): export file with angular mask. Default is True
+
+        - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
     - Arguments for automatic file name:
             
@@ -1790,6 +1834,8 @@ def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,outFolder=Non
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
+
+        - waveLength (bool): Include waveLength in filename. Default is False. 
         
     Kwargs for sumDetector:
 
@@ -1823,13 +1869,13 @@ def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,outFolder=Non
                 if np.any(np.isnan(df.monitor)) or np.any(np.isclose(df.monitor,0.0)):
                     df.monitor = np.ones_like(df.monitor)
             if PSI == True:
-                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if useMask is not False:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
             if xye == True:
-                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber) 
+                ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=False,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength) 
                 if useMask is not False:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
         except:
             print(f"Cannot export! File is wrong format: {file}")
 
@@ -1842,7 +1888,7 @@ def export_from_to(startFile,endFile,PSI=True,xye=True,folder=None,outFolder=Non
 
 
 
-def export_list(listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,useMask=True,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+def export_list(listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,useMask=True,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
     """
     
