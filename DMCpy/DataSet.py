@@ -1196,7 +1196,7 @@ class DataSet(object):
         err = np.concatenate([err,addEmpty*[np.nan]]).reshape(-1,10)
         
         ## Generate output to DMC file format
-        titleLine = "DMC, "+samName
+        titleLine = "DMC, "+samName+", "+samTitle
         paramLine = "lambda={:9.5f}, T={:8.3f}, dT={:7.3f}, Date='{}'".format(wavelength,meanTemp,stdTemp,self[0].startTime)#.decode("utf-8"))
         paramLine2= ' '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
         
@@ -1274,6 +1274,8 @@ class DataSet(object):
                 saveFile += '_HR'
         else:
             saveFile = str(outFile.replace('.dat',''))
+            if useMask == True:
+                saveFile += '_HR'
 
         if outFolder is None:
             outFolder = os.getcwd()
@@ -1423,6 +1425,8 @@ class DataSet(object):
                 saveFile += '_HR'
         else:
             saveFile = str(outFile.replace('.xye',''))
+            if useMask == True:
+                saveFile += '_HR'
 
         if outFolder is None:
             outFolder = os.getcwd()
