@@ -545,7 +545,7 @@ class DataSet(object):
         return Ax
 
     def Viewer3D(self,dqx,dqy,dqz,rlu=True,axis=2, raw=False,  log=False, grid = True, outputFunction=print, 
-                 cmap='viridis',smart=False):
+                 cmap='viridis',smart=False, steps=None):
 
         """Generate a 3D view of all data files in the DatSet.
         
@@ -589,11 +589,11 @@ class DataSet(object):
         else:
             axes = None
 
-        Data,bins = self.binData3D(dqx,dqy,dqz,rlu=rlu,raw=raw,smart=smart)
+        Data,bins = self.binData3D(dqx,dqy,dqz,rlu=rlu,raw=raw,smart=smart,steps=steps)
 
         return Viewer3D.Viewer3D(Data,bins,axis=axis, ax=axes, grid=grid, log=log, outputFunction=outputFunction, cmap=cmap)
 
-    def binData3D(self,dqx,dqy,dqz,rlu=True,raw=False,smart=False):
+    def binData3D(self,dqx,dqy,dqz,rlu=True,raw=False,smart=False,steps=10):
 
         maximas = []
         minimas = []
@@ -614,40 +614,61 @@ class DataSet(object):
         returndata = None
         for df in self:
             
+            if raw:
+                dataDf = df.counts
+            else:
+                dataDf = df.intensity
+
+            if steps is None:
+                steps = len(df)
             
+            def block(I,step,axis=0,verbose=False):
+                totalLength=I.shape[axis]
+                counter = 0
+                while counter<totalLength:
+                    if verbose: print(counter,counter+step,'check:',counter<totalLength)
+                    if axis == 1:
+                        yield I[:,counter:counter+step]    
+                    else:
+                        yield I[counter:counter+step]
+                    counter+=step
+            stepsTaken = 0
+            for q,dat,monitor in zip(block(df.q,steps,axis=1),block(dataDf,steps,verbose=False),block(df.monitor,steps)):
+                print(df.fileName,'from',stepsTaken,'to',stepsTaken+steps)
+                stepsTaken+=steps
 
-            if rlu:
-                pos = np.einsum('ij,j...',df.sample.ROT,df.q).transpose(0,3,1,2) # shape -> steps,3,128,1152
+                if rlu:
+                    pos = np.einsum('ij,j...',df.sample.ROT,q).transpose(0,3,1,2) # shape -> steps,3,128,1152
 
-            else:
-                pos = df.q.transpose(1,0,2,3)# shape -> steps,3,128,1152
-
-            if not raw:
-                data = df.intensity#[np.logical_not(df.mask)]/df.normalization[np.logical_not(df.mask)] # shape steps,128,1152
-            else:
-                data = df.counts#[np.logical_not(df.mask)] # shape steps,128,1152
-            # if smart:
-            #     for p,d,mon in zip(pos,data,df.monitor):
-            #         localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=p.reshape(3,-1),data=d.flatten(),bins = bins)
-
-            #         if returndata is None:
-            #             returndata = localReturndata
-            #             returndata[-1]*=mon
-            #         else:
-            #             returndata[-1]*=mon
-            #             for data,newData in zip(returndata,localReturndata):
-            #                 data+=newData
-            if True:
-                pos = pos.transpose(1,0,2,3)
-                localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=pos.reshape(3,-1),data=data.flatten(),bins = bins)
-
-                if returndata is None:
-                    returndata = localReturndata
-                    returndata[-1]*=df.monitor[0]
                 else:
-                    returndata[-1]*=df.monitor[0]
-                    for data,newData in zip(returndata,localReturndata):
-                        data+=newData
+                    pos = q.transpose(1,0,2,3)# shape -> steps,3,128,1152
+
+                #if not raw:
+                #    data = df.intensity#[np.logical_not(df.mask)]/df.normalization[np.logical_not(df.mask)] # shape steps,128,1152
+                #else:
+                #    data = df.counts#[np.logical_not(df.mask)] # shape steps,128,1152
+                # if smart:
+                #     for p,d,mon in zip(pos,data,df.monitor):
+                #         localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=p.reshape(3,-1),data=d.flatten(),bins = bins)
+
+                #         if returndata is None:
+                #             returndata = localReturndata
+                #             returndata[-1]*=mon
+                #         else:
+                #             returndata[-1]*=mon
+                #             for data,newData in zip(returndata,localReturndata):
+                #                 data+=newData
+                if True:
+                    pos = pos.transpose(1,0,2,3)
+                    localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=pos.reshape(3,-1),data=dat.flatten(),bins = bins)
+
+                    if returndata is None:
+                        returndata = localReturndata
+                        returndata[-1]*=monitor[0]
+                    else:
+                        returndata[-1]*=monitor[0]
+                        for data,newData in zip(returndata,localReturndata):
+                            data+=newData
                     
 
         intensities = np.divide(returndata[0],returndata[1])
@@ -793,7 +814,7 @@ class DataSet(object):
                     leftEdge =  np.mean([QStart,QStop],axis=0).reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonalY.reshape(3,1)+effectiveWidth*orthogonalX.reshape(3,1)
                     
                     checkPositions = np.concatenate([startEdge,endEdge,rightEdge,leftEdge],axis=1)
-                
+                #print(checkPositions)
                 # Calcualte the corresponding A3 and A4 positons
                 E = np.power(df.ki[1,0][0]/0.694692,2.0)
                 A3,A4 = np.array([TasUBlibDEG.converterToA3A4(*pos,E,E) for pos in checkPositions.T]).T
@@ -810,8 +831,9 @@ class DataSet(object):
                 
                 # Find and sort ascending the indices        
                 twoThetaIdx = np.sort(np.array([np.argmin(np.abs(df.twoTheta[0]-tt)) for tt in [A4Min,A4Max]]))
+                
                 A3Idx = np.sort(np.array([np.argmin(np.abs(df.A3-a3)) for a3 in [A3Min,A3Max]]))
-
+                
                 if not np.isclose(np.abs(np.dot(direction,[0,0,1])),1.0):
                     maxQz = np.max([QStart[2],QStop[2]])+widthZ*expansionFactior
                     minQz = np.min([QStart[2],QStop[2]])-widthZ*expansionFactior
@@ -1265,9 +1287,9 @@ class DataSet(object):
         if outFile is None:
             saveFile = "DMC"
             if sampleName == True:
-                saveFile += f"_{samName[:6]}"
+                saveFile += f"_{samName[:20]}"
             if sampleTitle ==True:
-                saveFile += f"_{samTitle[:6]}"
+                saveFile += f"_{samTitle[:20]}"
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:4] + "K"
             if magneticField == True:
@@ -1424,9 +1446,9 @@ class DataSet(object):
         if outFile is None:
             saveFile = "DMC"
             if sampleName == True:
-                saveFile += f"_{samName[:6]}"
+                saveFile += f"_{samName[:20]}"
             if sampleTitle ==True:
-                saveFile += f"_{samTitle[:6]}"
+                saveFile += f"_{samTitle[:20]}"
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:4] + "K"
             if magneticField == True:
