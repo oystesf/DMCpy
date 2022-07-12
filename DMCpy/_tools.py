@@ -77,10 +77,10 @@ def numberStringGenerator(fileNames,instrumentName='dmc'):
     # Find base name and remove extension
     if len(fileNames) != 1:
         prefix = os.path.commonprefix(list(names))
-        
+
         if instrumentName in prefix:
             # Remove all non-zero digits from prefix
-            while prefix[-1]!='0' and prefix[-1]!='n':
+            while prefix[-1]!='n': #  prefix[-1]!='0' and
                 prefix = prefix[:-1]
             year = int(prefix[len(instrumentName):len(instrumentName)+4])
             numbers = np.array([n[len(prefix):] for n in names],dtype=int)
