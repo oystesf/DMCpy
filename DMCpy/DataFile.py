@@ -119,7 +119,7 @@ HDFTranslation = {'sample':'/entry/sample',
                   'mode':'entry/monitor/mode',
                   'preset':'entry/monitor/preset',
                   'startTime':'entry/start_time',
-                  'time':None,# Is to be caught by HDFTranslationAlternatives 'entry/monitor/time',
+                  'time':'Henning',# Is to be caught by HDFTranslationAlternatives 'entry/monitor/time',
                   'endTime':'entry/end_time',
                   'comment':'entry/comment',
                   'proposal':'entry/proposal_id',
@@ -910,6 +910,13 @@ def shallowRead(files,parameters):
                     v = os.path.dirname(file)
                     vals[p] = v
                     continue
+                elif p in HDFTranslationAlternatives:
+                    for entry in HDFTranslationAlternatives[p]:
+                        v = np.array(f.get(entry))
+                        if not v.shape == ():
+                            TrF= HDFTranslationFunctions
+                            break
+
                 elif p in HDFTranslation:
                     v = np.array(f.get(HDFTranslation[p]))
                     TrF= HDFTranslationFunctions
