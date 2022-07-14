@@ -1277,7 +1277,7 @@ class DataSet(object):
             if electricField == True:
                 saveFile += "_" + elec + "keV"
             if waveLength == True:
-                saveFile += "_{}AA".format(str(wavelength).replace('.','p')[6])
+                saveFile += "_{}AA".format(str(wavelength).replace('.','p')[:5])
             if fileNumber == True:
                 saveFile += "_" + fileNumbers.replace(',','_') 
             if useMask == True:
@@ -1438,7 +1438,7 @@ class DataSet(object):
             if electricField == True:
                 saveFile += "_" + elec + "keV"
             if waveLength == True:
-                saveFile += "_{}AA".format(str(wavelength).replace('.','p')[6])
+                saveFile += "_{}AA".format(str(wavelength).replace('.','p')[:5])
             if fileNumber == True:
                 saveFile += "_" + fileNumbers.replace(',','_') 
             if useMask == True:
