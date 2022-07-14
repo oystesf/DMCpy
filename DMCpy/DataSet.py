@@ -1203,6 +1203,8 @@ class DataSet(object):
         
         ## Generate output to DMC file format
         titleLine = "DMC, "+samName+", "+samTitle
+        if useMask is True:
+            titleLine += " , anngular mask: " + str(maxAngle) + " deg." 
         paramLine = "lambda={:9.5f}, T={:8.3f}, dT={:7.3f}, Date='{}'".format(wavelength,meanTemp,stdTemp,self[0].startTime)#.decode("utf-8"))
         paramLine2= ' '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
         
@@ -1275,7 +1277,7 @@ class DataSet(object):
             if electricField == True:
                 saveFile += "_" + elec + "keV"
             if waveLength == True:
-                saveFile += "_{}keV".format(str(wavelength).replace('.','p')[6])
+                saveFile += "_{}AA".format(str(wavelength).replace('.','p')[6])
             if fileNumber == True:
                 saveFile += "_" + fileNumbers.replace(',','_') 
             if useMask == True:
@@ -1413,6 +1415,8 @@ class DataSet(object):
         
         titleLine1 = f"# DMC at SINQ, PSI: Sample name = {samName}, title = {samTitle}, wavelength = {str(wavelength)[:5]} AA, T = {str(meanTemp)[:5]} K"
         titleLine2 = "# Filelist='dmc:{}:{}'".format(year,fileNumbers)
+        if useMask is True:
+            titleLine2 += " , anngular mask: " + str(maxAngle) + " deg." 
         titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
 
             
@@ -1434,7 +1438,7 @@ class DataSet(object):
             if electricField == True:
                 saveFile += "_" + elec + "keV"
             if waveLength == True:
-                saveFile += "_{}keV".format(str(wavelength).replace('.','p')[6])
+                saveFile += "_{}AA".format(str(wavelength).replace('.','p')[6])
             if fileNumber == True:
                 saveFile += "_" + fileNumbers.replace(',','_') 
             if useMask == True:
@@ -1643,7 +1647,7 @@ def export(*listinput,PSI=True,xye=True,folder=None,outFolder=None,dTheta=0.125,
         folder = os.getcwd()
     if outFolder is None:
         outFolder = os.getcwd()
-    
+
     if type(listinput) == tuple:
         for elemnt in listinput:
             elemnt = str(elemnt)
