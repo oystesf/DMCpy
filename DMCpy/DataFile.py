@@ -98,7 +98,8 @@ def findCalibration(fileName):
 ## Dictionary for holding hdf position of attributes. HDFTranslation['a3'] gives hdf position of 'a3'
 HDFTranslation = {'sample':'/entry/sample',
                   'sampleName':'/entry/sample/name',
-                  'monitor':'entry/monitor/monitor',
+                  'monitor':None,#'entry/monitor/monitor',
+                  'monitor1':'entry/monitor/monitor1',
                   'unitCell':'/entry/sample/unit_cell',
                   'counts':'entry/DMC/detector/data',
                   'summedCounts': 'entry/DMC/detector/summed_counts',
@@ -113,6 +114,7 @@ HDFTranslation = {'sample':'/entry/sample',
                   
 
                   'wavelength':'entry/DMC/monochromator/wavelength',
+                  'wavelength_raw':'entry/DMC/monochromator/wavelength_raw',
                   'twoThetaPosition':'entry/DMC/detector/detector_position',
                   'mode':'entry/monitor/mode',
                   'preset':'entry/monitor/preset',
@@ -136,11 +138,13 @@ HDFTranslation = {'sample':'/entry/sample',
                   'scanCommand':'entry/scancommand',
                   'title':'entry/title',
                   'absoluteTime':'entry/control/absolute_time',
-                  'protonBeam':'entry/proton_beam/data'
+                  'protonBeam':None# 'entry/proton_beam/data'
 }
 
 HDFTranslationAlternatives = { # Alternatives to the above list. NOTTICE: The above positions are not checked if an entry in HDFTranslationAlternatives is present
-    'time':['entry/monitor/time','entry/monitor/monitor']
+    'time':['entry/monitor/time','entry/monitor/monitor'],
+    'monitor':['entry/monitor/monitor','entry/monitor/monitor2'],
+    'protonBeam':['entry/proton_beam/data','entry/monitor/proton_charge']
 }
 
 ## Dictionary for holding standard values 
@@ -155,6 +159,9 @@ HDFTranslationDefault = {'twoThetaPosition':np.array([0.0]),
                          'address': 'Unknown Address',
                          'affiliation': 'Unknown Affiliation',
                          'scanCommand': 'Unknown scanCommand',
+
+                         'wavelength_raw':np.array([2.0]),
+                         'monitor1':np.array([0.0]),
 
                          'temperature': np.array([0.0]),
                          'magneticField': np.array([0.0]),
@@ -174,11 +181,12 @@ HDFTranslationFunctions['sampleName'] = [['__getitem__',[0]],['decode',['utf8']]
 HDFTranslationFunctions['mode'] = [['__getitem__',[0]],['decode',['utf8']]]
 HDFTranslationFunctions['startTime'] = [['__getitem__',[0]],['decode',['utf8']]]
 HDFTranslationFunctions['wavelength'] = [['mean',[]]]
+HDFTranslationFunctions['wavelength_raw'] = [['mean',[]]]
 HDFTranslationFunctions['twoThetaPosition'] = [['__getitem__',[0]]]
 HDFTranslationFunctions['endTime'] = [['__getitem__',[0]]]
 HDFTranslationFunctions['experimentalIdentifier'] = [['__getitem__',[0]]]
 HDFTranslationFunctions['comment'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['proposal'] = [['__getitem__',[0]]]
+HDFTranslationFunctions['proposal'] = [['__getitem__',[0]],['decode',['utf8']]]
 HDFTranslationFunctions['proposalTitle'] = [['__getitem__',[0]],['decode',['utf8']]]
 HDFTranslationFunctions['localContact'] = [['__getitem__',[0]],['decode',['utf8']]]
 HDFTranslationFunctions['proposalUser'] = [['__getitem__',[0]],['decode',['utf8']]]
@@ -199,6 +207,7 @@ HDFInstrumentTranslationFunctions = defaultdict(lambda : [])
 # HDFInstrumentTranslationFunctions['counts'] = [['swapaxes',[1,2]]]
 HDFInstrumentTranslationFunctions['twoThetaPosition'] = [['mean',]]
 HDFInstrumentTranslationFunctions['wavelength'] = [['mean',]]
+HDFInstrumentTranslationFunctions['wavelength_raw'] = [['mean',]]
 
 extraAttributes = ['name','fileLocation']
 
@@ -207,6 +216,7 @@ possibleAttributes.sort(key=lambda v: v.lower())
 
 HDFTypes = defaultdict(lambda: lambda x: np.array([np.string_(x)]))
 HDFTypes['monitor'] = np.array
+HDFTypes['monitor1'] = np.array
 HDFTypes['monochromatorCurvature'] = np.array
 HDFTypes['monochromatorVerticalCurvature'] = np.array
 HDFTypes['monochromatorGoniometerLower'] = np.array
@@ -216,6 +226,7 @@ HDFTypes['monochromatorTakeoffAngle'] = np.array
 HDFTypes['monochromatorTranslationLower'] = np.array
 HDFTypes['monochromatorTranslationUpper'] = np.array
 HDFTypes['wavelength'] = np.array
+HDFTypes['wavelength_raw'] = np.array
 HDFTypes['twoThetaPosition'] = np.array
 # HDFTypes['mode'] = lambda x: np.array([np.string_(x)])
 HDFTypes['preset'] = np.array
@@ -239,7 +250,10 @@ HDFUnits = {
     'monochromatorTranslationUpper':'mm',
     'twoThetaPosition':'degree',
     'monitor':'counts',
-    'wavelength':'A'
+    'monitor1':'counts',
+    'protonBeam':'uA',
+    'wavelength':'A',
+    'wavelength_raw':'A'
 }
 
 
