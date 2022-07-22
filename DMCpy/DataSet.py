@@ -1271,7 +1271,7 @@ class DataSet(object):
             if sampleTitle ==True:
                 saveFile += f"_{samTitle[:6]}"
             if temperature == True:
-                saveFile += "_" + str(meanTemp).replace(".","p")[:4] + "K"
+                saveFile += "_" + str(meanTemp).replace(".","p")[:5] + "K"
             if magneticField == True:
                 saveFile += "_" + mag + "T"
             if electricField == True:
@@ -1286,6 +1286,8 @@ class DataSet(object):
             saveFile = str(outFile.replace('.dat',''))
             if useMask == True:
                 saveFile += '_HR'
+        
+        saveFile=saveFile.replace('__','_').replace('__','_').replace(' ','_').replace('.','p')
 
         if outFolder is None:
             outFolder = os.getcwd()
@@ -1432,7 +1434,7 @@ class DataSet(object):
             if sampleTitle ==True:
                 saveFile += f"_{samTitle[:6]}"
             if temperature == True:
-                saveFile += "_" + str(meanTemp).replace(".","p")[:4] + "K"
+                saveFile += "_" + str(meanTemp).replace(".","p")[:5] + "K"
             if magneticField == True:
                 saveFile += "_" + mag + "T"
             if electricField == True:
@@ -1447,6 +1449,8 @@ class DataSet(object):
             saveFile = str(outFile.replace('.xye',''))
             if useMask == True:
                 saveFile += '_HR'
+
+        saveFile=saveFile.replace('__','_').replace('__','_').replace(' ','_').replace('.','p')
 
         if outFolder is None:
             outFolder = os.getcwd()
