@@ -1198,8 +1198,8 @@ class DataSet(object):
         # How many empty values to add to allow reshape
         addEmpty = int(10*np.ceil(intNum/10.0)-intNum)
         
-        intensity = np.concatenate([intensity,addEmpty*[np.nan]]).reshape(-1,10)
-        err = np.concatenate([err,addEmpty*[np.nan]]).reshape(-1,10)
+        intensity = np.concatenate([intensity,addEmpty*[np.nan]],fill_value=max(intensity)).reshape(-1,10)
+        err = np.concatenate([err,addEmpty*[np.nan]],fill_value=max(intensity)).reshape(-1,10)
         
         ## Generate output to DMC file format
         titleLine = "DMC, "+samName+", "+samTitle
