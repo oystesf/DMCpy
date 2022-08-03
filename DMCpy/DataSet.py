@@ -1133,7 +1133,7 @@ class DataSet(object):
             
             .dat file in PSI format with input name
             
-        Note: Input is a data set.
+        Note: Input is a DataSet.
             
         Example:
             >>> inputNumber = _tools.fileListGenerator(565,folder)
