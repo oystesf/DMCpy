@@ -161,7 +161,7 @@ class DataSet(object):
             if len(self.twoTheta.shape) == 3: # shape is (df,z,twoTheta), needs to be passed as (df,n,z,twoTheta)
                 twoTheta = self.twoTheta[:,np.newaxis].repeat(self.counts.shape[1],axis=1) # n = scan steps
             else:
-                twoTheta = -self.twoTheta
+                twoTheta = self.twoTheta
 
         if twoThetaBins is None:
             anglesMin = np.min(twoTheta)
