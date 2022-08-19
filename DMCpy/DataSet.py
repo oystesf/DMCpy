@@ -6,7 +6,7 @@ import pandas as pd
 import os
 import json, os, time
 from DMCpy import DataFile, _tools, Viewer3D, RLUAxes, TasUBlibDEG
-
+from memory_profiler import profile
 
 class DataSet(object):
     def __init__(self, dataFiles=None,**kwargs):
@@ -132,14 +132,14 @@ class DataSet(object):
         self._getData()
 
     @_tools.KwargChecker()
-    def sumDetector(self,twoThetaBins=None,applyNormalization=True,correctedTwoTheta=True,dTheta=0.125):
+    def sumDetector(self,twoThetaBins=None,applyCalibration=True,correctedTwoTheta=True,dTheta=0.125):
         """Find intensity as function of either twoTheta or correctedTwoTheta
 
         Kwargs:
 
             - twoThetaBins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.5)
 
-            - applyNormalization (bool): If true, take detector efficiency into account (default True)
+            - applyCalibration (bool): If true, take detector efficiency into account (default True)
 
             - correctedTwoTheta (bool): If true, use corrected two theta, otherwise sum vertically on detector (default True)
 
@@ -176,7 +176,7 @@ class DataSet(object):
 
         summedRawIntensity, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=self.counts[np.logical_not(self.mask)])
 
-        if applyNormalization:
+        if applyCalibration:
             summedMonitor, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=monitorRepeated[np.logical_not(self.mask)]*self.normalization[np.logical_not(self.mask)])
         else:
             summedMonitor, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=monitorRepeated[np.logical_not(self.mask)])
@@ -190,7 +190,7 @@ class DataSet(object):
     
 
     @_tools.KwargChecker(function=plt.errorbar,include=_tools.MPLKwargs)
-    def plotTwoTheta(self,ax=None,twoThetaBins=None,applyNormalization=True,correctedTwoTheta=True,dTheta=0.125,**kwargs):
+    def plotTwoTheta(self,ax=None,twoThetaBins=None,applyCalibration=True,correctedTwoTheta=True,dTheta=0.125,**kwargs):
         """Plot intensity as function of correctedTwoTheta or twoTheta
 
         Kwargs:
@@ -199,7 +199,7 @@ class DataSet(object):
 
             - twoThetaBins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.1)
 
-            - applyNormalization (bool): If true, take detector efficiency into account (default True)
+            - applyCalibration (bool): If true, take detector efficiency into account (default True)
 
             - correctedTwoTheta (bool): If true, use corrected two theta, otherwise sum vertically on detector (default True)
 
@@ -220,7 +220,7 @@ class DataSet(object):
         """
         
         
-        twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor = self.sumDetector(twoThetaBins=twoThetaBins,applyNormalization=applyNormalization,\
+        twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor = self.sumDetector(twoThetaBins=twoThetaBins,applyCalibration=applyCalibration,\
                                                                                        correctedTwoTheta=correctedTwoTheta,dTheta=dTheta)
 
         TwoThetaPositions = 0.5*(twoThetaBins[:-1]+twoThetaBins[1:])
@@ -497,7 +497,7 @@ class DataSet(object):
 
             - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.1 Deg)
             
-            - applyNormalization (bool): Use normalization files (default True)
+            - applyCalibration (bool): Use normalization files (default True)
             
             - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
         
@@ -517,8 +517,8 @@ class DataSet(object):
         if not 'twoThetaBins' in kwargs:
             kwargs['twoThetaBins']= None
 
-        if not 'applyNormalization' in kwargs:
-            kwargs['applyNormalization']= True
+        if not 'applyCalibration' in kwargs:
+            kwargs['applyCalibration']= True
 
 
         if not 'correctedTwoTheta' in kwargs:
@@ -532,7 +532,7 @@ class DataSet(object):
             plotInteractiveKwargs[key] = kwargs[key]
         
         plotTwoThetaKwargs = {}
-        for key in ['twoThetaBins','fmt','correctedTwoTheta','applyNormalization']:
+        for key in ['twoThetaBins','fmt','correctedTwoTheta','applyCalibration']:
             plotTwoThetaKwargs[key] = kwargs[key]
 
         ax2,*_= self.plotTwoTheta(ax=Ax[1],**plotTwoThetaKwargs)
@@ -592,19 +592,18 @@ class DataSet(object):
         Data,bins = self.binData3D(dqx,dqy,dqz,rlu=rlu,raw=raw,smart=smart,steps=steps)
 
         return Viewer3D.Viewer3D(Data,bins,axis=axis, ax=axes, grid=grid, log=log, outputFunction=outputFunction, cmap=cmap)
-
+    @profile
     def binData3D(self,dqx,dqy,dqz,rlu=True,raw=False,smart=False,steps=10):
 
         maximas = []
         minimas = []
         for df in self:
             if rlu:
-                pos = np.einsum('ij,jk',df.sample.ROT,df.q.reshape(3,-1))
-                maximas.append(np.max(pos,axis=1))
-                minimas.append(np.min(pos,axis=1))
+                pos = np.einsum('ij,jk',df.sample.ROT,df.q[None].reshape(3,-1))
             else:
-                maximas.append(np.max(df.q.reshape(3,-1),axis=1))
-                minimas.append(np.min(df.q.reshape(3,-1),axis=1))
+                pos = df.q[None].reshape(3,-1)
+            maximas.append(np.max(pos,axis=1))
+            minimas.append(np.min(pos,axis=1))
 
         maximas = np.max(maximas,axis=0)
         minimas = np.min(minimas,axis=0)
@@ -633,7 +632,22 @@ class DataSet(object):
                         yield I[counter:counter+step]
                     counter+=step
             stepsTaken = 0
-            for q,dat,monitor in zip(block(df.q,steps,axis=1),block(dataDf,steps,verbose=False),block(df.monitor,steps)):
+
+
+            def arange(start,stop,step):
+                stepsTaken = 0
+                while start+step*(stepsTaken+1)<stop:
+                    yield (start+step*stepsTaken,start+step*(stepsTaken+1))
+                    stepsTaken+=1
+                    
+                yield(start+step*stepsTaken,stop)
+                
+            for idx in arange(0,len(df),steps):
+                q = df.q[idx[0]:idx[1]]
+                dat = dataDf[idx[0]:idx[1]]
+                monitor = df.monitor[idx[0]:idx[1]]
+                
+            #for q,dat,monitor in zip(block(df.q,steps,axis=1),block(dataDf,steps,verbose=False),block(df.monitor,steps)):
                 print(df.fileName,'from',stepsTaken,'to',stepsTaken+steps)
                 stepsTaken+=steps
 
@@ -837,7 +851,7 @@ class DataSet(object):
                 if not np.isclose(np.abs(np.dot(direction,[0,0,1])),1.0):
                     maxQz = np.max([QStart[2],QStop[2]])+widthZ*expansionFactior
                     minQz = np.min([QStart[2],QStop[2]])-widthZ*expansionFactior
-                    qzIdx = np.array(np.sort(np.array([np.argmin(np.abs(w-df.q[2,0,:,0])) for w in [minQz,maxQz]])))
+                    qzIdx = np.array(np.sort(np.array([np.argmin(np.abs(w-df.q[None][2,0,:,0])) for w in [minQz,maxQz]])))
                 else:
                     qzIdx = np.array([0,df.counts.shape[1]])#np.sort(np.array([np.argmin(np.abs(p[2]-df.q[2,0,:,0])) for p in [P1,P2]])))
                 
@@ -847,7 +861,7 @@ class DataSet(object):
                         twoThetaIdx[0]:twoThetaIdx[1]+1]=True
                 
                 data = data[mask]
-                relativePosition = df.q[:,mask]-QStart.reshape(3,-1)
+                relativePosition = df.q[None][:,mask]-QStart.reshape(3,-1)
                 
             else:
                 # along = np.einsum('ij,i...->...j',relativePosition,directionVector)
@@ -865,7 +879,7 @@ class DataSet(object):
                 # pos = sign*along.flatten()[insideQ]
                 
             #else:
-                relativePosition = df.q.reshape(3,-1)-QStart.reshape(3,-1)
+                relativePosition = df.q[None].reshape(3,-1)-QStart.reshape(3,-1)
             
             along = np.einsum('ij,i...->...j',relativePosition,directionVector)
                 
@@ -962,7 +976,7 @@ class DataSet(object):
         for df in self:
             
             # 1) 
-            Intensities,bins = _tools.binData3D(dx,dy,dz,df.q.reshape(3,-1),df.intensity)
+            Intensities,bins = _tools.binData3D(dx,dy,dz,df.q[None].reshape(3,-1),df.intensity)
             Intensities = np.divide(Intensities[0],Intensities[1])
             
             
@@ -1103,7 +1117,7 @@ class DataSet(object):
             sample.peakUsedForAlignment = peakUsedForAlignment
         
 
-    def export_PSI_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,hourNormalization=False,outFile=None,addTitle=None,outFolder=None,useMask=False,maxAngle=5,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
+    def export_PSI_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,hourNormalization=False,outFile=None,addTitle=None,outFolder=None,useMask=False,maxAngle=5,applyCalibration=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
         """
         The function takes a data set and merge the files.
@@ -1147,7 +1161,7 @@ class DataSet(object):
 
             - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
                 
-            - applyNormalization (bool): Use normalization files (default True)
+            - applyCalibration (bool): Use normalization files (default True)
                 
             - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
             
@@ -1178,7 +1192,7 @@ class DataSet(object):
         if useMask is True:
             self.generateMask(maxAngle=maxAngle,replace=False)
 
-        bins,intensity,err,monitor = self.sumDetector(bins,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta)
+        bins,intensity,err,monitor = self.sumDetector(bins,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta)
         
         bins = bins + twoThetaOffset
         
@@ -1326,7 +1340,7 @@ class DataSet(object):
         with open(os.path.join(outFolder,saveFile)+".dat",'w') as sf:
             sf.write(fileString)
 
-    def export_xye_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,useMask=False,maxAngle=5,hourNormalization=False,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
+    def export_xye_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,useMask=False,maxAngle=5,hourNormalization=False,applyCalibration=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
         """
         The function takes a data set and merge the files.
@@ -1369,7 +1383,7 @@ class DataSet(object):
 
             - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
                 
-            - applyNormalization (bool): Use normalization files (default True)
+            - applyCalibration (bool): Use normalization files (default True)
                 
             - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
             
@@ -1400,7 +1414,7 @@ class DataSet(object):
         if useMask is True:
             self.generateMask(maxAngle=maxAngle,replace=False)
 
-        bins,intensity,err,monitor = self.sumDetector(bins,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta)
+        bins,intensity,err,monitor = self.sumDetector(bins,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta)
         
         bins = bins + twoThetaOffset
         
@@ -1531,7 +1545,7 @@ class DataSet(object):
     
             
             
-def add(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,addTitle=None,useMask=True,onlyHR=False,maxAngle=5,hourNormalization=True,onlyNorm=True,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
+def add(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,addTitle=None,useMask=True,onlyHR=False,maxAngle=5,hourNormalization=True,onlyNorm=True,applyCalibration=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
     """
     
@@ -1589,7 +1603,7 @@ def add(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,d
 
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
-        - applyNormalization (bool): Use normalization files (default True)
+        - applyCalibration (bool): Use normalization files (default True)
             
         - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
         
@@ -1618,24 +1632,24 @@ def add(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,d
         try:
             if PSI is True and onlyHR is False:
                 if onlyNorm is False:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
             if xye is True and onlyHR is False:
                 if onlyNorm is False:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
             if PSI is True and useMask is True:
                 if onlyNorm is False:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)        
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)        
             if xye is True and useMask is True:
                 if onlyNorm is False:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
         except:
                 print(f"Cannot export! File is wrong format: {elemnt}")                    
 
@@ -1643,7 +1657,7 @@ def add(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,d
 # add(565,566,567,(570),'571-573',[574],sampleName=False,temperature=False)
 
 
-def export(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,addTitle=None,useMask=True,onlyHR=False,maxAngle=5,hourNormalization=True,onlyNorm=True,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
+def export(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,addTitle=None,useMask=True,onlyHR=False,maxAngle=5,hourNormalization=True,onlyNorm=True,applyCalibration=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
     """
     
@@ -1701,7 +1715,7 @@ def export(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=Non
 
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
-        - applyNormalization (bool): Use normalization files (default True)
+        - applyCalibration (bool): Use normalization files (default True)
             
         - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
         
@@ -1725,24 +1739,24 @@ def export(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=Non
         try:
             if PSI is True and onlyHR is False:
                 if onlyNorm is False:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
             if xye is True and onlyHR is False:
                 if onlyNorm is False:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
             if PSI is True and useMask is True:
                 if onlyNorm is False:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)        
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)        
             if xye is True and useMask is True:
                 if onlyNorm is False:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
         except:
                 print(f"Cannot export! File is wrong format: {elemnt}")                    
 
@@ -1753,7 +1767,7 @@ def export(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=Non
 # export(565,'566',[567,568,570,571],'570-573',(574,575),sampleName=False,temperature=False)  
         
 
-def exportAll(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,addTitle=None,useMask=True,onlyHR=False,maxAngle=5,hourNormalization=True,onlyNorm=True,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
+def exportAll(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,addTitle=None,useMask=True,onlyHR=False,maxAngle=5,hourNormalization=True,onlyNorm=True,applyCalibration=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
     """
     
@@ -1811,7 +1825,7 @@ def exportAll(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=
 
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
-        - applyNormalization (bool): Use normalization files (default True)
+        - applyCalibration (bool): Use normalization files (default True)
             
         - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
         
@@ -1838,31 +1852,31 @@ def exportAll(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=
             try:
                 if PSI is True and onlyHR is False:
                     if onlyNorm is False:
-                        ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                        ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                     if hourNormalization is True:
-                        ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                        ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if xye is True and onlyHR is False:
                     if onlyNorm is False:
-                        ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                        ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                     if hourNormalization is True:
-                        ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                        ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if PSI is True and useMask is True:
                     if onlyNorm is False:
-                        ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                        ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                     if hourNormalization is True:
-                        ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)        
+                        ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)        
                 if xye is True and useMask is True:
                     if onlyNorm is False:
-                        ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                        ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                     if hourNormalization is True:
-                        ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                        ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
             except:
                     print(f"Cannot export! File is wrong format: {elemnt}")                    
 
 
 
 
-def export_from(startFile,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,addTitle=None,useMask=True,onlyHR=False,maxAngle=5,hourNormalization=True,onlyNorm=True,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
+def export_from(startFile,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,addTitle=None,useMask=True,onlyHR=False,maxAngle=5,hourNormalization=True,onlyNorm=True,applyCalibration=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
     """
     
@@ -1920,7 +1934,7 @@ def export_from(startFile,PSI=True,xye=False,folder=None,outFolder=None,dataYear
 
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
-        - applyNormalization (bool): Use normalization files (default True)
+        - applyCalibration (bool): Use normalization files (default True)
             
         - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
         
@@ -1950,24 +1964,24 @@ def export_from(startFile,PSI=True,xye=False,folder=None,outFolder=None,dataYear
         try:
             if PSI is True and onlyHR is False:
                 if onlyNorm is False:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
             if xye is True and onlyHR is False:
                 if onlyNorm is False:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
             if PSI is True and useMask is True:
                 if onlyNorm is False:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)        
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)        
             if xye is True and useMask is True:
                 if onlyNorm is False:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
         except:
                 print(f"Cannot export! File is wrong format: {file}")                    
 
@@ -1980,7 +1994,7 @@ def export_from(startFile,PSI=True,xye=False,folder=None,outFolder=None,dataYear
 
 
 
-def export_from_to(startFile,endFile,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,addTitle=None,useMask=True,onlyHR=False,maxAngle=5,hourNormalization=True,onlyNorm=True,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
+def export_from_to(startFile,endFile,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,addTitle=None,useMask=True,onlyHR=False,maxAngle=5,hourNormalization=True,onlyNorm=True,applyCalibration=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
     """
     
@@ -2038,7 +2052,7 @@ def export_from_to(startFile,endFile,PSI=True,xye=False,folder=None,outFolder=No
 
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
-        - applyNormalization (bool): Use normalization files (default True)
+        - applyCalibration (bool): Use normalization files (default True)
             
         - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
         
@@ -2064,24 +2078,24 @@ def export_from_to(startFile,endFile,PSI=True,xye=False,folder=None,outFolder=No
         try:
             if PSI is True and onlyHR is False:
                 if onlyNorm is False:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
             if xye is True and onlyHR is False:
                 if onlyNorm is False:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
             if PSI is True and useMask is True:
                 if onlyNorm is False:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)        
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)        
             if xye is True and useMask is True:
                 if onlyNorm is False:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
         except:
                 print(f"Cannot export! File is wrong format: {file}")                    
 
@@ -2096,7 +2110,7 @@ def export_from_to(startFile,endFile,PSI=True,xye=False,folder=None,outFolder=No
 
 
 
-def export_list(listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,addTitle=None,useMask=True,onlyHR=False,maxAngle=5,hourNormalization=True,onlyNorm=True,applyNormalization=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
+def export_list(listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,addTitle=None,useMask=True,onlyHR=False,maxAngle=5,hourNormalization=True,onlyNorm=True,applyCalibration=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
     """
     
@@ -2152,7 +2166,7 @@ def export_list(listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear
 
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
-        - applyNormalization (bool): Use normalization files (default True)
+        - applyCalibration (bool): Use normalization files (default True)
             
         - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
         
@@ -2177,24 +2191,24 @@ def export_list(listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear
         try:
             if PSI is True and onlyHR is False:
                 if onlyNorm is False:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
             if xye is True and onlyHR is False:
                 if onlyNorm is False:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=False,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
             if PSI is True and useMask is True:
                 if onlyNorm is False:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)        
+                    ds.export_PSI_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)        
             if xye is True and useMask is True:
                 if onlyNorm is False:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=False,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
                 if hourNormalization is True:
-                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
+                    ds.export_xye_format(dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,addTitle=addTitle,outFolder=outFolder,useMask=useMask,maxAngle=maxAngle,hourNormalization=hourNormalization,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,sampleTitle=sampleTitle,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber,waveLength=waveLength)    
         except:
                 print(f"Cannot export! File is wrong format: {file}")                    
 
@@ -2457,7 +2471,7 @@ def DMCsort(filelist,sortKey):
     return sumFile
 
 
-def sortExport(fileList,dataFolder=None,PSI=True,xye=True,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+def sortExport(fileList,dataFolder=None,PSI=True,xye=True,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyCalibration=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
               
     localSettingsFile = os.path.join(os.environ['LNSG_HOME'],'DMCpySettings.json')
     if not os.path.isfile(localSettingsFile):
@@ -2481,10 +2495,10 @@ def sortExport(fileList,dataFolder=None,PSI=True,xye=True,outFolder=None,dTheta=
             sampleTitleSort = DMCsort(sampleSort[key],'title')
         for key in sampleTitleSort.keys():
             year, fileNumbers = _tools.numberStringGenerator(sampleTitleSort[key])
-            DataSet.add(fileNumbers,folder=dataFolder,PSI=PSI,xye=xye,outFolder=outFolder,dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)
+            DataSet.add(fileNumbers,folder=dataFolder,PSI=PSI,xye=xye,outFolder=outFolder,dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)
   
 
-def sortExportLong(fileListLong,dataFolder=None,PSI=True,xye=True,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+def sortExportLong(fileListLong,dataFolder=None,PSI=True,xye=True,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyCalibration=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
               
     if dataFolder is None:
         dataFolder = os.getcwd()    
@@ -2500,7 +2514,7 @@ def sortExportLong(fileListLong,dataFolder=None,PSI=True,xye=True,outFolder=None
             sampleTitleSort = DMCsort(sampleSort[key],'title')
         for key in sampleTitleSort.keys():
             year, fileNumbers = _tools.numberStringGenerator(sampleTitleSort[key])
-            DataSet.add(fileNumbers,folder=dataFolder,PSI=PSI,xye=xye,outFolder=outFolder,dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)
+            DataSet.add(fileNumbers,folder=dataFolder,PSI=PSI,xye=xye,outFolder=outFolder,dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)
  
 
 def listGenerator(start=None,end=None):
@@ -2533,12 +2547,12 @@ def listGenerator(start=None,end=None):
     return fileList, fileListLong, dataFolder
 
 
-def sleepExport(sleep_time,start=None,end=None,PSI=True,xye=True,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyNormalization=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
+def sleepExport(sleep_time,start=None,end=None,PSI=True,xye=True,outFolder=None,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,applyCalibration=True,correctedTwoTheta=True,sampleName=True,temperature=False,magneticField=False,electricField=False,fileNumber=False):
           
     Flag = True
     while Flag:
         fileList, fileListLong, dataFolder = listGenerator(start=start,end=end)
-        sortExportLong(fileListLong,dataFolder,PSI=PSI,xye=xye,outFolder=outFolder,dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,applyNormalization=applyNormalization,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)
+        sortExportLong(fileListLong,dataFolder,PSI=PSI,xye=xye,outFolder=outFolder,dTheta=dTheta,twoThetaOffset=twoThetaOffset,bins=bins,outFile=outFile,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta,sampleName=sampleName,temperature=temperature,magneticField=magneticField,electricField=electricField,fileNumber=fileNumber)
         print(f'waiting {sleep_time} s')
         time.sleep(float(sleep_time)) 
 

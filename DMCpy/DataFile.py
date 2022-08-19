@@ -94,14 +94,26 @@ def findCalibration(fileName):
     calibration = yearCalib[calibrationName]
     return calibration,calibrationName
 
+# Custom class designed to perform a lazy q calculation. Usage:
+# All calculations are needed: q[None]
+# Only a specific slice is needed: q[:10]
+class lazyQ(object):
+    def __init__(self,rotationMatrix,q_temp):
+        self.rotationMatrix = rotationMatrix
+        self.q_temp = q_temp
+        
+    def __getitem__(self,sl=None):
+        return np.einsum('jki,k...->ji...',self.rotationMatrix[:,:,sl].reshape(3,3,-1),self.q_temp)
 
+
+HDFCounts = 'entry/DMC/detector/data'
 ## Dictionary for holding hdf position of attributes. HDFTranslation['a3'] gives hdf position of 'a3'
 HDFTranslation = {'sample':'/entry/sample',
                   'sampleName':'/entry/sample/name',
                   'monitor':None,#'entry/monitor/monitor',
                   'monitor1':'entry/monitor/monitor1',
                   'unitCell':'/entry/sample/unit_cell',
-                  'counts':'entry/DMC/detector/data',
+                  #'counts':'entry/DMC/detector/data',
                   'summedCounts': 'entry/DMC/detector/summed_counts',
                   'monochromatorCurvature':'entry/DMC/monochromator/curvature',
                   'monochromatorVerticalCurvature':'entry/DMC/monochromator/curvature_vertical',
@@ -313,7 +325,7 @@ def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
         df = DataFile(fileLocation)
 
     
-    repeats = df.counts.shape[1]
+    repeats = df.countShape[1]
     # Insert standard values if not present in kwargs
     if not 'radius' in kwargs:
         kwargs['radius'] = 0.8
@@ -362,7 +374,6 @@ class DataFile(object):
             else:
                 raise FileNotFoundError('Provided file path "{}" not found.'.format(file))
 
-    
     @_tools.KwargChecker()
     def loadFile(self,filePath):
         if not os.path.exists(filePath):
@@ -379,7 +390,7 @@ class DataFile(object):
         with hdf.File(filePath,mode='r') as f:
 
             self.sample = Sample.Sample(sample=f.get(HDFTranslation['sample']))
-
+            self.countShape = f.get(HDFCounts).shape
             # load standard things using the shallow read
             instr = getInstrument(f)
             for parameter in HDFTranslation.keys():
@@ -407,8 +418,8 @@ class DataFile(object):
                 
                 setattr(self,parameter,value)
                 
-        self.counts.shape = (1,*self.counts.shape) # Standard shape
-
+        self.countShape = (1,*self.countShape) # Standard shape
+    
     def initializeQ(self):
         if len(self.twoTheta.shape) == 2:
             self.twoTheta, z = np.meshgrid(self.twoTheta[0].flatten(),self.verticalPosition,indexing='xy')
@@ -417,13 +428,13 @@ class DataFile(object):
             
         self.pixelPosition = np.array([self.radius*np.cos(np.deg2rad(self.twoTheta)),
                                     -self.radius*np.sin(np.deg2rad(self.twoTheta)),
-                                    z]).reshape(3,*self.counts.shape[1:])
+                                    z]).reshape(3,*self.countShape[1:])
         
         
         #self.Monitor = self.monitor
         
         if np.any(np.isclose(self.monitor,0)): # error mode from commissioning
-            self.monitor = np.ones(self.counts.shape[0])
+            self.monitor = np.ones(self.countShape[0])
         
         self.alpha = np.rad2deg(np.arctan2(self.pixelPosition[2],self.radius))
         # Above line makes an implicit call to the self.calculateQ method!
@@ -441,15 +452,15 @@ class DataFile(object):
             self.normalizationFile = 'None'
 
         if self.normalizationFile == 'None':
-            self.normalization = np.ones_like(self.counts,dtype=float)
+            self.normalization = np.ones(self.countShape,dtype=float)
         else:
             
             if self.fileType.lower() == "singlecrystal": # A3 scan
-                self.normalization = np.repeat(self.normalization,self.counts.shape[0],axis=0)
-                #self.normalization.shape = self.counts.shape
-                self.normalization = self.normalization.reshape(self.counts.shape)
+                self.normalization = np.repeat(self.normalization,self.countShape[0],axis=0)
+                #self.normalization.shape = self.countShape
+                self.normalization = self.normalization.reshape(self.countShape)
             else:
-                self.normalization = self.normalization.reshape(self.counts.shape)
+                self.normalization = self.normalization.reshape(self.countShape)
 
     def __len__(self):
         if hasattr(self,'counts'):
@@ -496,7 +507,7 @@ class DataFile(object):
             self._detector_position = np.array([0.0]*len(self.A3))
         else:
             self._detector_position = np.asarray(twoTheta)
-        self.twoTheta = np.repeat((np.linspace(0,-132,1152) + self._detector_position + self._twoThetaOffset)[np.newaxis],self.counts.shape[1],axis=0)
+        self.twoTheta = np.repeat((np.linspace(0,-132,1152) + self._detector_position + self._twoThetaOffset)[np.newaxis],self.countShape[1],axis=0)
         if hasattr(self,'_Ki') and hasattr(self,'twoTheta'):
             self.calculateQ()
 
@@ -527,7 +538,7 @@ class DataFile(object):
     @twoThetaOffset.setter
     def twoThetaOffset(self,dTheta):
         self._twoThetaOffset = dTheta
-        self.twoTheta = np.repeat((np.linspace(0,132,1152) + self._detector_position + self._twoThetaOffset)[np.newaxis],self.counts.shape[1],axis=0)
+        self.twoTheta = np.repeat((np.linspace(0,132,1152) + self._detector_position + self._twoThetaOffset)[np.newaxis],self.countShape[1],axis=0)
         self.calculateQ()
 
     @property
@@ -545,7 +556,7 @@ class DataFile(object):
         self._wavelength = wavelength
         self._Ki = 2*np.pi/wavelength
         self.calculateQ()
-
+    
     def calculateQ(self):
         """Calculate Q and qx,qy,qz using the current A3 values"""
         if not (hasattr(self,'Ki') and hasattr(self,'twoTheta')
@@ -557,21 +568,23 @@ class DataFile(object):
         self.kf = self.Ki * np.array([-np.sin(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
                                     np.cos(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
                                     np.sin(np.deg2rad(self.alpha))])
-        self.q = self.ki-self.kf   
+           
         if self.fileType.lower() == 'singlecrystal': # A3 Scan
             # rotate kf to correct for A3
             zero = np.zeros_like(self.A3)
             ones = np.ones_like(self.A3)
-            rotMat = np.array([[np.cos(np.deg2rad(self.A3)),np.sin(np.deg2rad(self.A3)),zero],[-np.sin(np.deg2rad(self.A3)),np.cos(np.deg2rad(self.A3)),zero],[zero,zero,ones]])
-            q_temp = self.ki-self.kf
+            self.rotMat = np.array([[np.cos(np.deg2rad(self.A3)),np.sin(np.deg2rad(self.A3)),zero],[-np.sin(np.deg2rad(self.A3)),np.cos(np.deg2rad(self.A3)),zero],[zero,zero,ones]])
+            self.q_temp = self.ki-self.kf
 
-            self.q = np.einsum('jki,k...->ji...',rotMat,q_temp)
-            self.Q = np.linalg.norm(self.q,axis=0)
+            self.q = lazyQ(self.rotMat, self.q_temp)
+
+            self.Q = np.linalg.norm(self.q[None],axis=0)
         else:
-            self.Q = np.array([np.linalg.norm(self.q,axis=0)])
+            self.qLocal = self.ki-self.kf
+            self.Q = np.array([np.linalg.norm(self.qLocal,axis=0)])
 
         #self.correctedTwoTheta = 2.0*np.rad2deg(np.arcsin(self.wavelength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
-        self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
+        
         
 
     def generateMask(self,maskingFunction = maskFunction, replace=True, **pars):
@@ -594,14 +607,14 @@ class DataFile(object):
 
         if maskingFunction is None:
             if replace:
-                self.mask = np.zeros_like(self.counts,dtype=bool)
+                self.mask = np.zeros(self.countShape,dtype=bool)
             else:
-                self.mask += np.zeros_like(self.counts,dtype=bool)
+                self.mask += np.zeros(self.countShape,dtype=bool)
         else:
             if replace:
-                self.mask = maskingFunction(self.phi,**pars).reshape(*self.counts.shape)
+                self.mask = maskingFunction(self.phi,**pars).reshape(*self.countShape)
             else:
-                self.mask += maskingFunction(self.phi,**pars).reshape(*self.counts.shape)
+                self.mask += maskingFunction(self.phi,**pars).reshape(*self.countShape)
         
         
 
@@ -620,14 +633,14 @@ class DataFile(object):
 
 
     @_tools.KwargChecker(function=plt.errorbar,include=_tools.MPLKwargs)
-    def plotDetector(self,ax=None,applyNormalization=True,**kwargs):
+    def plotDetector(self,ax=None,applyCalibration=True,**kwargs):
         """Plot intensity as function of twoTheta (and vertical position of pixel in 2D)
 
         Kwargs:
 
             - ax (axis): Matplotlib axis into which data is plotted (default None - generates new)
 
-            - applyNormalization (bool): If true, take detector efficiency into account (default True)
+            - applyCalibration (bool): If true, take detector efficiency into account (default True)
 
             - All other key word arguments are passed on to plotting routine
 
@@ -639,12 +652,12 @@ class DataFile(object):
             fig = ax.get_figure()
 
         
-        if applyNormalization:
+        if applyCalibration:
             intensity=self.intensity/self.monitor.reshape(-1,1,1)#1.0/self.normalization
 
         count_err = np.sqrt(self.counts)
         intensity_err = count_err/self.monitor.reshape(-1,1,1)
-        if applyNormalization:
+        if applyCalibration:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 intensity_err*=1.0/self.normalization
@@ -849,6 +862,11 @@ class DataFile(object):
 
 
     @property
+    def counts(self):
+        with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
+            return np.array(f.get(HDFCounts))
+
+    @property
     def intensity(self):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -863,15 +881,21 @@ class DataFile(object):
     def correctedTwoTheta(self):
         return 2.0*np.rad2deg(np.arcsin(self.wavelength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
 
+    
 
-
+    @property
+    def phi(self):
+        if self.fileType.lower() == 'singlecrystal':
+            return np.rad2deg(np.arctan2(self.q[None][2],np.linalg.norm(self.q[None][:2],axis=0)))
+        else:
+            return np.rad2deg(np.arctan2(self.qLocal[2],np.linalg.norm(self.qLocal[:2],axis=0)))
 
 
 class SingleCrystalDataFile(DataFile):
     def __init__(self,fileType):
         super(SingleCrystalDataFile,self).__init__(fileType)
         self.fileType = 'SingleCrystal'
-        self.counts.shape = (-1,128,1152)
+        self.countShape = (self.countShape[0]*self.countShape[1],128,1152)
 
 class PowderDataFile(DataFile):
     def __init__(self,fileType):
