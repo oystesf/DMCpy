@@ -866,11 +866,24 @@ class DataFile(object):
         with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
             return np.array(f.get(HDFCounts))
 
+    
+    def countsSliced(self,sl):
+        with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
+            return np.array(f.get(HDFCounts)[sl])
+
     @property
     def intensity(self):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             return np.divide(self.counts,self.normalization)
+
+    
+    def intensitySliced(self,sl):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return np.divide(self.countsSliced(sl),self.normalization[sl])
+
+    
 
     def InteractiveViewer(self,**kwargs):
         if not self.fileType.lower() in ['singlecrystal','powder'] :

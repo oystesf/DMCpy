@@ -6,7 +6,7 @@ import pandas as pd
 import os
 import json, os, time
 from DMCpy import DataFile, _tools, Viewer3D, RLUAxes, TasUBlibDEG
-
+import warnings
 
 class DataSet(object):
     def __init__(self, dataFiles=None,**kwargs):
@@ -613,11 +613,6 @@ class DataSet(object):
         returndata = None
         for df in self:
             
-            if raw:
-                dataDf = df.counts
-            else:
-                dataDf = df.intensity
-
             if steps is None:
                 steps = len(df)
             
@@ -644,7 +639,11 @@ class DataSet(object):
                 
             for idx in arange(0,len(df),steps):
                 q = df.q[idx[0]:idx[1]]
-                dat = dataDf[idx[0]:idx[1]]
+                if raw:
+                    dat = df.countsSliced(slice(idx[0],idx[1]))
+                else:
+                    dat = df.intensitySliced(slice(idx[0],idx[1]))
+
                 monitor = df.monitor[idx[0]:idx[1]]
                 
             #for q,dat,monitor in zip(block(df.q,steps,axis=1),block(dataDf,steps,verbose=False),block(df.monitor,steps)):
@@ -972,12 +971,15 @@ class DataSet(object):
         
         
         """
-        
+        peakPositions = []
+        peakWeights = []
         for df in self:
             
             # 1) 
             Intensities,bins = _tools.binData3D(dx,dy,dz,df.q[None].reshape(3,-1),df.intensity)
-            Intensities = np.divide(Intensities[0],Intensities[1])
+            with warnings.catch_warnings() as w:
+                warnings.simplefilter("ignore")
+                Intensities = np.divide(Intensities[0],Intensities[1])
             
             
             # 2)
@@ -994,115 +996,118 @@ class DataSet(object):
             distanceFunctionLocal = lambda a,b: _tools.distance(a,b,dx=1.0,dy=1.0,dz=0.5)
             peaksInitial = _tools.clusterPoints(positions,ints,distanceThreshold=0.02,distanceFunction=distanceFunctionLocal) 
             
-            peakPositions = [p.position for p in peaksInitial]
-            peakWeights   = [p.weight for p in peaksInitial]
-            
-            # 4) 
-            peaks = _tools.clusterPoints(peakPositions,peakWeights,distanceThreshold=distanceThreshold,distanceFunction=distanceFunctionLocal)
-            
-            
-            foundPeakPositions = np.array([p.position for p in peaks])
-            
-            
-            # 5) 
-            tripletNormal = _tools.calculateTriplets(foundPeakPositions,normalized=True)
-            
-            
-            # 6) Combine the normal vectors closest to each other.
-            normalVectors = _tools.clusterPoints(tripletNormal,np.ones(len(tripletNormal)),distanceThreshold=0.01)
-            
-            # Find the most frequent normal vector as the one with highest weight
-            bestNormalVector = normalVectors[np.argmax([p.weight for p in normalVectors])].position
-            
-            # 7) 
-            # Find rotation matrix transforming bestNormalVector to lay along the z-axis
-            # Rotation is performed around the vector perpendicular to bestNormalVector and z-axis
-            rotationVector = np.cross([0,0,1.0],bestNormalVector)
-            rotationVector*=1.0/np.linalg.norm(rotationVector)
-            # Rotation angle is given by the regular cosine relation, but due to z being [0,0,1] and both normal
-            
-            theta = np.arccos(bestNormalVector[2]) # dot(bestNormalVector,[0,0,1])/(lengths) <-- both unit vectors
-            
-            RotationToScatteringPlane = _tools.rotMatrix(rotationVector, theta,deg=False)
-                
-            # Rotated all found peaks to the scattering plane
-            rotatedPeaks = np.einsum('ji,...j->...i',RotationToScatteringPlane,foundPeakPositions)
-            
-            # 8) Start by finding in plane vectors using provided scattering plane normal
-            scatteringNormal = _tools.LengthOrder(np.asarray(scatteringNormal,dtype=float)) # 
-            
-            # Calculate into Q
-            scatteringNormalB = np.dot(df.sample.B,scatteringNormal)
-            
-            # Find two main "nice" vectors in the scattering plane by finding a vector orthogonal to scatteringNormalB
-            InPlaneGuess = np.cross(scatteringNormalB,np.array([1,-1,0]))
-            
-            # If scatteringNormalB happens to be along [1,-1,0] we just try again!
-            if np.isclose(np.linalg.norm(InPlaneGuess),0.0,atol=1e-3):
-                InPlaneGuess = np.cross(scatteringNormalB,np.array([1,1,0]))
-                
-            # planeVector1 is ensured to be orthogonal to scatteringNormalB 
-            # (rounding is needed to better beautify the vector)
-            planeVector1 = np.round(np.cross(InPlaneGuess,scatteringNormalB),4)
-            planeVector1 = _tools.LengthOrder(planeVector1)
-            
-            # Second vector is radially found orthogonal to scatteringNormalB and planeVector1
-            planeVector2 = np.round(np.cross(scatteringNormalB,planeVector1),4)
-            planeVector2 = _tools.LengthOrder(planeVector2)
-            
-            # Try to align the last free rotation within the scattering plane by calculating
-            # the length of the scattering vectors for the peaks and compare to moduli of 
-            # planeVector1 and planeVector2
-            
-            lengthPeaksInPlane = np.linalg.norm(rotatedPeaks,axis=1)
-            
-            planeVector1Length = np.linalg.norm(np.dot(df.sample.B,planeVector1))
-            planeVector2Length = np.linalg.norm(np.dot(df.sample.B,planeVector2))
-            
-            projectionAlongPV1 = lengthPeaksInPlane/planeVector1Length
-            projectionAlongPV2 = lengthPeaksInPlane/planeVector2Length
-            
-            # Initialize the along1 and along2 with False to force while loop
-            along1 = [False]
-            along2 = [False]
-            
-            atol = 0.001
-            # While there are no peaks found along with a modulus close to 0/1 along the main directions 
-            # iteratively increase tolerance (atol)
-            while np.sum(along1)+np.sum(along2) == 0: 
-                atol+=0.001
-                along1 = np.array([np.logical_or(np.isclose(x,0.0,atol=atol),np.isclose(x,1.0,atol=atol)) for x in np.mod(projectionAlongPV1,1)])
-                along2 = np.array([np.logical_or(np.isclose(x,0.0,atol=atol),np.isclose(x,1.0,atol=atol)) for x in np.mod(projectionAlongPV2,1)])
-                
-                
-            
-            # Either we found a peak along planeVector1 or planeVector2
-            if np.sum(along1)> 0:
-                foundPosition = rotatedPeaks[along1][0]
-                axisOffset = 0.0 # We want planeVector1 to be along the x-axis
-                peakUsedForAlignment = {'HKL':   planeVector1*projectionAlongPV1[along1][0],
-                                        'QxQyQz':foundPeakPositions[along1][0]}
-            
-            else:
-                foundPosition = rotatedPeaks[along2][0]
-                axisOffset = 90.0 # planeVector2 is along the y-axis, e.i. 90 deg rotated from x
-                peakUsedForAlignment = {'HKL':   planeVector2*projectionAlongPV2[along2][0],
-                                        'QxQyQz':foundPeakPositions[along2][0]}
+            peakPositions.append(list(p.position for p in peaksInitial))
+            peakWeights.append(list(p.weight for p in peaksInitial))
+            print('{:} peaks found in '.format(len(ints)),df.fileName)
+
+        peakPositions = np.concatenate(peakPositions)
+        peakWeights = np.concatenate(peakWeights)
+        # 4) 
+        peaks = _tools.clusterPoints(peakPositions,peakWeights,distanceThreshold=distanceThreshold,distanceFunction=distanceFunctionLocal)
         
         
+        foundPeakPositions = np.array([p.position for p in peaks])
+        
+        
+        # 5) 
+        tripletNormal = _tools.calculateTriplets(foundPeakPositions,normalized=True)
+        
+        
+        # 6) Combine the normal vectors closest to each other.
+        normalVectors = _tools.clusterPoints(tripletNormal,np.ones(len(tripletNormal)),distanceThreshold=0.01)
+        
+        # Find the most frequent normal vector as the one with highest weight
+        bestNormalVector = normalVectors[np.argmax([p.weight for p in normalVectors])].position
+        
+        # 7) 
+        # Find rotation matrix transforming bestNormalVector to lay along the z-axis
+        # Rotation is performed around the vector perpendicular to bestNormalVector and z-axis
+        rotationVector = np.cross([0,0,1.0],bestNormalVector)
+        rotationVector*=1.0/np.linalg.norm(rotationVector)
+        # Rotation angle is given by the regular cosine relation, but due to z being [0,0,1] and both normal
+        
+        theta = np.arccos(bestNormalVector[2]) # dot(bestNormalVector,[0,0,1])/(lengths) <-- both unit vectors
+        
+        RotationToScatteringPlane = _tools.rotMatrix(rotationVector, theta,deg=False)
             
-            # 9) 
-            # Calculate the actual position of the peak found along planeVector1 or planeVector2
-            offsetA3 = np.rad2deg(np.arctan2(foundPosition[1],foundPosition[0]))-axisOffset
+        # Rotated all found peaks to the scattering plane
+        rotatedPeaks = np.einsum('ji,...j->...i',RotationToScatteringPlane,foundPeakPositions)
+        
+        # 8) Start by finding in plane vectors using provided scattering plane normal
+        scatteringNormal = _tools.LengthOrder(np.asarray(scatteringNormal,dtype=float)) # 
+        
+        # Calculate into Q
+        scatteringNormalB = np.dot(df.sample.B,scatteringNormal)
+        
+        # Find two main "nice" vectors in the scattering plane by finding a vector orthogonal to scatteringNormalB
+        InPlaneGuess = np.cross(scatteringNormalB,np.array([1,-1,0]))
+        
+        # If scatteringNormalB happens to be along [1,-1,0] we just try again!
+        if np.isclose(np.linalg.norm(InPlaneGuess),0.0,atol=1e-3):
+            InPlaneGuess = np.cross(scatteringNormalB,np.array([1,1,0]))
             
-            # Find rotation matrix which is around the z-axis and has angle of -offsetA3
-            rotation = np.dot(_tools.rotMatrix(np.array([0,0,1.0]),-offsetA3),RotationToScatteringPlane.T)
+        # planeVector1 is ensured to be orthogonal to scatteringNormalB 
+        # (rounding is needed to better beautify the vector)
+        planeVector1 = np.round(np.cross(InPlaneGuess,scatteringNormalB),4)
+        planeVector1 = _tools.LengthOrder(planeVector1)
+        
+        # Second vector is radially found orthogonal to scatteringNormalB and planeVector1
+        planeVector2 = np.round(np.cross(scatteringNormalB,planeVector1),4)
+        planeVector2 = _tools.LengthOrder(planeVector2)
+        
+        # Try to align the last free rotation within the scattering plane by calculating
+        # the length of the scattering vectors for the peaks and compare to moduli of 
+        # planeVector1 and planeVector2
+        
+        lengthPeaksInPlane = np.linalg.norm(rotatedPeaks,axis=1)
+        
+        planeVector1Length = np.linalg.norm(np.dot(df.sample.B,planeVector1))
+        planeVector2Length = np.linalg.norm(np.dot(df.sample.B,planeVector2))
+        
+        projectionAlongPV1 = lengthPeaksInPlane/planeVector1Length
+        projectionAlongPV2 = lengthPeaksInPlane/planeVector2Length
+        
+        # Initialize the along1 and along2 with False to force while loop
+        along1 = [False]
+        along2 = [False]
+        
+        atol = 0.001
+        # While there are no peaks found along with a modulus close to 0/1 along the main directions 
+        # iteratively increase tolerance (atol)
+        while np.sum(along1)+np.sum(along2) == 0: 
+            atol+=0.001
+            along1 = np.array([np.logical_or(np.isclose(x,0.0,atol=atol),np.isclose(x,1.0,atol=atol)) for x in np.mod(projectionAlongPV1,1)])
+            along2 = np.array([np.logical_or(np.isclose(x,0.0,atol=atol),np.isclose(x,1.0,atol=atol)) for x in np.mod(projectionAlongPV2,1)])
             
             
-            # 10) 
-            # sample rotation has now been found (converts between instrument 
-            # qx,qy,qz to qx along planeVector1 and qy along planeVector2)
-            
+        
+        # Either we found a peak along planeVector1 or planeVector2
+        if np.sum(along1)> 0:
+            foundPosition = rotatedPeaks[along1][0]
+            axisOffset = 0.0 # We want planeVector1 to be along the x-axis
+            peakUsedForAlignment = {'HKL':   planeVector1*projectionAlongPV1[along1][0],
+                                    'QxQyQz':foundPeakPositions[along1][0]}
+        
+        else:
+            foundPosition = rotatedPeaks[along2][0]
+            axisOffset = 90.0 # planeVector2 is along the y-axis, e.i. 90 deg rotated from x
+            peakUsedForAlignment = {'HKL':   planeVector2*projectionAlongPV2[along2][0],
+                                    'QxQyQz':foundPeakPositions[along2][0]}
+    
+    
+        
+        # 9) 
+        # Calculate the actual position of the peak found along planeVector1 or planeVector2
+        offsetA3 = np.rad2deg(np.arctan2(foundPosition[1],foundPosition[0]))-axisOffset
+        
+        # Find rotation matrix which is around the z-axis and has angle of -offsetA3
+        rotation = np.dot(_tools.rotMatrix(np.array([0,0,1.0]),-offsetA3),RotationToScatteringPlane.T)
+        
+        
+        # 10) 
+        # sample rotation has now been found (converts between instrument 
+        # qx,qy,qz to qx along planeVector1 and qy along planeVector2)
+        for df in self:
             sample = df.sample
             sample.ROT = rotation
             sample.P1 = _tools.LengthOrder(planeVector1)
