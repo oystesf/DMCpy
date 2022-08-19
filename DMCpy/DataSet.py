@@ -6,7 +6,7 @@ import pandas as pd
 import os
 import json, os, time
 from DMCpy import DataFile, _tools, Viewer3D, RLUAxes, TasUBlibDEG
-from memory_profiler import profile
+
 
 class DataSet(object):
     def __init__(self, dataFiles=None,**kwargs):
@@ -592,7 +592,7 @@ class DataSet(object):
         Data,bins = self.binData3D(dqx,dqy,dqz,rlu=rlu,raw=raw,smart=smart,steps=steps)
 
         return Viewer3D.Viewer3D(Data,bins,axis=axis, ax=axes, grid=grid, log=log, outputFunction=outputFunction, cmap=cmap)
-    @profile
+    
     def binData3D(self,dqx,dqy,dqz,rlu=True,raw=False,smart=False,steps=10):
 
         maximas = []
