@@ -570,7 +570,7 @@ class DataFile(object):
         else:
             self.Q = np.array([np.linalg.norm(self.q,axis=0)])
 
-        self.correctedTwoTheta = 2.0*np.rad2deg(np.arcsin(self.wavelength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
+        #self.correctedTwoTheta = 2.0*np.rad2deg(np.arcsin(self.wavelength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
         self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
         
 
@@ -639,7 +639,6 @@ class DataFile(object):
             fig = ax.get_figure()
 
         
-        intensity = self.counts/self.monitor.reshape(-1,1,1)
         if applyNormalization:
             intensity=self.intensity/self.monitor.reshape(-1,1,1)#1.0/self.normalization
 
@@ -860,8 +859,9 @@ class DataFile(object):
             raise AttributeError('Interactive Viewer can only be used for the new data files. Either for powder or for a single crystal A3 scan')
         return InteractiveViewer.InteractiveViewer(self.intensity,self.twoTheta,self.pixelPosition,self.A3,scanParameter = 'A3',scanValueUnit='deg',colorbar=True,**kwargs)
 
-
-
+    @property
+    def correctedTwoTheta(self):
+        return 2.0*np.rad2deg(np.arcsin(self.wavelength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
 
 
 
