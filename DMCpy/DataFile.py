@@ -864,7 +864,7 @@ class DataFile(object):
     @property
     def counts(self):
         with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
-            return np.array(f.get(HDFCounts))
+            return np.array(f.get(HDFCounts)).reshape(self.countShape)
 
     
     def countsSliced(self,sl):
