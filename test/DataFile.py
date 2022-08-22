@@ -87,10 +87,10 @@ def test_masking_2D():
         assert(e.args[0] == 'Key-word argument "MaxAngle" not understood. Did you mean "maxAngle"?')
 
     try:
-        ax = df.plotDetector(aplynormalization=True)
+        ax = df.plotDetector(aplyCalibration=True)
         assert(False)
     except AttributeError as e:
-        assert(e.args[0] == 'Key-word argument "aplynormalization" not understood. Did you mean "applyNormalization"?')
+        assert(e.args[0] == 'Key-word argument "aplyCalibration" not understood. Did you mean "applyCalibration"?')
         
 
 
