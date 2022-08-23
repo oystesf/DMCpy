@@ -545,7 +545,7 @@ class DataSet(object):
         return Ax
 
     def Viewer3D(self,dqx,dqy,dqz,rlu=True,axis=2, raw=False,  log=False, grid = True, outputFunction=print, 
-                 cmap='viridis',smart=False, steps=None):
+                 cmap='viridis',smart=False, steps=None, multiplicationFactor=1):
 
         """Generate a 3D view of all data files in the DatSet.
         
@@ -572,6 +572,8 @@ class DataSet(object):
             - outputFunction (function): Function called when clicking on the figure (default print)
 
             - cmap (str): Name of color map used for plot (default viridis)
+
+            - multiplicationFactor (float): Multiply intensities with this factor (default 1)
         
         """
 
@@ -590,6 +592,8 @@ class DataSet(object):
             axes = None
 
         Data,bins = self.binData3D(dqx,dqy,dqz,rlu=rlu,raw=raw,smart=smart,steps=steps)
+
+        Data*=multiplicationFactor
 
         return Viewer3D.Viewer3D(Data,bins,axis=axis, ax=axes, grid=grid, log=log, outputFunction=outputFunction, cmap=cmap)
     
@@ -616,16 +620,6 @@ class DataSet(object):
             if steps is None:
                 steps = len(df)
             
-            def block(I,step,axis=0,verbose=False):
-                totalLength=I.shape[axis]
-                counter = 0
-                while counter<totalLength:
-                    if verbose: print(counter,counter+step,'check:',counter<totalLength)
-                    if axis == 1:
-                        yield I[:,counter:counter+step]    
-                    else:
-                        yield I[counter:counter+step]
-                    counter+=step
             stepsTaken = 0
 
 
@@ -643,11 +637,12 @@ class DataSet(object):
                     dat = df.countsSliced(slice(idx[0],idx[1]))
                 else:
                     dat = df.intensitySliced(slice(idx[0],idx[1]))
+                    
 
-                monitor = df.monitor[idx[0]:idx[1]]
+                mon = df.monitor[idx[0]:idx[1]]
+                mon=np.repeat(np.repeat(mon[:,np.newaxis],dat.shape[1],axis=1)[:,:,np.newaxis],dat.shape[2],axis=-1)
                 
-            #for q,dat,monitor in zip(block(df.q,steps,axis=1),block(dataDf,steps,verbose=False),block(df.monitor,steps)):
-                print(df.fileName,'from',stepsTaken,'to',stepsTaken+steps)
+                print(df.fileName,'from',idx[0],'to',idx[-1])
                 stepsTaken+=steps
 
                 if rlu:
@@ -656,30 +651,15 @@ class DataSet(object):
                 else:
                     pos = q.transpose(1,0,2,3)# shape -> steps,3,128,1152
 
-                #if not raw:
-                #    data = df.intensity#[np.logical_not(df.mask)]/df.normalization[np.logical_not(df.mask)] # shape steps,128,1152
-                #else:
-                #    data = df.counts#[np.logical_not(df.mask)] # shape steps,128,1152
-                # if smart:
-                #     for p,d,mon in zip(pos,data,df.monitor):
-                #         localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=p.reshape(3,-1),data=d.flatten(),bins = bins)
-
-                #         if returndata is None:
-                #             returndata = localReturndata
-                #             returndata[-1]*=mon
-                #         else:
-                #             returndata[-1]*=mon
-                #             for data,newData in zip(returndata,localReturndata):
-                #                 data+=newData
                 if True:
                     pos = pos.transpose(1,0,2,3)
-                    localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=pos.reshape(3,-1),data=dat.flatten(),bins = bins)
+                    localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=pos.reshape(3,-1),data=dat.flatten(),mon=mon.flatten(),bins = bins)
 
                     if returndata is None:
                         returndata = localReturndata
-                        returndata[-1]*=monitor[0]
                     else:
-                        returndata[-1]*=monitor[0]
+
+                        
                         for data,newData in zip(returndata,localReturndata):
                             data+=newData
                     
