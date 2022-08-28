@@ -1299,7 +1299,7 @@ class DataSet(object):
             if sampleName == True:
                 saveFile += f"_{samName[:20]}"
             if sampleTitle ==True:
-                saveFile += f"_{samTitle[:20]}"
+                saveFile += f"_{samTitle[:30]}"
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:5] + "K"
             if magneticField == True:
@@ -1327,7 +1327,7 @@ class DataSet(object):
         with open(os.path.join(outFolder,saveFile)+".dat",'w') as sf:
             sf.write(fileString)
 
-    def export_xye_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,useMask=False,maxAngle=5,hourNormalization=False,applyCalibration=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
+    def export_xye_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,hourNormalization=False,outFile=None,addTitle=None,outFolder=None,useMask=False,maxAngle=5,applyCalibration=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
         """
         The function takes a data set and merge the files.
@@ -1471,7 +1471,7 @@ class DataSet(object):
             if sampleName == True:
                 saveFile += f"_{samName[:20]}"
             if sampleTitle ==True:
-                saveFile += f"_{samTitle[:20]}"
+                saveFile += f"_{samTitle[:30]}"
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:5] + "K"
             if magneticField == True:
@@ -1482,6 +1482,8 @@ class DataSet(object):
                 saveFile += "_{}AA".format(str(wavelength).replace('.','p')[:5])
             if fileNumber == True:
                 saveFile += "_" + fileNumbers.replace(',','_') 
+            if addTitle is not None:
+                saveFile += "_" + str(addTitle) 
             if useMask == True:
                 saveFile += '_HR'
         else:
