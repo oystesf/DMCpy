@@ -1456,7 +1456,7 @@ class DataSet(object):
         titleLine2 = "# Filelist='dmc:{}:{}'".format(year,fileNumbers)
         if useMask is True:
             titleLine2 += " , anngular mask: " + str(maxAngle) + " deg." 
-        titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
+        titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(oneHourMonitor)+'., sample="'+samName+'"'
 
             
         # get magnetic field
