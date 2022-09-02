@@ -361,6 +361,7 @@ class DataFile(object):
     def __init__(self, file=None):
         self.fileType = 'DataFile'
         self._twoThetaOffset = 0.0
+        self._counts = None
 
         if not file is None: 
             if isinstance(file,DataFile): # Copy everything from provided file
@@ -863,13 +864,19 @@ class DataFile(object):
 
     @property
     def counts(self):
-        with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
-            return np.array(f.get(HDFCounts)).reshape(self.countShape)
-
+        if self._counts is None:
+            with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
+                return np.array(f.get(HDFCounts)).reshape(self.countShape)
+        else:
+            return self._counts.reshape(self.countShape)
     
     def countsSliced(self,sl):
-        with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
-            return np.array(f.get(HDFCounts)[sl])
+        if self._counts is None:
+            with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
+                return np.array(f.get(HDFCounts)[sl])
+        else:
+            return self._counts[sl]
+            
 
     @property
     def intensity(self):
