@@ -350,3 +350,9 @@ class InteractiveViewer(object):
     
     def set_clim(self,vmin,vmax):
         self.ax_singleStep._pcolormesh.set_clim(vmin,vmax)
+
+    def set_clim_zIntegrated(self,vmin,vmax):
+        self.ax_alphaIntegrated._pcolormesh.set_clim(vmin,vmax)
+
+    def set_clim_thetaIntegrated(self,vmin,vmax):
+        self.ax_thetaIntegrated._pcolormesh.set_clim(vmin,vmax)
