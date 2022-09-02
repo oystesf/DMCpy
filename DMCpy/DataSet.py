@@ -1482,8 +1482,6 @@ class DataSet(object):
                 saveFile += "_{}AA".format(str(wavelength).replace('.','p')[:5])
             if fileNumber == True:
                 saveFile += "_" + fileNumbers.replace(',','_') 
-            if addTitle is not None:
-                saveFile += "_" + str(addTitle)
             if useMask == True:
                 saveFile += '_HR'
         else:
