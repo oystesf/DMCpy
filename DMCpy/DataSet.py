@@ -895,7 +895,7 @@ class DataSet(object):
         return positionVector,I
 
 
-    def autoAlignScatteringPlane(self,scatteringNormal,threshold=30,dx=0.04,dy=0.04,dz=0.08,distanceThreshold=0.15):
+    def autoAlignScatteringPlane(self,scatteringNormal,inPlaneRef=None,threshold=30,dx=0.04,dy=0.04,dz=0.08,distanceThreshold=0.15):
         """Automatically align scattering plane and peaks within
         
         Args:
@@ -1020,11 +1020,14 @@ class DataSet(object):
         scatteringNormalB = np.dot(df.sample.B,scatteringNormal)
         
         # Find two main "nice" vectors in the scattering plane by finding a vector orthogonal to scatteringNormalB
-        InPlaneGuess = np.cross(scatteringNormalB,np.array([1,-1,0]))
+        if inPlaneRef is None:
+            inPlaneRef =np.array(1,0,0)
+
+        InPlaneGuess = np.cross(scatteringNormalB,np.array(inPlaneRef))
         
         # If scatteringNormalB happens to be along [1,-1,0] we just try again!
-        if np.isclose(np.linalg.norm(InPlaneGuess),0.0,atol=1e-3):
-            InPlaneGuess = np.cross(scatteringNormalB,np.array([1,1,0]))
+        #if np.isclose(np.linalg.norm(InPlaneGuess),0.0,atol=1e-3):
+        #    InPlaneGuess = np.cross(scatteringNormalB,np.array([1,1,0]))
             
         # planeVector1 is ensured to be orthogonal to scatteringNormalB 
         # (rounding is needed to better beautify the vector)
@@ -1456,7 +1459,7 @@ class DataSet(object):
         titleLine2 = "# Filelist='dmc:{}:{}'".format(year,fileNumbers)
         if useMask is True:
             titleLine2 += " , anngular mask: " + str(maxAngle) + " deg." 
-        titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(oneHourMonitor)+'., sample="'+samName+'"'
+        titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
 
             
         # get magnetic field
@@ -1482,6 +1485,8 @@ class DataSet(object):
                 saveFile += "_{}AA".format(str(wavelength).replace('.','p')[:5])
             if fileNumber == True:
                 saveFile += "_" + fileNumbers.replace(',','_') 
+            if addTitle is not None:
+                saveFile += "_" + str(addTitle)
             if useMask == True:
                 saveFile += '_HR'
         else:
