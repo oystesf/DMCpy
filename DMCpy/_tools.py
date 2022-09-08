@@ -4,6 +4,7 @@ from difflib import SequenceMatcher
 import os.path
 import cProfile, pstats, io
 from itertools import product
+import pickle
 
 
 MPLKwargs = ['agg_filter','alpha','animated','antialiased','aa','clip_box','clip_on','clip_path','color','c','colorbar','contains','dash_capstyle','dash_joinstyle','dashes','drawstyle','figure','fillstyle','gid','label','linestyle or ls','linewidth or lw','marker','markeredgecolor or mec','markeredgewidth or mew','markerfacecolor or mfc','markerfacecoloralt or mfcalt','markersize or ms','markevery','path_effects','picker','pickradius','rasterized','sketch_params','snap','solid_capstyle','solid_joinstyle','transform','url','visible','xdata','ydata','zorder']
@@ -668,3 +669,15 @@ def calculateHKLWithinQLimits(BMatrix,QMin=0,QMax=10):
         if np.linalg.norm(np.dot(BMatrix,[h,0,0]))>QMax*1.5:
             break
     return positions
+
+
+def saveSampleToDesk(sample,fileName):
+    with open(fileName, 'wb') as handle:
+        pickle.dump(sample, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        
+        
+def loadSampleFromDesk(fileName):
+    with open(fileName, 'rb') as handle:
+        sample = pickle.load(handle)
+    
+    return sample
