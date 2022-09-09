@@ -711,8 +711,10 @@ class DataSet(object):
         if ax is None:
             ax  = generate1DAxis(P1,P2,rlu=rlu)
 
-
-        X = ax.calculatePositionInv(*hkl)
+        if hasattr(ax,'calculatePositionInv'):
+            X = ax.calculatePositionInv(*hkl)
+        else:
+            X = np.linalg.norm(*hkl,axis=1)
         ax.scatter(X,I,**kwargs)
 
         ax.get_figure().tight_layout()
