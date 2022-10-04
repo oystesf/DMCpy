@@ -1795,6 +1795,258 @@ class DataSet(object):
                 raise AttributeError('DataFiles do not contain',key)
             else:
                 raise AttributeError('Not all DataFiles do not contain',key)
+
+    def plotQPlane(self,QzMin,QzMax,binning='xy',xBinTolerance=0.05,yBinTolerance=0.05,enlargen=False,log=False,ax=None,rlu=False,**kwargs):
+            """Wrapper for plotting tool to show binned intensities in the Q plane between provided Qz values.
+                
+                
+            Args: 
+                
+                - QzMin (float): Lower qz limit (Default None).
+                
+                - QzMax (float): Upper qz limit (Default None).
+
+            Kwargs:
+                
+                - binning (str): Binning scheme, either 'xy' or 'polar' (default 'xy').
+                
+                - xBinTolerance (float): bin sizes along x direction (default 0.05). If enlargen is true, this is the minimum bin size.
+
+                - yBinTolerance (float): bin sizes along y direction (default 0.05). If enlargen is true, this is the minimum bin size.
+                
+                - enlargen (bool): If the bin sizes should be adaptive (default False). If set true, bin tolerances are used as minimum bin sizes.
+
+                - log (bool): Plot intensities as the logarithm (default False).
+                
+                - ax (matplotlib axes): Axes in which the data is plotted (default None). If None, the function creates a new axes object.
+
+                - rlu (bool): If true and axis is None, a new reciprocal lattice axis is created and used for plotting (default True).
+
+                - vmin (float): Lower limit for colorbar (default min(Intensity)).
+                
+                - vmax (float): Upper limit for colorbar (default max(Intensity)).
+
+                - colorbar (bool): If True, a colorbar is created in figure (default False)
+
+                - zorder (int): If provided decides the z ordering of plot (default 10)
+
+                - other: Other key word arguments are passed to the pcolormesh plotting algorithm.
+                
+            Returns:
+                
+                - dataList (list): List of all data points in format [Intensity, Monitor, Normalization, Normcount]
+
+                - bins (list): List of bin edges as function of plane in format [xBins,yBins].
+
+                - ax (matplotlib axes): Returns provided matplotlib axis
+                
+            .. note::
+                The axes object has a new method denoted 'set_clim' taking two parameters (VMin and VMax) used to change axes colouring.
+                
+                
+            """
+            
+
+            if QzMax is None or QzMin is None:
+                raise AttributeError('Either minimal/maximal energy or the energy bins is to be given.')
+            
+            warnings.warn('Only first data file is taken into account!')
+            for df in [self[0]]:
+                
+                I = df.counts#
+                Q = df.q[None] # TODO: update to !
+                Norm = df.normalization#
+                Monitor = df.monitor#
+                sample = df.sample
+                
+                #maskIndices = df.maskIndices
+
+                if ax is None:
+                    if rlu:
+                        ax = self.createRLUAxes()
+                    else:
+                        _,ax = plt.subplots()
+                        ax.set_xlabel('Qx [1/AA]')
+                        ax.set_ylabel('Qy [1/AA]')
+        
+                
+                if rlu == True: # Rotate positions with taslib.misalignment to line up with RLU
+                
+                    Q = np.einsum('ij,j...->i...',sample.UBInv,Q)
+                    
+                if 'zorder' in kwargs:
+                    zorder = kwargs['zorder']
+                    kwargs = _tools.without_keys(dictionary=kwargs,keys='zorder')
+                else:
+                    zorder = 10
+        
+                if 'cmap' in kwargs:
+                    cmap = kwargs['cmap']
+                    kwargs = _tools.without_keys(dictionary=kwargs,keys='cmap')
+                else:
+                    cmap = None
+        
+        
+                binnings = ['xy','polar']
+                if not binning in binnings:
+                    raise AttributeError('The provided binning is not understood, should be {}'.format(', '.join(binnings)))
+        
+        
+            qz_inside = np.logical_and(Q[2]>QzMin,Q[2]<=QzMax)
+            if np.sum(qz_inside)==0:
+                raise AttributeError('Provided Qz range has no data in it!')
+            if binning == 'polar':
+                
+                x = np.arctan2(Q[1][qz_inside],Q[0][qz_inside]) # Gives values between -pi and pi
+                bins = 20
+                # Following block checks if measured area corresponds to alpha ~pi as arctan2 only gives
+                # values back in range -pi to pi.
+                if np.max(x.flatten())+xBinTolerance>np.pi and np.min(x.flatten())-xBinTolerance<-np.pi:
+                    h = np.histogram(x.flatten(),bins = bins)
+                    while np.max(h[0]==0) == False:
+                        bins *= 2
+                        h = np.histogram(x.flatten(),bins = bins)
+                        if bins > 200:
+                            break
+                        ax.offset = 2*np.pi-h[1][np.argmax(h[0]==0)] # Move highest value of lump to fit 2pi
+                        x = np.mod(x+ax.offset[-1],2*np.pi)-np.pi # moves part above 2pi to lower than 2pi and make data fit in range -pi,pi
+                        ax.offset-=np.pi # As x is moved by pi, so should the offset
+                else:
+                    ax.offset = 0.0
+
+                y = np.linalg.norm([Q[0][qz_inside],Q[0][qz_inside]],axis=0)  
+                if not enlargen:
+                    ax.xBins = np.arange(-np.pi,np.pi+xBinTolerance*0.999,xBinTolerance) # Add tolerance as to ensure full coverage of parameter
+                    ax.yBins = np.arange(0,np.max(y)+yBinTolerance*0.999,yBinTolerance) # Add tolerance as to ensure full coverage of parameter
+                else:
+                    ax.xBins = _tools.binEdges(x,tolrance=xBinTolerance)
+                    ax.yBins = _tools.binEdges(y,tolerance=yBinTolerance)
+
+            elif binning == 'xy':
+                x = Q[0][qz_inside]
+                y = Q[1][qz_inside]
+                if not enlargen:
+                    ax.xBins = np.arange(np.min(x),np.max(x)+0.999*xBinTolerance,xBinTolerance) # Add tolerance as to ensure full coverage of parameter
+                    ax.yBins = np.arange(np.min(y),np.max(y)+0.999*yBinTolerance,yBinTolerance) # Add tolerance as to ensure full coverage of parameter
+                else:
+                    ax.xBins = _tools.binEdges(x,tolerance=xBinTolerance)
+                    ax.yBins = _tools.binEdges(y,tolerance=yBinTolerance)
+            
+            X = x.flatten()
+            Y = y.flatten()
+            
+            ax.intensity=np.histogram2d(X,Y,bins=(ax.xBins,ax.yBins),weights=I[qz_inside])[0].astype(I.dtype)
+            ax.monitorCount=np.histogram2d(X,Y,bins=(ax.xBins,ax.yBins),weights=np.repeat(np.repeat(Monitor[:,np.newaxis],I.shape[1],axis=1)[:,:,np.newaxis],I.shape[2],axis=2)[qz_inside])[0].astype(Monitor.dtype)
+            ax.Normalization=np.histogram2d(X,Y,bins=(ax.xBins,ax.yBins),weights=Norm[qz_inside])[0].astype(Norm.dtype)
+            ax.NormCount=np.histogram2d(X,Y,bins=(ax.xBins,ax.yBins))[0].astype(I.dtype)
+            
+            ax.sample = sample
+                
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                ax.Int = np.divide(ax.intensity*ax.NormCount,ax.monitorCount*ax.Normalization)
+
+            if binning == 'polar':
+                ax.Qx = np.outer(np.cos(ax.xBins-ax.offset),ax.yBins) 
+                ax.Qy = np.outer(np.sin(ax.xBins-ax.offset),ax.yBins) 
+
+            elif binning == 'xy':
+                ax.Qx =np.outer(ax.xBins,np.ones_like(ax.yBins))
+                ax.Qy =np.outer(np.ones_like(ax.xBins),ax.yBins)
+                
+            if log:
+                Int = np.log10(1e-20+np.array(ax.Int))
+            else:
+                Int = np.asarray(ax.Int)
+
+            ax.Int = Int
+            
+            if 'vmin' in kwargs:
+                vmin = kwargs['vmin']
+                kwargs = _tools.without_keys(dictionary=kwargs,keys='vmin')
+            else:
+                vmin = np.min([np.nanmin(intens) for intens in ax.Int])
+
+            if 'vmax' in kwargs:
+                vmax = kwargs['vmax']
+                kwargs = _tools.without_keys(dictionary=kwargs,keys='vmax')
+            else:
+                vmax = np.max([np.nanmax(intens) for intens in ax.Int])
+
+            if 'colorbar' in kwargs:
+                colorbar = kwargs['colorbar']
+                kwargs = _tools.without_keys(dictionary=kwargs,keys='colorbar')
+            else:
+                colorbar = False
+            pmeshs = []
+            
+            ax.grid(False)
+            pmeshs.append(ax.pcolormesh(ax.Qx,ax.Qy,ax.Int,zorder=zorder,cmap=cmap,**kwargs))
+            ax.set_aspect('equal')
+            ax.grid(True, zorder=0)
+            
+            
+            
+
+            if 'pmeshs' in ax.__dict__:
+                ax.pmeshs = np.concatenate([ax.pmeshs,np.asarray(pmeshs)],axis=0)
+            else:
+                ax.pmeshs = pmeshs
+
+
+            def set_clim(pmeshs,vmin,vmax):
+                for pmesh in pmeshs:
+                    pmesh.set_clim(vmin,vmax)
+            ax.set_clim = lambda vMin,vMax: set_clim(ax.pmeshs,vMin,vMax)
+
+
+
+            if colorbar:
+                ax.colorbar = ax.get_figure().colorbar(ax.pmeshs[0],pad=0.1)
+                ax.colorbar.set_label('$I$ [arb.u.]', rotation=270)
+
+            ax.set_clim(vmin,vmax)
+            
+            ax.QzMean = 0.5*(QzMax+QzMin)
+                
+            if len(ax.Qx)!=0:
+                xmin = np.min([np.min(qx) for qx in ax.Qx])
+                xmax = np.max([np.max(qx) for qx in ax.Qx])
+                ax.set_xlim(xmin,xmax)#np.min(Qx),np.max(Qx))
+            
+            if len(ax.Qy)!=0:
+                ymin = np.min([np.min(qy) for qy in ax.Qy])
+                ymax = np.max([np.max(qy) for qy in ax.Qy])
+                ax.set_ylim(ymin,ymax)#np.min(Qy),np.max(Qy))
+        
+            
+            def to_csv(fileName,ax):
+                Qx,Qy = ax.bins
+                QxCenter = 0.25*(Qx[:-1,:-1]+Qx[:-1,1:]+Qx[1:,1:]+Qx[1:,:-1])
+                QyCenter = 0.25*(Qy[:-1,:-1]+Qy[:-1,1:]+Qy[1:,1:]+Qy[1:,:-1])
+                QzCenter = np.full(Qx[:-1,:-1].shape,ax.QzMean)
+                H,K,L = ax.sample.calculateQxQyQzToHKL(QxCenter,QyCenter,QzCenter)
+                intensity,monitorCount,Normalization,NormCount = ax.data
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    Int = np.divide(intensity*NormCount,Normalization*monitorCount)
+                    Int[np.isnan(Int)] = -1
+                    Int_err = np.divide(np.sqrt(intensity)*NormCount,Normalization*monitorCount)
+                    Int_err[np.isnan(Int_err)] = -1
+                dataToPandas = {'Qx':QxCenter.flatten(),'Qy':QyCenter.flatten(),'Qz':QzCenter.flatten(),'H':H.flatten(),'K':K.flatten(),'L':L.flatten(), 'Intensity':intensity.flatten(), 'Monitor':monitorCount.flatten(),
+                                'Normalization':Normalization.flatten(),'BinCounts':NormCount.flatten(),'Int':Int.flatten(),'Int_err':Int_err.flatten()}
+                ax.d = pd.DataFrame(dataToPandas)
+
+                with open(fileName,'w') as f:
+                    f.write("# CSV generated from DMCpy {}. Shape of data is {}\n".format(DMCpy.__version__,Int.shape))
+
+                ax.d.to_csv(fileName,mode='a')
+            ax.to_csv = lambda fileName: to_csv(fileName,ax)
+            ax.bins = [ax.Qx,ax.Qy]
+            ax.data = [ax.intensity,ax.monitorCount,ax.Normalization,ax.NormCount]
+            return ax,[ax.intensity,ax.monitorCount,ax.Normalization,ax.NormCount],[ax.Qx,ax.Qy]
+
+
             
     
             
