@@ -704,3 +704,6 @@ def giveUnitCellToHDF(filePath,unitCell):
                 sample.create_dataset('unit_cell',data = unitCell)
             except ValueError:
                 print('Unit cell already added to: ',file)
+
+def without_keys(dictionary, keys): # Remove key word argument from kwargs
+    return {x: dictionary[x] for x in dictionary if x not in keys}
