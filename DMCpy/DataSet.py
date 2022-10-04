@@ -7,6 +7,7 @@ import os
 import json, os, time
 from DMCpy import DataFile, _tools, Viewer3D, RLUAxes, TasUBlibDEG
 import warnings
+import DMCpy
 
 class DataSet(object):
     def __init__(self, dataFiles=None,**kwargs):
