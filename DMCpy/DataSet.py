@@ -897,6 +897,28 @@ class DataSet(object):
         return positionVector,I
 
 
+    def saveSampleToDisk(self,fileName=None,dataFolder=None):
+
+        if fileName is None:
+            fileName = self.sample[0].name 
+
+        if dataFolder is None:
+            dataFolder = os.getcwd()  
+        
+        filePath = os.path.join(dataFolder,fileName)
+        
+        _tools.saveSampleToDesk(self[0].sample,str(filePath))
+
+
+    def loadSample(self,filePath):
+
+        sample = _tools.loadSampleFromDesk(filePath)
+        
+        for df in self:
+            df.sample = sample
+
+
+
     def autoAlignScatteringPlane(self,scatteringNormal,threshold=30,dx=0.04,dy=0.04,dz=0.08,distanceThreshold=0.15):
         """Automatically align scattering plane and peaks within
         
@@ -990,8 +1012,7 @@ class DataSet(object):
         
         foundPeakPositions = np.array([p.position for p in peaks])
         
-        
-        # 5) 
+        # 5) Make list of triplet normals, e.g. cross products between all vectors connecting all found peaks
         tripletNormal = _tools.calculateTriplets(foundPeakPositions,normalized=True)
         
         
@@ -1032,7 +1053,7 @@ class DataSet(object):
         # (rounding is needed to better beautify the vector)
         planeVector1 = np.round(np.cross(InPlaneGuess,scatteringNormalB),4)
         planeVector1 = _tools.LengthOrder(planeVector1)
-        
+
         # Second vector is radially found orthogonal to scatteringNormalB and planeVector1
         planeVector2 = np.round(np.cross(scatteringNormalB,planeVector1),4)
         planeVector2 = _tools.LengthOrder(planeVector2)
@@ -1081,10 +1102,9 @@ class DataSet(object):
         # 9) 
         # Calculate the actual position of the peak found along planeVector1 or planeVector2
         offsetA3 = np.rad2deg(np.arctan2(foundPosition[1],foundPosition[0]))-axisOffset
-        
+
         # Find rotation matrix which is around the z-axis and has angle of -offsetA3
         rotation = np.dot(_tools.rotMatrix(np.array([0,0,1.0]),-offsetA3),RotationToScatteringPlane.T)
-        
         
         # 10) 
         # sample rotation has now been found (converts between instrument 
@@ -1095,14 +1115,257 @@ class DataSet(object):
             sample.P1 = _tools.LengthOrder(planeVector1)
             sample.P2 = _tools.LengthOrder(planeVector2)
             sample.P3 = _tools.LengthOrder(scatteringNormal)
-            
+
+            sample.offsetA3 = offsetA3
+            sample.RotationToScatteringPlane = RotationToScatteringPlane
+            sample.foundPeakPositions = foundPeakPositions
+
             sample.projectionVectors = np.array([sample.P1,sample.P2,sample.P3]).T
             
             sample.projectionB = np.diag(np.linalg.norm(np.dot(sample.projectionVectors.T,sample.B),axis=1))
             sample.UB = np.dot(sample.ROT.T,np.dot(sample.projectionB,np.linalg.inv(sample.projectionVectors)))
             
             sample.peakUsedForAlignment = peakUsedForAlignment
+
+
+    
+    def autoAlignToRef(self,scatteringNormal,inPlaneRef=None,planeVector2=None,threshold=30,dx=0.04,dy=0.04,dz=0.08,distanceThreshold=0.15,axisOffset=0.0):
+        """Automatically align scattering plane and peaks within
         
+        Args:
+            
+            - scatteringNormal (vector 3D): Normal to the scattering plane in HKL
+            
+            
+        Kwargs:
+            
+            - threshold (float): Thresholding for intensities within the 3D binned data used in peak search (default 30)
+            
+            - dx (float): size of 3D binning along Qx (default 0.04)
+            
+            - dy (float): size of 3D binning along Qy (default 0.04)
+            
+            - dz (float): size of 3D binning along Qz (default 0.08)
+            
+            - distanceThreshold (float): Distance in 1/AA where peaks are clustered together (default 0.15)
+          
+            
+        This methods is an attempt to automatically align the scattering plane of all data files
+        within the DataSet. The algorithm works as follows for each data file individually :
+            
+            1) Perform a 3D binning of data in to equi-sized bins with size (dx,dy,dz)
+            
+            2) "Peaks" are defined as all positions having intensities>threshold
+        
+            3) These peaks are clustered together if closer than 0.02 1/AA and centre of gravity
+               using intensity is applied to find common centre.
+               
+            4) Above step is repeated with custom distanceThreshold
+        
+            5) Plane normals are found as cross products between all vectors connecting 
+               all found peaks -> Gives a list of approximately NPeaks*(NPeaks-1)*(NPeaks-2)
+               
+            6) Plane normals are clustered and most common is used
+        
+            7) Peaks are rotated into the scattering plane
+        
+            8) Within the plane all found peaks are projected along the 'nice' plane vectors and
+               the peak having the scattering length closest to an integer multiple of either is
+               chosen for alignment
+               
+            9) Rotation within the plane is found by rotating the found peak either along x or y 
+               depending on which projection vector was closest
+               
+           10) Sample is updated with found rotations.
+        
+        
+        On the sample object, the peak used for alignment within the scattering plane is
+        saved as sample.peakUsedForAlignment as a dictionary with 'HKL' and 'QxQyQz' holding
+        suggested HKL point and original QxQyQz position.
+        
+        
+        """
+        peakPositions = []
+        peakWeights = []
+        for df in self:
+            
+            # 1) 
+            Intensities,bins = _tools.binData3D(dx,dy,dz,df.q[None].reshape(3,-1),df.intensity)
+            with warnings.catch_warnings() as w:
+                warnings.simplefilter("ignore")
+                Intensities = np.divide(Intensities[0],Intensities[1])
+            
+            
+            # 2)
+            possiblePeaks = Intensities>threshold
+            ints = Intensities[possiblePeaks]
+            
+            centerPoints = [b[:-1,:-1,:-1]+0.5*dB for b,dB in zip(bins,[dx,dy,dz])]
+            
+            positions = np.array([b[possiblePeaks] for b in centerPoints]).T
+            
+            
+            
+            # 3) assuming worse resolution out of plane
+            distanceFunctionLocal = lambda a,b: _tools.distance(a,b,dx=1.0,dy=1.0,dz=0.5)
+            peaksInitial = _tools.clusterPoints(positions,ints,distanceThreshold=0.02,distanceFunction=distanceFunctionLocal) 
+            
+            peakPositions.append(list(p.position for p in peaksInitial))
+            peakWeights.append(list(p.weight for p in peaksInitial))
+            print('{:} peaks found in '.format(len(ints)),df.fileName)
+
+        peakPositions = np.concatenate(peakPositions)
+        peakWeights = np.concatenate(peakWeights)
+        # 4) 
+        peaks = _tools.clusterPoints(peakPositions,peakWeights,distanceThreshold=distanceThreshold,distanceFunction=distanceFunctionLocal)
+        
+        
+        foundPeakPositions = np.array([p.position for p in peaks])
+        
+        # 5) Make list of triplet normals, e.g. cross products between all vectors connecting all found peaks
+        tripletNormal = _tools.calculateTriplets(foundPeakPositions,normalized=True)
+        
+        
+        # 6) Combine the normal vectors closest to each other.
+        normalVectors = _tools.clusterPoints(tripletNormal,np.ones(len(tripletNormal)),distanceThreshold=0.01)
+        
+        # Find the most frequent normal vector as the one with highest weight
+        bestNormalVector = normalVectors[np.argmax([p.weight for p in normalVectors])].position
+        
+        # 7) 
+        # Find rotation matrix transforming bestNormalVector to lay along the z-axis
+        # Rotation is performed around the vector perpendicular to bestNormalVector and z-axis
+        rotationVector = np.cross([0,0,1.0],bestNormalVector)
+        rotationVector*=1.0/np.linalg.norm(rotationVector)
+        # Rotation angle is given by the regular cosine relation, but due to z being [0,0,1] and both normal
+        
+        theta = np.arccos(bestNormalVector[2]) # dot(bestNormalVector,[0,0,1])/(lengths) <-- both unit vectors
+        
+        RotationToScatteringPlane = _tools.rotMatrix(rotationVector, theta,deg=False)
+            
+        # Rotated all found peaks to the scattering plane
+        rotatedPeaks = np.einsum('ji,...j->...i',RotationToScatteringPlane,foundPeakPositions)
+        
+        # 8) Start by finding in plane vectors using provided scattering plane normal
+        scatteringNormal = _tools.LengthOrder(np.asarray(scatteringNormal,dtype=float)) # 
+        
+        # Calculate into Q
+        scatteringNormalB = np.dot(df.sample.B,scatteringNormal)
+        
+        # Find two main "nice" vectors in the scattering plane from input
+        if inPlaneRef is None:
+            print('no inPLaneRef given')
+        else:
+            planeVector1 = inPlaneRef # or P1???
+        
+        # Second vector is given as input
+        if planeVector2 is None:
+            print('no planeVector2 given')
+            planeVector2 = np.round(np.cross(scatteringNormalB,planeVector1),4)
+            planeVector2 = _tools.LengthOrder(planeVector2)
+        
+        # Try to align the last free rotation within the scattering plane by calculating
+        # the length of the scattering vectors for the peaks and compare to moduli of 
+        # planeVector1 
+        
+        lengthPeaksInPlane = np.linalg.norm(rotatedPeaks,axis=1)
+        
+        planeVector1Length = np.linalg.norm(np.dot(df.sample.B,planeVector1))
+        
+        projectionAlongPV1 = lengthPeaksInPlane/planeVector1Length
+        
+        # Initialize the along1 and along2 with False to force while loop
+        along1 = [False]
+        
+        atol = 0.001
+        # While there are no peaks found along with a modulus close to 0/1 along the main directions 
+        # iteratively increase tolerance (atol)
+        while np.sum(along1) == 0: 
+            atol+=0.001
+            along1 = np.array([np.logical_or(np.isclose(x,0.0,atol=atol),np.isclose(x,1.0,atol=atol)) for x in np.mod(projectionAlongPV1,1)])
+    
+        foundPosition = rotatedPeaks[along1][0]
+        
+        peakUsedForAlignment = {'HKL':   planeVector1*projectionAlongPV1[along1][0],
+                                'QxQyQz':foundPeakPositions[along1][0]}
+        
+        # 9) 
+        # Calculate the actual position of the peak found along planeVector1 
+        offsetA3 = np.rad2deg(np.arctan2(foundPosition[1],foundPosition[0]))-axisOffset
+
+        # Find rotation matrix which is around the z-axis and has angle of -offsetA3
+        rotation = np.dot(_tools.rotMatrix(np.array([0,0,1.0]),-offsetA3),RotationToScatteringPlane.T)
+        
+        # 10) 
+        # sample rotation has now been found (converts between instrument 
+        # qx,qy,qz to qx along planeVector1 and qy along planeVector2)
+        for df in self:
+            sample = df.sample
+            sample.ROT = rotation
+            sample.P1 = _tools.LengthOrder(planeVector1)
+            sample.P2 = _tools.LengthOrder(planeVector2)
+            sample.P3 = _tools.LengthOrder(scatteringNormal)
+
+            sample.offsetA3 = offsetA3
+            sample.RotationToScatteringPlane = RotationToScatteringPlane
+            sample.foundPeakPositions = foundPeakPositions
+
+            sample.projectionVectors = np.array([sample.P1,sample.P2,sample.P3]).T
+            
+            sample.projectionB = np.diag(np.linalg.norm(np.dot(sample.projectionVectors.T,sample.B),axis=1))
+            sample.UB = np.dot(sample.ROT.T,np.dot(sample.projectionB,np.linalg.inv(sample.projectionVectors)))
+            
+            sample.peakUsedForAlignment = peakUsedForAlignment 
+
+
+    def rotateAroundScatteringNormal(self,rotation=0.0):
+        
+        """
+        Function to rotate a dataSet around the surface normal. Projection vectors are updated not change direction, e.g. stay along x and y axis
+
+        rotation (float): angle to rotate dataSet around scattering plane normal
+        """
+
+        offsetA3 = self[0].sample.offsetA3 
+        offsetA3 = offsetA3 + rotation
+  
+        RotationToScatteringPlane = self[0].sample.RotationToScatteringPlane
+
+        rotation = np.dot(_tools.rotMatrix(np.array([0,0,1.0]),-offsetA3),RotationToScatteringPlane.T)
+
+        for df in self:
+            sample = df.sample
+            sample.ROT = rotation
+            sample.offsetA3 = offsetA3
+            sample.UB = np.dot(sample.ROT.T,np.dot(sample.projectionB,np.linalg.inv(sample.projectionVectors)))
+
+
+    def subtractBkgRange(self,bkgStart,bkgEnd):
+        """
+        function to subtract background defined by a range of the first dataFile of the dataSet
+
+        bkgStart (int): start value in step for range used for background subtraction
+        bkgEnd (int): end value in step for range used for background subtraction
+        """
+        meanBG = self[0].counts[bkgStart:bkgEnd].mean(axis=0)/self[0].monitor[bkgStart:bkgEnd].mean(axis=0)
+        for fg in self:
+            counts = fg.counts-meanBG.reshape(1,128,1152)*np.ones((fg.counts.shape[0],1,1))*fg.monitor[0]  # or should it be multiplied with the correct monitor of the fg for all frames??? Is fg.counts divided per monitor?
+            fg._counts = counts.astype(int)
+            # fg._monitor = fg.monitor[0].reshape(1,128,1152)*np.ones((fg.counts.shape[0],1,1)) # should be included to get same monitor for all a3, which we should ???
+        
+
+    def subtractDS(self,ds2):
+        """
+        Subtracts a dataSet with same a3 range from the dataSet.
+         
+
+        ds2 (dataset): dataSet that should be subtracted
+        """
+
+        for fg,bg in zip(self,ds2):
+            fg._counts = fg.counts-bg.counts
+                  
+
 
     def export_PSI_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,hourNormalization=False,outFile=None,addTitle=None,outFolder=None,useMask=False,maxAngle=5,applyCalibration=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
@@ -1301,7 +1564,7 @@ class DataSet(object):
             if sampleName == True:
                 saveFile += f"_{samName[:20]}"
             if sampleTitle ==True:
-                saveFile += f"_{samTitle[:20]}"
+                saveFile += f"_{samTitle[:30]}"
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:5] + "K"
             if magneticField == True:
@@ -1329,7 +1592,7 @@ class DataSet(object):
         with open(os.path.join(outFolder,saveFile)+".dat",'w') as sf:
             sf.write(fileString)
 
-    def export_xye_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,outFile=None,outFolder=None,useMask=False,maxAngle=5,hourNormalization=False,applyCalibration=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
+    def export_xye_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,hourNormalization=False,outFile=None,addTitle=None,outFolder=None,useMask=False,maxAngle=5,applyCalibration=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 
         """
         The function takes a data set and merge the files.
@@ -1473,7 +1736,7 @@ class DataSet(object):
             if sampleName == True:
                 saveFile += f"_{samName[:20]}"
             if sampleTitle ==True:
-                saveFile += f"_{samTitle[:20]}"
+                saveFile += f"_{samTitle[:30]}"
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:5] + "K"
             if magneticField == True:
@@ -1484,6 +1747,8 @@ class DataSet(object):
                 saveFile += "_{}AA".format(str(wavelength).replace('.','p')[:5])
             if fileNumber == True:
                 saveFile += "_" + fileNumbers.replace(',','_') 
+            if addTitle is not None:
+                saveFile += "_" + str(addTitle)
             if useMask == True:
                 saveFile += '_HR'
         else:
@@ -2596,6 +2861,7 @@ def export_help():
     print("      >>> subtract('DMC_565.xye','DMC_573')")    
     print(" ")
     
+
 
 from matplotlib.ticker import FuncFormatter
 
