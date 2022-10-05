@@ -1264,6 +1264,7 @@ class DataSet(object):
             print('no planeVector2 given')
             planeVector2 = np.round(np.cross(scatteringNormalB,planeVector1),4)
             planeVector2 = _tools.LengthOrder(planeVector2)
+            print('planeVector2 found to be: ', planeVector2)
         
         # Try to align the last free rotation within the scattering plane by calculating
         # the length of the scattering vectors for the peaks and compare to moduli of 
@@ -1317,6 +1318,85 @@ class DataSet(object):
             sample.UB = np.dot(sample.ROT.T,np.dot(sample.projectionB,np.linalg.inv(sample.projectionVectors)))
             
             sample.peakUsedForAlignment = peakUsedForAlignment 
+
+
+    def alignToRef(self,coordinates,planeVector1,planeVector2,optimize=False,axisOffset=0.0):
+        """
+        
+        
+        coordinates (list): peak position to align for P1
+
+
+        """
+
+        if optimize is True:
+            # fit peak position
+            pass
+        else:
+            pass
+
+
+        df = self[0]
+
+        scatteringNormal = np.cross(planeVector1,planeVector2) 
+        scatteringNormal = _tools.LengthOrder(scatteringNormal)
+
+        # 7) 
+        # Find rotation matrix transforming coorfinate to lay along the x-axis
+        # Rotation is performed around the vector perpendicular to coordinate and x-axis
+        rotationVector = np.cross(scatteringNormal,coordinates)
+        rotationVector*=1.0/np.linalg.norm(rotationVector)
+
+        # Rotation angle is given by the regular cosine relation, but due to z being [0,0,1] and both normal
+        #theta = np.arccos(coordinates[2]) #- np.pi # dot(bestNormalVector,[0,0,1])/(lengths) <-- both unit vectors
+        theta = np.round(np.arccos(np.linalg.norm(np.dot(scatteringNormal,coordinates))) - np.pi/2,5)
+     
+        RotationToScatteringPlane = _tools.rotMatrix(rotationVector, np.radians(theta), deg=False)
+        
+        # Rotated peak to the scattering plane
+        foundPosition = np.einsum('ji,...j->...i',RotationToScatteringPlane,coordinates)
+        
+        lengthPeaksInPlane = np.linalg.norm(foundPosition)
+
+        planeVector1Length = np.linalg.norm(np.dot(df.sample.B,planeVector1))
+        
+        projectionAlongPV1 = lengthPeaksInPlane/planeVector1Length
+
+        peakUsedForAlignment = {'HKL':   planeVector1*projectionAlongPV1,
+                                'QxQyQz': foundPosition}
+        
+        # 9) 
+        # Calculate the actual position of the peak found along planeVector1 
+        offsetA3 = np.rad2deg(np.arctan2(foundPosition[1],foundPosition[0]))-axisOffset
+
+        # Find rotation matrix which is around the z-axis and has angle of -offsetA3
+        rotation = np.dot(_tools.rotMatrix(np.array([0,0,1.0]),-offsetA3),RotationToScatteringPlane.T)
+        
+        # 10) 
+        # sample rotation has now been found (converts between instrument 
+        # qx,qy,qz to qx along planeVector1 and qy along planeVector2)
+        for df in self:
+            sample = df.sample
+            sample.ROT = rotation
+            sample.P1 = _tools.LengthOrder(planeVector1)
+            sample.P2 = _tools.LengthOrder(planeVector2)
+            sample.P3 = _tools.LengthOrder(scatteringNormal)
+
+            sample.offsetA3 = offsetA3
+            sample.RotationToScatteringPlane = RotationToScatteringPlane
+            sample.foundPeakPositions = coordinates
+
+            sample.projectionVectors = np.array([sample.P1,sample.P2,sample.P3]).T
+            
+            sample.projectionB = np.diag(np.linalg.norm(np.dot(sample.projectionVectors.T,sample.B),axis=1))
+            sample.UB = np.dot(sample.ROT.T,np.dot(sample.projectionB,np.linalg.inv(sample.projectionVectors)))
+            
+            sample.peakUsedForAlignment = peakUsedForAlignment 
+
+
+
+
+
 
 
     def rotateAroundScatteringNormal(self,rotation=0.0):
