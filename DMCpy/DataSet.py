@@ -1327,7 +1327,7 @@ class DataSet(object):
             
             - coordinates (list): peak position to align for planeVector1 in Qx, Qy, Qz
 
-            - planeVector1 (list): Indicies of the reflection used for alignment, must be along 
+            - planeVector1 (list): Indicies of the reflection used for alignment (Or directional vector???)
 
             - planeVector2 (list): Vector along y axis
             
@@ -1336,6 +1336,25 @@ class DataSet(object):
             
             - optimize = False (bool): Fit position of peak, default is False. NOT WORKING!
         
+        This method takes coordinates of a reflection in Qz,Qy,Qz and align that peak to planeVector1. 
+
+            1. find scattering normal from the plane vectors
+
+            2. Find vector to rotate around from coordinates and scatteringNormal
+
+            3. Find angle to rotate and rotation matrix
+
+            4. Rotated peak to the scattering plane
+
+            5. Find indices of reflection used for alignment
+
+            6. calculate the actual position of the peak found along planeVector1 
+
+            7. Find rotation matrix which is around the z-axis and has angle of -offsetA3
+
+            8. sample rotation has now been found (converts between instrument  qx,qy,qz to qx along planeVector1 and qy along planeVector2)
+
+            9. update sample
 
         """
 
@@ -1348,24 +1367,23 @@ class DataSet(object):
 
         df = self[0]
 
+        # 1. find scattering normal from the plane vectors
         scatteringNormal = np.cross(planeVector1,planeVector2) 
         scatteringNormal = _tools.LengthOrder(scatteringNormal)
 
-        # 7) 
-        # Find rotation matrix transforming coorfinate to lay along the x-axis
-        # Rotation is performed around the vector perpendicular to coordinate and x-axis
+        # 2. Find vector to rotate around from coordinates and scatteringNormal
         rotationVector = np.cross(scatteringNormal,coordinates)
         rotationVector*=1.0/np.linalg.norm(rotationVector)
 
-        # Rotation angle is given by the regular cosine relation, but due to z being [0,0,1] and both normal
-        #theta = np.arccos(coordinates[2]) #- np.pi # dot(bestNormalVector,[0,0,1])/(lengths) <-- both unit vectors
+        # 3. Find angle to rotate and rotation matrix
         theta = np.round(np.arccos(np.linalg.norm(np.dot(scatteringNormal,coordinates))) - np.pi/2,5)
      
         RotationToScatteringPlane = _tools.rotMatrix(rotationVector, np.radians(theta), deg=False)
         
-        # Rotated peak to the scattering plane
+        # 4. Rotated peak to the scattering plane
         foundPosition = np.einsum('ji,...j->...i',RotationToScatteringPlane,coordinates)
         
+        # 5. Find indices of reflection used for alignment
         lengthPeaksInPlane = np.linalg.norm(foundPosition)
 
         planeVector1Length = np.linalg.norm(np.dot(df.sample.B,planeVector1))
@@ -1375,16 +1393,15 @@ class DataSet(object):
         peakUsedForAlignment = {'HKL':   planeVector1*projectionAlongPV1,
                                 'QxQyQz': foundPosition}
         
-        # 9) 
-        # Calculate the actual position of the peak found along planeVector1 
+        # 6. calculate the actual position of the peak found along planeVector1 
         offsetA3 = np.rad2deg(np.arctan2(foundPosition[1],foundPosition[0]))-axisOffset
 
-        # Find rotation matrix which is around the z-axis and has angle of -offsetA3
+        # 7. Find rotation matrix which is around the z-axis and has angle of -offsetA3
         rotation = np.dot(_tools.rotMatrix(np.array([0,0,1.0]),-offsetA3),RotationToScatteringPlane.T)
         
-        # 10) 
-        # sample rotation has now been found (converts between instrument 
-        # qx,qy,qz to qx along planeVector1 and qy along planeVector2)
+        # 8. sample rotation has now been found (converts between instrument  qx,qy,qz to qx along planeVector1 and qy along planeVector2)
+
+        # 9. update sample
         for df in self:
             sample = df.sample
             sample.ROT = rotation
