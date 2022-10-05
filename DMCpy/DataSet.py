@@ -1322,10 +1322,20 @@ class DataSet(object):
 
     def alignToRef(self,coordinates,planeVector1,planeVector2,optimize=False,axisOffset=0.0):
         """
-        
-        
-        coordinates (list): peak position to align for P1
 
+        Args:
+            
+            - coordinates (list): peak position to align for planeVector1 in Qx, Qy, Qz
+
+            - planeVector1 (list): Indicies of the reflection used for alignment, must be along 
+
+            - planeVector2 (list): Vector along y axis
+            
+            
+        Kwargs:
+            
+            - optimize = False (bool): Fit position of peak, default is False. NOT WORKING!
+        
 
         """
 
