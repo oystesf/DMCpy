@@ -4,6 +4,8 @@ from difflib import SequenceMatcher
 import os.path
 import cProfile, pstats, io
 from itertools import product
+import pickle
+import h5py as hdf
 
 
 MPLKwargs = ['agg_filter','alpha','animated','antialiased','aa','clip_box','clip_on','clip_path','color','c','colorbar','contains','dash_capstyle','dash_joinstyle','dashes','drawstyle','figure','fillstyle','gid','label','linestyle or ls','linewidth or lw','marker','markeredgecolor or mec','markeredgewidth or mew','markerfacecolor or mfc','markerfacecoloralt or mfcalt','markersize or ms','markevery','path_effects','picker','pickradius','rasterized','sketch_params','snap','solid_capstyle','solid_joinstyle','transform','url','visible','xdata','ydata','zorder']
@@ -557,6 +559,9 @@ def clusterPoints(positions,weights=None,distanceThreshold=0.01, shufflePoints=T
     """
     positions = np.asarray(positions)
     
+    if len(positions) == 0:
+        print('no peak positions found, too high threshold')
+
     if distanceFunction is None:
         distanceFunction = lambda a,b: np.linalg.norm(a-b)
     if weights is None:
@@ -569,7 +574,7 @@ def clusterPoints(positions,weights=None,distanceThreshold=0.01, shufflePoints=T
         np.random.shuffle(shuffled)
         positions = shuffled[:,:3]
         weights = shuffled[:,-1]
-        
+       
     centres = [CentreOfMass(weight=weights[0],position=positions[0])]
     
     for I,(pos,weight) in enumerate(zip(positions[1:],weights[1:])):
@@ -668,3 +673,34 @@ def calculateHKLWithinQLimits(BMatrix,QMin=0,QMax=10):
         if np.linalg.norm(np.dot(BMatrix,[h,0,0]))>QMax*1.5:
             break
     return positions
+
+
+def saveSampleToDesk(sample,fileName):
+    with open(fileName, 'wb') as handle:
+        pickle.dump(sample, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        
+        
+def loadSampleFromDesk(fileName):
+    with open(fileName, 'rb') as handle:
+        sample = pickle.load(handle)
+    
+    return sample
+
+
+def giveUnitCellToHDF(filePath,unitCell):
+    """
+    adds unit cell to hdf files
+
+    filePath (list): files that unit cell will be added to
+
+    unitCell (list): unit cell parameters
+
+    """
+
+    for file in filePath:
+        with hdf.File(file,mode='r+') as f:
+            sample = f.get('/entry/sample')
+            try:
+                sample.create_dataset('unit_cell',data = unitCell)
+            except ValueError:
+                print('Unit cell already added to: ',file)
