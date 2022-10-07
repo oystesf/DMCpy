@@ -654,7 +654,8 @@ class DataSet(object):
 
                 if True:
                     pos = pos.transpose(1,0,2,3)
-                    localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=pos.reshape(3,-1),data=dat.flatten(),mon=mon.flatten(),bins = bins)
+                    boolMask = df.mask[idx[0]:idx[1]].flatten()
+                    localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=pos.reshape(3,-1)[:,boolMask],data=dat.flatten()[boolMask],mon=mon.flatten()[boolMask],bins = bins)
 
                     if returndata is None:
                         returndata = localReturndata
@@ -664,9 +665,8 @@ class DataSet(object):
                         for data,newData in zip(returndata,localReturndata):
                             data+=newData
                     
-
         intensities = np.divide(returndata[0],returndata[1])
-        NaNs = returndata[1]==0
+        NaNs = returndata[-1]==0
         intensities[NaNs]=np.nan
         return intensities,bins
 
