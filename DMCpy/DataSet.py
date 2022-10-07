@@ -654,7 +654,7 @@ class DataSet(object):
 
                 if True:
                     pos = pos.transpose(1,0,2,3)
-                    boolMask = df.mask[idx[0]:idx[1]].flatten()
+                    boolMask = np.logical_not(df.mask[idx[0]:idx[1]].flatten())
                     localReturndata,_ = _tools.binData3D(dqx,dqy,dqz,pos=pos.reshape(3,-1)[:,boolMask],data=dat.flatten()[boolMask],mon=mon.flatten()[boolMask],bins = bins)
 
                     if returndata is None:
