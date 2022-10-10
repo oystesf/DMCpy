@@ -1000,10 +1000,10 @@ class DataSet(object):
         peakPositions = np.concatenate(peakPositions)
         peakWeights = np.concatenate(peakWeights)
         # 4) 
-        peaks = _tools.clusterPoints(peakPositions,peakWeights,distanceThreshold=distanceThreshold,distanceFunction=distanceFunctionLocal)
+        self.peaks = _tools.clusterPoints(peakPositions,peakWeights,distanceThreshold=distanceThreshold,distanceFunction=distanceFunctionLocal)
         
         
-        foundPeakPositions = np.array([p.position for p in peaks])
+        foundPeakPositions = np.array([p.position for p in self.peaks])
         
         # 5) Make list of triplet normals, e.g. cross products between all vectors connecting all found peaks
         tripletNormal = _tools.calculateTriplets(foundPeakPositions,normalized=True)
