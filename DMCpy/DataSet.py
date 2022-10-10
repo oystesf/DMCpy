@@ -1879,6 +1879,130 @@ class DataSet(object):
             else:
                 raise AttributeError('Not all DataFiles do not contain',key)
 
+    def cutQPlane(self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,rlu=False):
+        """Cutting tool to bin intensities in the Q plane between provided Qz values.
+            
+            
+        Args: 
+            
+            - QzMin (float): Lower qz limit (Default None).
+            
+            - QzMax (float): Upper qz limit (Default None).
+
+        Kwargs:
+           
+            - xBinTolerance (float): bin sizes along x direction (default 0.05). If enlargen is true, this is the minimum bin size.
+
+            - yBinTolerance (float): bin sizes along y direction (default 0.05). If enlargen is true, this is the minimum bin size.
+
+            - rlu (bool): If true and axis is None, a new reciprocal lattice axis is created and used for plotting (default True).
+            
+        Returns:
+            
+            - dataList (list): List of all data points in format [Intensity, Monitor, Normalization, Normcount]
+
+            - bins (list): List of bin edges as function of plane in format [xBins,yBins].
+            
+        """
+            
+
+        if QzMax is None or QzMin is None:
+            raise AttributeError('Either minimal/maximal energy or the energy bins is to be given.')
+        
+            
+        
+        maximas = []
+        minimas = []
+        print('Generating Grid')
+        for df in self:
+            for idx in _tools.arange(0,len(df),steps):
+                print(df.fileName,'from',idx[0],'to',idx[-1])
+                q = df.q[idx[0]:idx[1]].copy().reshape(3,-1) # extract only a subset of the positions
+                if rlu:
+                    
+                    pos = np.einsum('ij,jk',df.sample.ROT,q)
+                    pos = pos[:,np.logical_and(pos[2]>QzMin,pos[2]<=QzMax)]
+                else:
+                    pos = q[:,np.logical_and(q[2]>QzMin,q[2]<=QzMax)]
+                
+                maximas.append(np.max(pos[:2],axis=1))
+                minimas.append(np.min(pos[:2],axis=1))
+        
+        maximas = np.array(maximas)
+        minimas = np.array(minimas)
+
+        maximas = np.max(maximas,axis=0)
+        minimas = np.min(minimas,axis=0)
+        
+        xmin,ymin = minimas
+        xmax,ymax = maximas
+        
+        
+
+        xBins = np.arange(xmin,xmax+0.999*xBinTolerance,xBinTolerance) # Add tolerance as to ensure full coverage of parameter
+        yBins = np.arange(ymin,ymax+0.999*yBinTolerance,yBinTolerance) # Add tolerance as to ensure full coverage of parameter
+        
+
+        print('\nPerforming Binning of Data')
+        returndata = None
+        for df in self:
+            
+            if steps is None:
+                steps = len(df)
+            
+            stepsTaken = 0
+
+                
+            for idx in _tools.arange(0,len(df),steps):
+                q = df.q[idx[0]:idx[1]]
+                #if raw:
+                #    dat = df.countsSliced(slice(idx[0],idx[1]))
+                #else:
+                dat = df.intensitySliced(slice(idx[0],idx[1]))
+                    
+
+                mon = df.monitor[idx[0]:idx[1]]
+                mon=np.repeat(np.repeat(mon[:,np.newaxis],dat.shape[1],axis=1)[:,:,np.newaxis],dat.shape[2],axis=-1)
+                
+                print(df.fileName,'from',idx[0],'to',idx[-1])
+                stepsTaken+=steps
+                I = df.counts[idx[0]:idx[1]]
+                Q = df.q[idx[0]:idx[1]] # TODO: update to !
+                Norm = df.normalization[idx[0]:idx[1]]
+                Monitor = df.monitor[idx[0]:idx[1]]
+                sample = df.sample
+                
+                if rlu == True: # Rotate positions with taslib.misalignment to line up with RLU
+                    Q = np.einsum('ij,j...->i...',sample.UBInv,Q)
+                
+                qz_inside = np.logical_and(Q[2]>QzMin,Q[2]<=QzMax)
+                
+                X = Q[0][qz_inside]
+                Y = Q[1][qz_inside]
+                
+                intensity=np.histogram2d(X,Y,bins=(xBins,yBins),weights=I[qz_inside])[0].astype(I.dtype)
+                monitorCount=np.histogram2d(X,Y,bins=(xBins,yBins),weights=np.repeat(np.repeat(Monitor[:,np.newaxis],I.shape[1],axis=1)[:,:,np.newaxis],I.shape[2],axis=2)[qz_inside])[0].astype(Monitor.dtype)
+                Normalization=np.histogram2d(X,Y,bins=(xBins,yBins),weights=Norm[qz_inside])[0].astype(Norm.dtype)
+                NormCount=np.histogram2d(X,Y,bins=(xBins,yBins))[0].astype(I.dtype)
+                
+                
+                if returndata is None:
+                    returndata = [intensity,monitorCount,Normalization,NormCount]
+                else:
+                    returndata = [rd+x for rd,x in zip(returndata,[intensity,monitorCount,Normalization,NormCount])]
+
+
+        intensity,monitorCount,Normalization,NormCount = returndata
+        
+        
+
+        Qx =np.outer(xBins,np.ones_like(yBins))
+        Qy =np.outer(np.ones_like(xBins),yBins)
+        bins = [Qx,Qy]
+
+        return returndata,bins
+
+
     def plotQPlane(self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=False,**kwargs):
         """Wrapper for plotting tool to show binned intensities in the Q plane between provided Qz values.
             
@@ -1925,12 +2049,7 @@ class DataSet(object):
             
             
         """
-            
-
-        if QzMax is None or QzMin is None:
-            raise AttributeError('Either minimal/maximal energy or the energy bins is to be given.')
         
-            
         if 'zorder' in kwargs:
             zorder = kwargs['zorder']
             kwargs = _tools.without_keys(dictionary=kwargs,keys='zorder')
@@ -1942,109 +2061,35 @@ class DataSet(object):
             kwargs = _tools.without_keys(dictionary=kwargs,keys='cmap')
         else:
             cmap = None
-        
-        maximas = []
-        minimas = []
-        print('Generating Grid')
-        for df in self:
-            for idx in _tools.arange(0,len(df),steps):
-                print(df.fileName,'from',idx[0],'to',idx[-1])
-                q = df.q[idx[0]:idx[1]].copy().reshape(3,-1) # extract only a subset of the positions
-                if rlu:
-                    
-                    pos = np.einsum('ij,jk',df.sample.ROT,q)
-                    pos = pos[:,np.logical_and(pos[2]>QzMin,pos[2]<=QzMax)]
-                else:
-                    pos = q[:,np.logical_and(q[2]>QzMin,q[2]<=QzMax)]
-                
-                maximas.append(np.max(pos[:2],axis=1))
-                minimas.append(np.min(pos[:2],axis=1))
-        
-        maximas = np.array(maximas)
-        minimas = np.array(minimas)
 
-        maximas = np.max(maximas,axis=0)
-        minimas = np.min(minimas,axis=0)
-        
-        xmin,ymin = minimas
-        xmax,ymax = maximas
-        
+
+        returndata,bins = self.cutQPlane(QzMin=QzMin,QzMax=QzMax,xBinTolerance=xBinTolerance,yBinTolerance=yBinTolerance,steps=steps,rlu=rlu)
+
         if ax is None:
             if rlu:
                 ax = self.createRLUAxes()
             else:
                 fig,ax = plt.subplots()
                 ax.set_xlabel('Qx [1/AA]')
-                ax.set_ylabel('Qy [1/AA]')
+                ax.set_ylabel('Qy [1/AA]')    
 
-        ax.xBins = np.arange(xmin,xmax+0.999*xBinTolerance,xBinTolerance) # Add tolerance as to ensure full coverage of parameter
-        ax.yBins = np.arange(ymin,ymax+0.999*yBinTolerance,yBinTolerance) # Add tolerance as to ensure full coverage of parameter
         
 
-        print('\nPerforming Binning of Data')
-        returndata = None
-        for df in self:
-            
-            if steps is None:
-                steps = len(df)
-            
-            stepsTaken = 0
+        ax.sample = self[0].sample       
+        
+        ax.intensity,ax.monitorCount,ax.Normalization,ax.NormCount, = returndata
 
-                
-            for idx in _tools.arange(0,len(df),steps):
-                q = df.q[idx[0]:idx[1]]
-                #if raw:
-                #    dat = df.countsSliced(slice(idx[0],idx[1]))
-                #else:
-                dat = df.intensitySliced(slice(idx[0],idx[1]))
-                    
-
-                mon = df.monitor[idx[0]:idx[1]]
-                mon=np.repeat(np.repeat(mon[:,np.newaxis],dat.shape[1],axis=1)[:,:,np.newaxis],dat.shape[2],axis=-1)
-                
-                print(df.fileName,'from',idx[0],'to',idx[-1])
-                stepsTaken+=steps
-                I = df.counts[idx[0]:idx[1]]
-                Q = df.q[idx[0]:idx[1]] # TODO: update to !
-                Norm = df.normalization[idx[0]:idx[1]]
-                Monitor = df.monitor[idx[0]:idx[1]]
-                sample = df.sample
-                
-                if rlu == True: # Rotate positions with taslib.misalignment to line up with RLU
-                    Q = np.einsum('ij,j...->i...',sample.UBInv,Q)
-                
-                qz_inside = np.logical_and(Q[2]>QzMin,Q[2]<=QzMax)
-                
-                X = Q[0][qz_inside]
-                Y = Q[1][qz_inside]
-                
-                intensity=np.histogram2d(X,Y,bins=(ax.xBins,ax.yBins),weights=I[qz_inside])[0].astype(I.dtype)
-                monitorCount=np.histogram2d(X,Y,bins=(ax.xBins,ax.yBins),weights=np.repeat(np.repeat(Monitor[:,np.newaxis],I.shape[1],axis=1)[:,:,np.newaxis],I.shape[2],axis=2)[qz_inside])[0].astype(Monitor.dtype)
-                Normalization=np.histogram2d(X,Y,bins=(ax.xBins,ax.yBins),weights=Norm[qz_inside])[0].astype(Norm.dtype)
-                NormCount=np.histogram2d(X,Y,bins=(ax.xBins,ax.yBins))[0].astype(I.dtype)
-                
-                ax.sample = sample
-                if returndata is None:
-                    returndata = [intensity,monitorCount,Normalization,NormCount]
-                else:
-                    returndata = [rd+x for rd,x in zip(returndata,[intensity,monitorCount,Normalization,NormCount])]
-                    
-                ax.intensity,ax.monitorCount,ax.Normalization,ax.NormCount = returndata
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             ax.Int = np.divide(ax.intensity*ax.NormCount,ax.monitorCount*ax.Normalization)
+        ax.bins = bins
+        ax.Qx,ax.Qy = ax.bins
         
-
-        ax.Qx =np.outer(ax.xBins,np.ones_like(ax.yBins))
-        ax.Qy =np.outer(np.ones_like(ax.xBins),ax.yBins)
-            
         if log:
-            Int = np.log10(1e-20+np.array(ax.Int))
+            ax.Int = np.log10(1e-20+np.array(ax.Int))
         else:
-            Int = np.asarray(ax.Int)
+            ax.Int = np.asarray(ax.Int)
 
-        ax.Int = Int
-        
         if 'vmin' in kwargs:
             vmin = kwargs['vmin']
             kwargs = _tools.without_keys(dictionary=kwargs,keys='vmin')
@@ -2126,9 +2171,9 @@ class DataSet(object):
 
             ax.d.to_csv(fileName,mode='a')
         ax.to_csv = lambda fileName: to_csv(fileName,ax)
-        ax.bins = [ax.Qx,ax.Qy]
+        
         ax.data = [ax.intensity,ax.monitorCount,ax.Normalization,ax.NormCount]
-        return ax,[ax.intensity,ax.monitorCount,ax.Normalization,ax.NormCount],[ax.Qx,ax.Qy]
+        return ax,returndata,bins
 
 
             
