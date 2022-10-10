@@ -707,3 +707,12 @@ def giveUnitCellToHDF(filePath,unitCell):
 
 def without_keys(dictionary, keys): # Remove key word argument from kwargs
     return {x: dictionary[x] for x in dictionary if x not in keys}
+
+
+def arange(start,stop,step):
+        stepsTaken = 0
+        while start+step*(stepsTaken+1)<stop:
+            yield (start+step*stepsTaken,start+step*(stepsTaken+1))
+            stepsTaken+=1
+            
+        yield(start+step*stepsTaken,stop)
