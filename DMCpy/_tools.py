@@ -522,6 +522,9 @@ class CentreOfMass(object):
         
     def __str__(self):
         return "CentreOfMass at ({},{},{}) with weight {}".format(*self.position,self.weight)
+
+    def __repr__(self) -> str:
+        return 'CentreOfMass(position=[{},{},{}],weight={})'.format(*self.position,self.weight)
         
 def distance(a,b,dx=1,dy=1,dz=1):
     """Calculate distance with variable metric"""
@@ -530,7 +533,7 @@ def distance(a,b,dx=1,dy=1,dz=1):
 
 
 def clusterPoints(positions,weights=None,distanceThreshold=0.01, shufflePoints=True, distanceFunction=None):
-    """Combine positions within dinstance threshold into centres of gravity with the provided weights
+    """Combine positions within distance threshold into centres of gravity with the provided weights
     
     Args:
         
@@ -707,3 +710,12 @@ def giveUnitCellToHDF(filePath,unitCell):
 
 def without_keys(dictionary, keys): # Remove key word argument from kwargs
     return {x: dictionary[x] for x in dictionary if x not in keys}
+
+
+def arange(start,stop,step):
+        stepsTaken = 0
+        while start+step*(stepsTaken+1)<stop:
+            yield (start+step*stepsTaken,start+step*(stepsTaken+1))
+            stepsTaken+=1
+            
+        yield(start+step*stepsTaken,stop)
