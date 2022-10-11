@@ -892,6 +892,16 @@ class DataSet(object):
 
     def saveSampleToDisk(self,fileName=None,dataFolder=None):
 
+        """
+        function to store sample object from a df into a binary file.
+
+        kargs:
+
+            - fileName (str): fileName for UB matrix file. Default is None and sample name form the ds
+
+            - dataFolder (str): directory for saving UB file. Defualt is None, and in cwd
+        """
+
         if fileName is None:
             fileName = self.sample[0].name 
 
@@ -3259,22 +3269,18 @@ def export_help():
     print('      >>> add("565,567,570-573",outFile="mergefilename")')
     print('      >>> export(565,folder=r"Path\To\Data\Folder")   #Note r"..." notation')      
     print(" ")
-    print(" ")
     print(" Most important kewords and aguments:")
-    print(" ")
     print("     - dTheta (float): stepsize of binning if no bins is given (default is 0.125)")
     print("     - outFile (str): String that will be used for outputfile. Default is automatic generated name.")
     print("     - outFolder (str): Path to folder data will be saved. Default is current working directory.")
     print("     - twoThetaOffset (float): Linear shift of two theta, default is 0. To be used if a4 in hdf file is incorrect")
     print(" ")
     print(" Arguments for automatic file name:")
-    print(" ")
     print("     - sampleName (bool): Include sample name in filename. Default is True.")
     print("     - temperature (bool): Include temperature in filename. Default is True.")
     print("     - fileNumber (bool): Include sample number in filename. Default is True.")
     print("     - magneticField (bool): Include magnetic field in filename. Default is False.")
     print("     - electricField (bool): Include electric field in filename. Default is False.")
-    print(" ")
     print(" ")
     print(" There is also a subtract function for subtracting PSI format files and xye format files. ")    
     print(" The files are normalized to the onitor of the first dataset.")
@@ -3283,6 +3289,9 @@ def export_help():
     print(" Alternatively can subtract_PSI or subtract_xye be used")
     print(" ")
     print("      >>> subtract('DMC_565.xye','DMC_573')")    
+    print(" ")
+    print(" ")
+    print(" ")
     print(" ")
     
 
