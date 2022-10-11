@@ -464,10 +464,12 @@ class DataFile(object):
                 self.normalization = self.normalization.reshape(self.countShape)
 
     def __len__(self):
-        if hasattr(self,'counts'):
-            return len(self.counts)
-        else:
-            return 0
+        if not hasattr(self,'countShape'):
+            if hasattr(self,'counts'):
+                self.countShape = self.counts.shape[0]
+            else:
+                return 0
+        return self.countShape[0]
 
     @property
     def A3(self):
