@@ -924,6 +924,8 @@ class DataSet(object):
             df.sample.UB = sampleLoaded.UB
             
             df.sample.peakUsedForAlignment = sampleLoaded.peakUsedForAlignment
+        
+        print('UB loaded')
 
 
 
