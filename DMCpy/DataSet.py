@@ -905,6 +905,15 @@ class DataSet(object):
 
     def loadSample(self,filePath):
 
+        """
+        function to load UB from binary file into all dataFiles in a dataSet.
+
+        args: 
+
+            filePath (str): Filepath to UB matrix
+            
+        """
+
         sampleLoaded = _tools.loadSampleFromDesk(filePath)
         
         for df in self:
