@@ -905,10 +905,25 @@ class DataSet(object):
 
     def loadSample(self,filePath):
 
-        sample = _tools.loadSampleFromDesk(filePath)
+        sampleLoaded = _tools.loadSampleFromDesk(filePath)
         
         for df in self:
-            df.sample = sample
+
+            df.sample.ROT = sampleLoaded.ROT
+            df.sample.P1  = sampleLoaded.P1 
+            df.sample.P2  = sampleLoaded.P2 
+            df.sample.P3  = sampleLoaded.P3 
+
+            df.sample.offsetA3 = sampleLoaded.offsetA3
+            df.sample.RotationToScatteringPlane = sampleLoaded.RotationToScatteringPlane
+            df.sample.foundPeakPositions = sampleLoaded.foundPeakPositions
+
+            df.sample.projectionVectors = sampleLoaded.projectionVectors
+            
+            df.sample.projectionB = sampleLoaded.projectionB
+            df.sample.UB = sampleLoaded.UB
+            
+            df.sample.peakUsedForAlignment = sampleLoaded.peakUsedForAlignment
 
 
 
