@@ -1944,9 +1944,9 @@ class DataSet(object):
 
         Kwargs:
            
-            - xBinTolerance (float): bin sizes along x direction (default 0.05). If enlargen is true, this is the minimum bin size.
+            - xBinTolerance (float): bin sizes along x direction (default 0.03). If enlargen is true, this is the minimum bin size.
 
-            - yBinTolerance (float): bin sizes along y direction (default 0.05). If enlargen is true, this is the minimum bin size.
+            - yBinTolerance (float): bin sizes along y direction (default 0.03). If enlargen is true, this is the minimum bin size.
 
             - rlu (bool): If true and axis is None, a new reciprocal lattice axis is created and used for plotting (default True).
             
@@ -2056,7 +2056,7 @@ class DataSet(object):
         return returndata,bins
 
 
-    def plotQPlane(self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=False,**kwargs):
+    def plotQPlane(self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=False,rmcFile=False,**kwargs):
         """Wrapper for plotting tool to show binned intensities in the Q plane between provided Qz values.
             
             
@@ -2202,7 +2202,7 @@ class DataSet(object):
             ax.set_ylim(ymin,ymax)#np.min(Qy),np.max(Qy))
     
         
-        def to_csv(fileName,ax):
+        def to_csv(fileName,ax,rmcFile,rmcFileName):
             Qx,Qy = ax.bins
             QxCenter = 0.25*(Qx[:-1,:-1]+Qx[:-1,1:]+Qx[1:,1:]+Qx[1:,:-1])
             QyCenter = 0.25*(Qy[:-1,:-1]+Qy[:-1,1:]+Qy[1:,1:]+Qy[1:,:-1])
@@ -2223,8 +2223,21 @@ class DataSet(object):
                 f.write("# CSV generated from DMCpy {}. Shape of data is {}\n".format(DMCpy.__version__,Int.shape))
 
             ax.d.to_csv(fileName,mode='a')
-        ax.to_csv = lambda fileName: to_csv(fileName,ax)
+
+            if rmcFile is True:
+                dataToRMC = {'H':H.flatten(),'K':K.flatten(),'L':L.flatten(),'Int':Int.flatten(),'Int_err':Int_err.flatten()}
+                ax.e = pd.DataFrame(dataToRMC)
+                if rmcFileName is None:
+                    rmcFileName = 'sample_xtal_data_01.txt'
+                ax.e.to_csv(rmcFileName, header=None, index=None, sep=' ', mode='a')
+
         
+        #ax.to_csv = lambda fileName : to_csv(fileName,ax,spinteract,rmcFileName)
+        if rmcFile is True:
+            ax.to_csv = lambda fileName, rmcFileName : to_csv(fileName, ax, True, rmcFileName)
+        else:
+            ax.to_csv = lambda fileName : to_csv(fileName,ax,False,None)
+
         ax.data = [ax.intensity,ax.monitorCount,ax.Normalization,ax.NormCount]
         return ax,returndata,bins
 
