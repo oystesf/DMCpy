@@ -1404,10 +1404,10 @@ class DataSet(object):
         rotationVector*=1.0/np.linalg.norm(rotationVector)
 
         # 3. Find angle to rotate and rotation matrix
-        theta = np.round(np.arccos(np.linalg.norm(np.dot(scatteringNormal,coordinates))) - np.pi/2,5)
-     
-        RotationToScatteringPlane = _tools.rotMatrix(rotationVector, np.radians(theta), deg=False)
-        
+        theta = np.round(np.arccos((np.dot(scatteringNormal,coordinates))/(np.linalg.norm(scatteringNormal)*np.linalg.norm(coordinates))) - np.pi/2,5)
+  
+        RotationToScatteringPlane = _tools.rotMatrix(rotationVector, -theta , deg=False)
+ 
         # 4. Rotated peak to the scattering plane
         foundPosition = np.einsum('ji,...j->...i',RotationToScatteringPlane,coordinates)
         
@@ -2056,7 +2056,7 @@ class DataSet(object):
         return returndata,bins
 
 
-    def plotQPlane(self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=False,rmcFile=False,**kwargs):
+    def plotQPlane(self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=True,rmcFile=False,**kwargs):
         """Wrapper for plotting tool to show binned intensities in the Q plane between provided Qz values.
             
             
