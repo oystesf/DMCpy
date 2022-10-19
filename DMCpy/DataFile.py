@@ -457,9 +457,9 @@ class DataFile(object):
         else:
             
             if self.fileType.lower() == "singlecrystal": # A3 scan
-                self.normalization = np.repeat(self.normalization,self.countShape[0],axis=0)
+                self.normalization = self.normalization#np.repeat(self.normalization[np.newaxis],self.countShape[0],axis=0)
                 #self.normalization.shape = self.countShape
-                self.normalization = self.normalization.reshape(self.countShape)
+                #self.normalization = self.normalization.reshape(self.countShape)
             else:
                 self.normalization = self.normalization.reshape(self.countShape)
 
@@ -884,13 +884,20 @@ class DataFile(object):
     def intensity(self):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            return np.divide(self.counts,self.normalization)
+            if self.fileType.lower() == 'singlecrystal':
+                return np.divide(self.counts,self.normalization[np.newaxis])
+            else:
+                return np.divide(self.counts,self.normalization)
 
     
     def intensitySliced(self,sl):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            return np.divide(self.countsSliced(sl),self.normalization[sl])
+            if self.fileType.lower() == 'singlecrystal':
+                return np.divide(self.countsSliced(sl),self.normalization[np.newaxis])
+            else:
+                return np.divide(self.countsSliced(sl),self.normalization)
+            #return np.divide(self.countsSliced(sl),self.normalization[sl])
 
     
 
