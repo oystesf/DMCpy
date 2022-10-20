@@ -592,7 +592,7 @@ class DataSet(object):
         else:
             axes = None
 
-        Data,bins = self.binData3D(dqx,dqy,dqz,rlu=rlu,raw=raw,smart=smart,steps=steps)
+        Data,bins,_ = self.binData3D(dqx,dqy,dqz,rlu=rlu,raw=raw,smart=smart,steps=steps)
 
         Data*=multiplicationFactor
 
@@ -658,9 +658,11 @@ class DataSet(object):
                             data+=newData
                     
         intensities = np.divide(returndata[0],returndata[1])
+        errors = np.divide(np.sqrt(returndata[0]),returndata[1])
         NaNs = returndata[-1]==0
         intensities[NaNs]=np.nan
-        return intensities,bins
+        errors[NaNs]=np.nan
+        return intensities,bins,errors
 
     @_tools.KwargChecker()
     @_tools.overWritingFunctionDecorator(RLUAxes.createRLUAxes)
@@ -668,7 +670,7 @@ class DataSet(object):
         raise RuntimeError('This code is not meant to be run but rather is to be overwritten by decorator. Something is wrong!! Should run {}'.format(RLUAxes.createRLUAxes))
 
         
-    def plotCut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True,ax=None,**kwargs):
+    def plotCut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True,ax=None,fmt='.',**kwargs):
         """Cut and plot data from P1 to P2 in steps of stepSize [1/AA] width a cylindrical width [1/AA]
 
         Args:
@@ -691,7 +693,7 @@ class DataSet(object):
 
             - ax (matplotlib.axes): If None, a new is created (default None)
 
-            - kwargs: All other kwargs are provided to the scatter plot of the axis
+            - kwargs: All other kwargs are provided to the errorbar plot of the axis
 
         Returns:
 
@@ -700,7 +702,7 @@ class DataSet(object):
 
         """
 
-        hkl,I = self.cut1D(P1=P1,P2=P2,rlu=rlu,stepSize=stepSize,width=width,widthZ=widthZ,raw=raw,optimize=optimize)
+        hkl,I,err = self.cut1D(P1=P1,P2=P2,rlu=rlu,stepSize=stepSize,width=width,widthZ=widthZ,raw=raw,optimize=optimize)
         if ax is None:
             ax  = generate1DAxis(P1,P2,rlu=rlu)
 
@@ -708,7 +710,7 @@ class DataSet(object):
             X = ax.calculatePositionInv(*hkl)
         else:
             X = np.linalg.norm(*hkl,axis=1)
-        ax.scatter(X,I,**kwargs)
+        ax.errorbar(X,I,yerr=err,**kwargs)
 
         ax.get_figure().tight_layout()
         return hkl,I,ax
@@ -881,13 +883,15 @@ class DataSet(object):
                 monitors += np.full_like(intensities,df.monitor[0])
         
         I = np.divide(intensities,monitors)
+        errors = np.divide(np.sqrt(intensities),monitors)
         I[normCounts==0]=np.nan
+        I[errors==0]=np.nan
         binCentres = 0.5*(bins[:-1]+bins[1:])
         
         positionVector = directionVector*binCentres+QStart.reshape(3,1)
         if rlu:
             positionVector = np.array([self[-1].sample.calculateQxQyQzToHKL(*bC) for bC in positionVector.T]).T
-        return positionVector,I
+        return positionVector,I,errors
 
 
     def saveSampleToDisk(self,fileName=None,dataFolder=None):
