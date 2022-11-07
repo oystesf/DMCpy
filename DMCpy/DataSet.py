@@ -2025,7 +2025,8 @@ class DataSet(object):
                 stepsTaken+=steps
                 I = df.counts[idx[0]:idx[1]]
                 Q = df.q[idx[0]:idx[1]] # TODO: update to !
-                Norm = df.normalization[idx[0]:idx[1]]
+                Norm = df.normalization#[idx[0]:idx[1]]
+                Norm = np.repeat(Norm[np.newaxis],len(I),axis=0)
                 Monitor = df.monitor[idx[0]:idx[1]]
                 sample = df.sample
                 
