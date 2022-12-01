@@ -2157,13 +2157,14 @@ class DataSet(object):
 
         Qx =np.outer(xBins,np.ones_like(yBins))
         Qy =np.outer(np.ones_like(xBins),yBins)
-        bins = [xBins,yBins]#Qx,Qy]
+        bins = [Qx,Qy]
 
         return returndata,bins
 
 
 
     def plotQPlane(self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=False,rmcFile=False,**kwargs):
+        raise NotImplementedError('TODODODODODDO!!')
         """Wrapper for plotting tool to show binned intensities in the Q plane between provided Qz values.
             
             
