@@ -306,13 +306,15 @@ def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
         raise FileNotFoundError('Provided file path "{}" not found.'.format(fileLocation))
 
     A3 = shallowRead([fileLocation],['A3'])[0]['A3']
+
+    se_r = shallowRead([fileLocation],['se_r'])[0]['se_r']
     
     T = 'Unknown' # type of datafile
 
     if A3 is None: # there is no A3 values at all
         T = 'powder'
         
-    elif len(A3) == 1:
+    elif len(A3) == 1 and len(se_r) == 1:
         T = 'powder'
     else:
         T = 'singlecrystal'
