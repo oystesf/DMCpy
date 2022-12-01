@@ -144,6 +144,7 @@ HDFTranslation = {'sample':'/entry/sample',
                   'address':'entry/user/address',
                   'affiliation':'entry/user/affiliation',
                   'A3':'entry/sample/rotation_angle',
+                  'se_r':'entry/sample/se_r',
                   'temperature':'entry/sample/temperature',
                   'magneticField':'entry/sample/magnetic_field',
                   'electricField':'entry/sample/electric_field',
@@ -181,6 +182,7 @@ HDFTranslationDefault = {'twoThetaPosition':np.array([0.0]),
 
                          'absoluteTime': np.array([0.0]),
                          'protonBeam': np.array([0.0]),
+                         'se_r': np.array([0.0]),
                          
                          
 
