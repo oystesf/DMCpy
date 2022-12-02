@@ -578,6 +578,8 @@ def clusterPoints(positions,weights=None,distanceThreshold=0.01, shufflePoints=T
         positions = shuffled[:,:3]
         weights = shuffled[:,-1]
        
+    if len(positions) == 0:
+        return []
     centres = [CentreOfMass(weight=weights[0],position=positions[0])]
     
     for I,(pos,weight) in enumerate(zip(positions[1:],weights[1:])):
@@ -719,3 +721,47 @@ def arange(start,stop,step):
             stepsTaken+=1
             
         yield(start+step*stepsTaken,stop)
+
+
+def calculateRotationMatrixAndOffset(points):
+    
+    v1, v2, v3 = points
+    dV1 = v2-v1
+    dV2 = v3-v1
+    
+    dV1*=1.0/np.linalg.norm(dV1)
+    dV2*=1.0/np.linalg.norm(dV2)
+    
+    
+    N = np.cross(dV2,dV1)
+    N *= 1.0/np.linalg.norm(N)
+    
+    rotVector = np.cross([0.0,0.0,1.0],N)
+    if np.isclose(np.linalg.norm(rotVector),0): # if they are parallel no rotation is needed
+        theta = 0.0
+        rotVector = np.array([0.0,0.0,1.0])
+    else:
+        #rotVector *=1.0/np.linalg.norm(rotVector)
+        theta = np.arccos(np.dot([0.0,0.0,1.0],N))#/np.linalg.norm(rotVector)) #
+    
+    
+    Rot3D = rotMatrix(rotVector, -theta,deg=False)
+    
+    v1m,v2m,v3m = np.einsum('ij,...j->...i',Rot3D,points)
+    
+    dV1m = v2m-v1m
+    dV2m = v3m-v2m
+    Nm = np.cross(dV2m,dV1m)
+    Nm *= 1.0/np.linalg.norm(Nm)
+    
+    offsetm = [np.dot(Nm,x) for x in [v1m,v2m,v3m]]
+    
+    if not np.all(np.isclose(offsetm,offsetm[0])):
+        raise AttributeError('Calculated plane does not have the defining points in the same distance from...')
+    
+    ## in plane rotation, so that v1m is || to x
+    thetaInPlan = np.arctan2(*-dV1m[-2::-1]) # take first two entries and flip the, i.e. y,x
+    Rot3DInPlane = rotMatrix(Nm, -thetaInPlan,deg=False)
+    
+    totalRotMat = np.dot(Rot3DInPlane,Rot3D)
+    return totalRotMat,-offsetm[0]

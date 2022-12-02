@@ -144,6 +144,7 @@ HDFTranslation = {'sample':'/entry/sample',
                   'address':'entry/user/address',
                   'affiliation':'entry/user/affiliation',
                   'A3':'entry/sample/rotation_angle',
+                  'se_r':'entry/sample/se_r',
                   'temperature':'entry/sample/temperature',
                   'magneticField':'entry/sample/magnetic_field',
                   'electricField':'entry/sample/electric_field',
@@ -181,6 +182,7 @@ HDFTranslationDefault = {'twoThetaPosition':np.array([0.0]),
 
                          'absoluteTime': np.array([0.0]),
                          'protonBeam': np.array([0.0]),
+                         'se_r': np.array([0.0]),
                          
                          
 
@@ -304,13 +306,15 @@ def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
         raise FileNotFoundError('Provided file path "{}" not found.'.format(fileLocation))
 
     A3 = shallowRead([fileLocation],['A3'])[0]['A3']
+
+    se_r = shallowRead([fileLocation],['se_r'])[0]['se_r']
     
     T = 'Unknown' # type of datafile
 
     if A3 is None: # there is no A3 values at all
         T = 'powder'
         
-    elif len(A3) == 1:
+    elif len(A3) == 1 and len(se_r) == 1:
         T = 'powder'
     else:
         T = 'singlecrystal'
@@ -457,9 +461,9 @@ class DataFile(object):
         else:
             
             if self.fileType.lower() == "singlecrystal": # A3 scan
-                self.normalization = np.repeat(self.normalization,self.countShape[0],axis=0)
+                self.normalization = self.normalization#np.repeat(self.normalization[np.newaxis],self.countShape[0],axis=0)
                 #self.normalization.shape = self.countShape
-                self.normalization = self.normalization.reshape(self.countShape)
+                #self.normalization = self.normalization.reshape(self.countShape)
             else:
                 self.normalization = self.normalization.reshape(self.countShape)
 
@@ -884,13 +888,20 @@ class DataFile(object):
     def intensity(self):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            return np.divide(self.counts,self.normalization)
+            if self.fileType.lower() == 'singlecrystal':
+                return np.divide(self.counts,self.normalization[np.newaxis])
+            else:
+                return np.divide(self.counts,self.normalization)
 
     
     def intensitySliced(self,sl):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            return np.divide(self.countsSliced(sl),self.normalization[sl])
+            if self.fileType.lower() == 'singlecrystal':
+                return np.divide(self.countsSliced(sl),self.normalization[np.newaxis])
+            else:
+                return np.divide(self.countsSliced(sl),self.normalization)
+            #return np.divide(self.countsSliced(sl),self.normalization[sl])
 
     
 
