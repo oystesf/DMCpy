@@ -750,7 +750,7 @@ def calculateRotationMatrixAndOffset(points):
     v1m,v2m,v3m = np.einsum('ij,...j->...i',Rot3D,points)
     
     dV1m = v2m-v1m
-    dV2m = v3m-v2m
+    dV2m = v3m-v1m
     Nm = np.cross(dV2m,dV1m)
     Nm *= 1.0/np.linalg.norm(Nm)
     
