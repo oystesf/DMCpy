@@ -1820,8 +1820,8 @@ class DataSet(object):
         
         # rescale intensity and err
         if hourNormalization is False:
-            intensity*=meanMonitor
-            err*=meanMonitor
+            intensity *= meanMonitor
+            err *= meanMonitor
         else:
             oneHourMonitor = (100000000)
             intensity*=oneHourMonitor
@@ -1852,9 +1852,6 @@ class DataSet(object):
         temperatures = np.array([df.temperature for df in self])
         meanTemp = np.mean(temperatures)
         
-        # fileNumbers = str(self.fileName) 
-        # fileNumbers_short = str(int(self.fileName[0].split('n')[-1].split('.')[0]))  # 
-        
         if len(self) == 1:
             year = 2022
             fileNumbers = str(int(self.fileName[0].split('n')[-1].split('.')[0]))
@@ -1866,9 +1863,9 @@ class DataSet(object):
         if useMask is True:
             titleLine2 += " , anngular mask: " + str(maxAngle) + " deg." 
         if hourNormalization is False:
-            titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(oneHourMonitor)+'., sample="'+samName+'"'
+            titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(oneHourMonitor)+', sample="'+samName+'"'
         else:
-            titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
+            titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+', sample="'+samName+'"'
         
         
 
