@@ -314,7 +314,7 @@ def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
     if A3 is None: # there is no A3 values at all
         T = 'powder'
         
-    elif len(A3) == 1 and len(se_r) == 1:
+    elif len(A3) == 1 and se_r.any() is None:
         T = 'powder'
     else:
         T = 'singlecrystal'
