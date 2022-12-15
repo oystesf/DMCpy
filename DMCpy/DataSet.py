@@ -1696,10 +1696,11 @@ class DataSet(object):
         paramLines.append("")
         fileString = '\n'.join([titleLine,paramLine,paramLine2,dataLinesInt,dataLinesErr,fileList,*paramLines])
         
-        # get magnetic field
-        # get electric field
-        mag = "not defined"
-        elec = "not defined"
+        magneticFields = [df.magneticField for df in self]
+        mag = np.mean(magneticFields)
+
+        electricFields = [df.electricField for df in self]
+        elec = np.mean(electricFields)
         
         if outFile is None:
             saveFile = "DMC"
