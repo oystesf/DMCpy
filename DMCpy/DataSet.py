@@ -1752,17 +1752,13 @@ class DataSet(object):
             - Bins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.125)
             
             - outFile (str): String that will be used for outputfile. Default is automatic generated name.
-
             - outFolder (str): Path to folder data will be saved. Default is current working directory.
-
             - useMask (bool): export file with angular mask. Default is False
-
             - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
             
         - Arguments for automatic file name:
                 
             - sampleName (bool): Include sample name in filename. Default is True.
-
             - sampleTitle (bool): Include sample title in filename. Default is True.
         
             - temperature (bool): Include temperature in filename. Default is False.
@@ -1772,11 +1768,9 @@ class DataSet(object):
             - electricField (bool): Include electric field in filename. Default is False.
         
             - fileNumber (bool): Include sample number in filename. Default is False.
-
             - waveLength (bool): Include waveLength in filename. Default is False. 
             
         Kwargs for sumDetector:
-
             - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
                 
             - applyCalibration (bool): Use normalization files (default True)
@@ -1820,8 +1814,8 @@ class DataSet(object):
         
         # rescale intensity and err
         if hourNormalization is False:
-            intensity *= meanMonitor
-            err *= meanMonitor
+            intensity*=meanMonitor
+            err*=meanMonitor
         else:
             oneHourMonitor = (100000000)
             intensity*=oneHourMonitor
@@ -1852,6 +1846,15 @@ class DataSet(object):
         temperatures = np.array([df.temperature for df in self])
         meanTemp = np.mean(temperatures)
         
+        magneticFields = [df.magneticField for df in self]
+        mag = np.mean(magneticFields)
+
+        electricFields = [df.electricField for df in self]
+        elec = np.mean(electricFields)
+
+        # fileNumbers = str(self.fileName) 
+        # fileNumbers_short = str(int(self.fileName[0].split('n')[-1].split('.')[0]))  # 
+        
         if len(self) == 1:
             year = 2022
             fileNumbers = str(int(self.fileName[0].split('n')[-1].split('.')[0]))
@@ -1868,13 +1871,6 @@ class DataSet(object):
             titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+', sample="'+samName+'"'
         
         
-
-            
-        # get magnetic field
-        # get electric field
-        mag = "not defined"
-        elec = "not defined"
-        
         if outFile is None:
             saveFile = "DMC"
             if hourNormalization == True:
@@ -1886,9 +1882,9 @@ class DataSet(object):
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:5] + "K"
             if magneticField == True:
-                saveFile += "_" + mag + "T"
+                saveFile += "_" + str(mag) + "T"
             if electricField == True:
-                saveFile += "_" + elec + "keV"
+                saveFile += "_" + str(elec) + "keV"
             if waveLength == True:
                 saveFile += "_{}AA".format(str(wavelength).replace('.','p')[:5])
             if fileNumber == True:
@@ -1913,7 +1909,7 @@ class DataSet(object):
             sf.write(titleLine3+"\n") 
             np.savetxt(sf,saveData.T,delimiter='  ')
             sf.close()
-        
+         
 
     def updateDataFiles(self,key,value):
         if np.all([hasattr(df,key) for df in self]): # all datafiles have the key
