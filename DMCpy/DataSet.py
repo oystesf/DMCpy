@@ -1412,10 +1412,10 @@ class DataSet(object):
         rotationVector*=1.0/np.linalg.norm(rotationVector)
 
         # 3. Find angle to rotate and rotation matrix
-        theta = np.round(np.arccos((np.dot(scatteringNormal,coordinates))/(np.linalg.norm(scatteringNormal)*np.linalg.norm(coordinates))) - np.pi/2,5)
-  
-        RotationToScatteringPlane = _tools.rotMatrix(rotationVector, -theta , deg=False)
- 
+        theta = np.round(np.arccos(np.linalg.norm(np.dot(scatteringNormal,coordinates))) - np.pi/2,5)
+     
+        RotationToScatteringPlane = _tools.rotMatrix(rotationVector, np.radians(theta), deg=False)
+        
         # 4. Rotated peak to the scattering plane
         foundPosition = np.einsum('ji,...j->...i',RotationToScatteringPlane,coordinates)
         
@@ -1599,7 +1599,7 @@ class DataSet(object):
             intensity*=meanMonitor
             err*=meanMonitor
         else:
-            oneHourMonitor = (100000000)
+            oneHourMonitor = (300000000)
             intensity*=oneHourMonitor
             err*=oneHourMonitor
         
@@ -1869,7 +1869,7 @@ class DataSet(object):
             titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(oneHourMonitor)+', sample="'+samName+'"'
         else:
             titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+', sample="'+samName+'"'
-        
+       
         
         if outFile is None:
             saveFile = "DMC"
@@ -2159,8 +2159,6 @@ class DataSet(object):
 
         return returndata,bins
 
-# fixing problem 
-#good
 
 
     def plotQPlane(self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=False,rmcFile=False,**kwargs):
