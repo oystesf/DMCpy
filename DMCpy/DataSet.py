@@ -1713,9 +1713,9 @@ class DataSet(object):
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:5] + "K"
             if magneticField == True:
-                saveFile += "_" + mag + "T"
+                saveFile += "_" + str(mag) + "T"
             if electricField == True:
-                saveFile += "_" + elec + "keV"
+                saveFile += "_" + str(elec) + "keV"
             if waveLength == True:
                 saveFile += "_{}AA".format(str(wavelength).replace('.','p')[:5])
             if fileNumber == True:
