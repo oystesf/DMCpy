@@ -1599,7 +1599,7 @@ class DataSet(object):
             intensity*=meanMonitor
             err*=meanMonitor
         else:
-            oneHourMonitor = (300000000)
+            oneHourMonitor = (100000000)
             intensity*=oneHourMonitor
             err*=oneHourMonitor
         
