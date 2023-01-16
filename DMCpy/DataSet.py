@@ -1599,7 +1599,7 @@ class DataSet(object):
             intensity*=meanMonitor
             err*=meanMonitor
         else:
-            oneHourMonitor = (300000000)
+            oneHourMonitor = (100000000)
             intensity*=oneHourMonitor
             err*=oneHourMonitor
         
@@ -1696,10 +1696,11 @@ class DataSet(object):
         paramLines.append("")
         fileString = '\n'.join([titleLine,paramLine,paramLine2,dataLinesInt,dataLinesErr,fileList,*paramLines])
         
-        # get magnetic field
-        # get electric field
-        mag = "not defined"
-        elec = "not defined"
+        magneticFields = [df.magneticField for df in self]
+        mag = np.mean(magneticFields)
+
+        electricFields = [df.electricField for df in self]
+        elec = np.mean(electricFields)
         
         if outFile is None:
             saveFile = "DMC"
@@ -1712,9 +1713,9 @@ class DataSet(object):
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:5] + "K"
             if magneticField == True:
-                saveFile += "_" + mag + "T"
+                saveFile += "_" + str(mag) + "T"
             if electricField == True:
-                saveFile += "_" + elec + "keV"
+                saveFile += "_" + str(elec) + "keV"
             if waveLength == True:
                 saveFile += "_{}AA".format(str(wavelength).replace('.','p')[:5])
             if fileNumber == True:
@@ -1866,9 +1867,9 @@ class DataSet(object):
         if useMask is True:
             titleLine2 += " , anngular mask: " + str(maxAngle) + " deg." 
         if hourNormalization is False:
-            titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(oneHourMonitor)+', sample="'+samName+'"'
-        else:
             titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+', sample="'+samName+'"'
+        else:
+            titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(oneHourMonitor)+', sample="'+samName+'"'
        
         
         if outFile is None:
