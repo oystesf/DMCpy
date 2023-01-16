@@ -1599,7 +1599,7 @@ class DataSet(object):
             intensity*=meanMonitor
             err*=meanMonitor
         else:
-            oneHourMonitor = (100000000)
+            oneHourMonitor = (300000000)
             intensity*=oneHourMonitor
             err*=oneHourMonitor
         
@@ -1696,11 +1696,10 @@ class DataSet(object):
         paramLines.append("")
         fileString = '\n'.join([titleLine,paramLine,paramLine2,dataLinesInt,dataLinesErr,fileList,*paramLines])
         
-        magneticFields = [df.magneticField for df in self]
-        mag = np.mean(magneticFields)
-
-        electricFields = [df.electricField for df in self]
-        elec = np.mean(electricFields)
+        # get magnetic field
+        # get electric field
+        mag = "not defined"
+        elec = "not defined"
         
         if outFile is None:
             saveFile = "DMC"
@@ -1713,9 +1712,9 @@ class DataSet(object):
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:5] + "K"
             if magneticField == True:
-                saveFile += "_" + str(mag) + "T"
+                saveFile += "_" + mag + "T"
             if electricField == True:
-                saveFile += "_" + str(elec) + "keV"
+                saveFile += "_" + elec + "keV"
             if waveLength == True:
                 saveFile += "_{}AA".format(str(wavelength).replace('.','p')[:5])
             if fileNumber == True:
@@ -1753,13 +1752,17 @@ class DataSet(object):
             - Bins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.125)
             
             - outFile (str): String that will be used for outputfile. Default is automatic generated name.
+
             - outFolder (str): Path to folder data will be saved. Default is current working directory.
+
             - useMask (bool): export file with angular mask. Default is False
+
             - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
             
         - Arguments for automatic file name:
                 
             - sampleName (bool): Include sample name in filename. Default is True.
+
             - sampleTitle (bool): Include sample title in filename. Default is True.
         
             - temperature (bool): Include temperature in filename. Default is False.
@@ -1769,9 +1772,11 @@ class DataSet(object):
             - electricField (bool): Include electric field in filename. Default is False.
         
             - fileNumber (bool): Include sample number in filename. Default is False.
+
             - waveLength (bool): Include waveLength in filename. Default is False. 
             
         Kwargs for sumDetector:
+
             - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
                 
             - applyCalibration (bool): Use normalization files (default True)
@@ -1818,7 +1823,7 @@ class DataSet(object):
             intensity*=meanMonitor
             err*=meanMonitor
         else:
-            oneHourMonitor = (100000000)
+            oneHourMonitor = (300000000)
             intensity*=oneHourMonitor
             err*=oneHourMonitor
         
@@ -1847,12 +1852,6 @@ class DataSet(object):
         temperatures = np.array([df.temperature for df in self])
         meanTemp = np.mean(temperatures)
         
-        magneticFields = [df.magneticField for df in self]
-        mag = np.mean(magneticFields)
-
-        electricFields = [df.electricField for df in self]
-        elec = np.mean(electricFields)
-
         # fileNumbers = str(self.fileName) 
         # fileNumbers_short = str(int(self.fileName[0].split('n')[-1].split('.')[0]))  # 
         
@@ -1866,11 +1865,13 @@ class DataSet(object):
         titleLine2 = "# Filelist='dmc:{}:{}'".format(year,fileNumbers)
         if useMask is True:
             titleLine2 += " , anngular mask: " + str(maxAngle) + " deg." 
-        if hourNormalization is False:
-            titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+', sample="'+samName+'"'
-        else:
-            titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(oneHourMonitor)+', sample="'+samName+'"'
-       
+        titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
+
+            
+        # get magnetic field
+        # get electric field
+        mag = "not defined"
+        elec = "not defined"
         
         if outFile is None:
             saveFile = "DMC"
@@ -1883,9 +1884,9 @@ class DataSet(object):
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:5] + "K"
             if magneticField == True:
-                saveFile += "_" + str(mag) + "T"
+                saveFile += "_" + mag + "T"
             if electricField == True:
-                saveFile += "_" + str(elec) + "keV"
+                saveFile += "_" + elec + "keV"
             if waveLength == True:
                 saveFile += "_{}AA".format(str(wavelength).replace('.','p')[:5])
             if fileNumber == True:
@@ -1910,7 +1911,7 @@ class DataSet(object):
             sf.write(titleLine3+"\n") 
             np.savetxt(sf,saveData.T,delimiter='  ')
             sf.close()
-         
+        
 
     def updateDataFiles(self,key,value):
         if np.all([hasattr(df,key) for df in self]): # all datafiles have the key
@@ -2101,7 +2102,18 @@ class DataSet(object):
                 raise AttributeError('Neither dQx or xBins are set!')
             yBins = np.arange(-5,5,dQy)
         
-        totalRotMat,translation = _tools.calculateRotationMatrixAndOffset(points)
+        if rlu:
+            newPoints = [np.dot(self.sample[0].UB,point) for point in points]
+            for o,n in zip(points,newPoints):
+                print(' {} --> {}'.format(o,n))
+
+            xBins /= np.linalg.norm(newPoints[1]-newPoints[0])
+            yBins /= np.linalg.norm(newPoints[2]-newPoints[0])
+        else:
+            newPoints = points
+        #return None,None, None
+
+        totalRotMat,translation = _tools.calculateRotationMatrixAndOffset(newPoints)
         returndata = None
         for df in self:
             
@@ -2162,10 +2174,8 @@ class DataSet(object):
 
 
 
-    def plotQPlane(self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None,log=False,ax=None,rmcFile=False,**kwargs):
-        #self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=False,rmcFile=False,**kwargs
-        # self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None
-        # raise NotImplementedError('TODODODODODDO!!')
+    def plotQPlane(self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=False,rmcFile=False,**kwargs):
+        raise NotImplementedError('TODODODODODDO!!')
         """Wrapper for plotting tool to show binned intensities in the Q plane between provided Qz values.
             
             
@@ -2225,7 +2235,7 @@ class DataSet(object):
             cmap = None
 
 
-        returndata,bins,translation = self.cutQPlane(points=points,width=width,dQx=dQx,dQy=dQy,xBins=xBins,yBins=yBins,rlu=rlu,steps=steps)
+        returndata,bins = self.cutQPlane(QzMin=QzMin,QzMax=QzMax,xBinTolerance=xBinTolerance,yBinTolerance=yBinTolerance,steps=steps,rlu=rlu)
 
         if ax is None:
             if rlu:
@@ -2298,7 +2308,7 @@ class DataSet(object):
 
         ax.set_clim(vmin,vmax)
         
-        ax.QzMean = translation
+        ax.QzMean = 0.5*(QzMax+QzMin)
             
         if len(ax.Qx)!=0:
             xmin = np.min([np.min(qx) for qx in ax.Qx])
