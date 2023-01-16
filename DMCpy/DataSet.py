@@ -40,7 +40,7 @@ class DataSet(object):
     def _getData(self):
         # Collect parameters listed below across data files into self
         for parameter in ['counts','monitor','twoTheta','correctedTwoTheta','fileName','pixelPosition','wavelength','mask','normalization','normalizationFile','time','temperature']:
-            setattr(self,parameter,np.array([getattr(d,parameter) for d in self]))
+            setattr(self,parameter,np.array([getattr(d,parameter) for d in self],dtype=object))
 
         
         types = [df.fileType for df in self]
@@ -2157,7 +2157,7 @@ class DataSet(object):
         Qy =np.outer(np.ones_like(xBins),yBins)
         bins = [Qx,Qy]
 
-        return returndata,bins
+        return returndata,bins,translation
 
 
 
