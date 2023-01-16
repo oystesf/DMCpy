@@ -2100,8 +2100,18 @@ class DataSet(object):
             if dQy is None:
                 raise AttributeError('Neither dQx or xBins are set!')
             yBins = np.arange(-5,5,dQy)
+
+        if rlu:
+            newPoints = [np.dot(self.sample[0].UB,point) for point in points]
+            for o,n in zip(points,newPoints):
+                print(' {} --> {}'.format(o,n))
+
+            #xBins /= np.linalg.norm(newPoints[1]-newPoints[0])
+            #yBins /= np.linalg.norm(newPoints[2]-newPoints[0])
+        else:
+            newPoints = points
         
-        totalRotMat,translation = _tools.calculateRotationMatrixAndOffset(points)
+        totalRotMat,translation = _tools.calculateRotationMatrixAndOffset(newPoints)
         returndata = None
         for df in self:
             
