@@ -1,3 +1,7 @@
-C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/Powder\2D_Detector_Plot.rst
-C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/Powder\Powder_Diffractogram.rst
-C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials\Testing.rst
+C:\Users\lass_j\Documents\Software\DMCpy\docs/Tutorials\Make_Data_File.rst
+C:\Users\lass_j\Documents\Software\DMCpy\docs/Tutorials/Powder\2D_Detector_Plot.rst
+C:\Users\lass_j\Documents\Software\DMCpy\docs/Tutorials/Powder\Powder_Diffractogram.rst
+C:\Users\lass_j\Documents\Software\DMCpy\docs/Tutorials/Powder\ExportPowder.rst
+C:/Users/lass_j/Documents/Software/DMCpy/docs/Tutorials/View3D\Viewer3D.rst
+C:\Users\lass_j\Documents\Software\DMCpy\docs/Tutorials/View3D\Cut3D.rst
+C:\Users\lass_j\Documents\Software\DMCpy\docs/Tutorials\Testing.rst

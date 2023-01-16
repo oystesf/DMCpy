@@ -1,4 +1,6 @@
 import h5py as hdf
+import datetime
+from h5py._hl import attrs
 import numpy as np
 import pickle as pickle
 import matplotlib.pyplot as plt
@@ -6,16 +8,14 @@ import pandas as pd
 import DMCpy
 import os.path
 from DMCpy import InteractiveViewer
+from collections import defaultdict
+import warnings
 
 import copy
 from DMCpy import _tools
+from DMCpy import Sample
 
 scanTypes = ['Old Data','Powder','A3']
-class entry:
-    """Dummy class for h5py group entries"""
-    def __init__(self,**kwargs):
-        for item,value in kwargs:
-            setattr(self,item,value)
 
 def decode(item):
     """Test and decode item to utf8"""
@@ -27,65 +27,6 @@ def decode(item):
                     
     return item
 
-class h5pyReader:
-    """Custom class used to traverse hdf file and extract all data
-    
-    This object traverses the HDF file structure and creates a dummy
-    entry object for each layer. As H5PY do not traverse links already
-    visited, special care is to be taken!"""
-    def __init__(self,exclude=None):
-        """Initialize a reader with custom exclude
-        
-        Kwargs: 
-            - exclude (str): Exclude this first name (default None)"""
-        if exclude is None:
-            self.exclude = None
-        else:
-            self.exclude = exclude
-
-    def __call__(self, name, h5obj):
-        """Called by the hdf5 visititmes method"""
-        if name == self.exclude:
-            return
-        
-        
-        # Split names by '/' and replace - with _
-        name = name.replace('-','_').split('/')
-        if name[0] == self.exclude:
-            name = name[1:]
-        if len(name) == 0:
-            return 
-        
-        # Reverse name order to enable the use of pop
-        name = name[::-1]
-        
-        
-        # Find correct depth in object
-        obj = self
-        
-        while len(name) != 1: # Go through name and add entries for all missing links
-            # I.e: DMC/DMC_BF3_Detector/CounterMod -> 'CounterMode', 'DMC_BF3_Detector', 'DMC'
-            # add 'DMC' to obj, then 'DMC_BF3_Detector'
-            currentName = name.pop()
-            if not hasattr(obj,currentName):
-                obj.__dict__[currentName] = entry()
-            obj = getattr(obj,currentName) # get one level down object
-            
-        attributeName = name[0]
-        if attributeName == 'lambda':
-            attributeName = 'Lambda' # lambda is a key word in python
-        if hasattr(h5obj,'dtype'): 
-            obj.__dict__[attributeName] = np.array(h5obj)
-        
-        if not hasattr(obj,attributeName): # Add the group to the data
-            obj.__dict__[attributeName] = entry()
-        
-        for item,value in dict(h5obj.attrs).items():
-            try:
-                setattr(getattr(obj,attributeName),item,value)
-            except AttributeError: # cannot add things to numpy array.... alternatively add it by using _ instead
-                setattr(obj,'__'+attributeName+'_'+item,value)
-            
 
 @_tools.KwargChecker()
 def maskFunction(phi,maxAngle=10.0):
@@ -99,7 +40,7 @@ def maskFunction(phi,maxAngle=10.0):
 
         - maxAngle (float): Mask points greater than this or less than -maxAngle in degrees (default 10)
     """
-    return np.abs(phi)<maxAngle
+    return np.abs(phi)>maxAngle
 
 @_tools.KwargChecker()
 def findCalibration(fileName):
@@ -131,8 +72,13 @@ def findCalibration(fileName):
 
     # Calibration files do not cover the wanted year
     if not year in calibrationDict.keys():
-        raise FileNotFoundError('Calibration files for year {} (extracted from file name "{}") is'.format(year,fileName)+\
+        warnings.warn('Calibration files for year {} (extracted from file name "{}") is'.format(year,fileName)+\
             ' not covered in calibration tables. Please update to newest version by invoking "pip install --upgrade DMCpy"')
+        calibration = np.ones_like((128,1152))
+        calibrationName = 'None'
+        return calibration,calibrationName
+        #raise FileNotFoundError('Calibration files for year {} (extracted from file name "{}") is'.format(year,fileName)+\
+        #    ' not covered in calibration tables. Please update to newest version by invoking "pip install --upgrade DMCpy"')
 
     yearCalib = calibrationDict[year]
     
@@ -148,38 +94,278 @@ def findCalibration(fileName):
     calibration = yearCalib[calibrationName]
     return calibration,calibrationName
 
+# Custom class designed to perform a lazy q calculation. Usage:
+# All calculations are needed: q[None]
+# Only a specific slice is needed: q[:10]
+class lazyQ(object):
+    def __init__(self,rotationMatrix,q_temp):
+        self.rotationMatrix = rotationMatrix
+        self.q_temp = q_temp
+        
+    def __getitem__(self,sl=None):
+        return np.einsum('jki,k...->ji...',self.rotationMatrix[:,:,sl].reshape(3,3,-1),self.q_temp)
+
+
+HDFCounts = 'entry/DMC/detector/data'
+## Dictionary for holding hdf position of attributes. HDFTranslation['a3'] gives hdf position of 'a3'
+HDFTranslation = {'sample':'/entry/sample',
+                  'sampleName':'/entry/sample/name',
+                  'monitor':None,#'entry/monitor/monitor',
+                  'monitor1':'entry/monitor/monitor1',
+                  'unitCell':'/entry/sample/unit_cell',
+                  #'counts':'entry/DMC/detector/data',
+                  'summedCounts': 'entry/DMC/detector/summed_counts',
+                  'monochromatorCurvature':'entry/DMC/monochromator/curvature',
+                  'monochromatorVerticalCurvature':'entry/DMC/monochromator/curvature_vertical',
+                  'monochromatorGoniometerLower':'entry/DMC/monochromator/goniometer_lower',
+                  'monochromatorGoniometerUpper':'entry/DMC/monochromator/goniometer_upper',
+                  'monochromatorRotationAngle':'entry/DMC/monochromator/rotation_angle',
+                  'monochromatorTakeoffAngle':'entry/DMC/monochromator/takeoff_angle',
+                  'monochromatorTranslationLower':'entry/DMC/monochromator/translation_lower',
+                  'monochromatorTranslationUpper':'entry/DMC/monochromator/translation_upper',
+                  
+
+                  'wavelength':'entry/DMC/monochromator/wavelength',
+                  'wavelength_raw':'entry/DMC/monochromator/wavelength_raw',
+                  'twoThetaPosition':'entry/DMC/detector/detector_position',
+                  'mode':'entry/monitor/mode',
+                  'preset':'entry/monitor/preset',
+                  'startTime':'entry/start_time',
+                  'time':'Henning',# Is to be caught by HDFTranslationAlternatives 'entry/monitor/time',
+                  'endTime':'entry/end_time',
+                  'comment':'entry/comment',
+                  'proposal':'entry/proposal_id',
+                  'proposalTitle':'entry/proposal_title',
+                  'localContact':'entry/local_contact/name',
+                  'proposalUser':'entry/proposal_user/name',
+                  'proposalEmail':'entry/proposal_user/email',
+                  'user':'entry/user/name',
+                  'email':'entry/user/email',
+                  'address':'entry/user/address',
+                  'affiliation':'entry/user/affiliation',
+                  'A3':'entry/sample/rotation_angle',
+                  'se_r':'entry/sample/se_r',
+                  'temperature':'entry/sample/temperature',
+                  'magneticField':'entry/sample/magnetic_field',
+                  'electricField':'entry/sample/electric_field',
+                  'scanCommand':'entry/scancommand',
+                  'title':'entry/title',
+                  'absoluteTime':'entry/control/absolute_time',
+                  'protonBeam':None# 'entry/proton_beam/data'
+}
+
+HDFTranslationAlternatives = { # Alternatives to the above list. NOTTICE: The above positions are not checked if an entry in HDFTranslationAlternatives is present
+    'time':['entry/monitor/time','entry/monitor/monitor'],
+    'monitor':['entry/monitor/monitor','entry/monitor/monitor2'],
+    'protonBeam':['entry/proton_beam/data','entry/monitor/proton_charge']
+}
+
+## Dictionary for holding standard values 
+
+HDFTranslationDefault = {'twoThetaPosition':np.array([0.0]),
+                         'comment': 'No Comments',
+                         'endTime': '20yy-mm-dd hh:mm:ss',
+                         'proposalTitle': 'Unknown Title',
+                         'localContact': 'Unknown Local Contact',
+                         'proposalUser': 'Unknown User',
+                         'proposalEmail': 'Unknown Email',
+                         'address': 'Unknown Address',
+                         'affiliation': 'Unknown Affiliation',
+                         'scanCommand': 'Unknown scanCommand',
+
+                         'wavelength_raw':np.array([2.0]),
+                         'monitor1':np.array([0.0]),
+
+                         'temperature': np.array([0.0]),
+                         'magneticField': np.array([0.0]),
+                         'electricField': np.array([0.0]),
+
+                         'absoluteTime': np.array([0.0]),
+                         'protonBeam': np.array([0.0]),
+                         'se_r': np.array([0.0]),
+                         
+                         
+
+}
+
+## Default dictionary to perform on loaded data, i.e. take the zeroth element, swap axes, etc
+
+HDFTranslationFunctions = defaultdict(lambda : [])
+HDFTranslationFunctions['sampleName'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['mode'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['startTime'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['wavelength'] = [['mean',[]]]
+HDFTranslationFunctions['wavelength_raw'] = [['mean',[]]]
+HDFTranslationFunctions['twoThetaPosition'] = [['__getitem__',[0]]]
+HDFTranslationFunctions['endTime'] = [['__getitem__',[0]]]
+HDFTranslationFunctions['experimentalIdentifier'] = [['__getitem__',[0]]]
+HDFTranslationFunctions['comment'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['proposal'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['proposalTitle'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['localContact'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['proposalUser'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['proposalEmail'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['user'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['email'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['address'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['affiliation'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['scanCommand'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['title'] = [['__getitem__',[0]],['decode',['utf8']]]
+
+
+
+HDFInstrumentTranslation = {
+}
+
+HDFInstrumentTranslationFunctions = defaultdict(lambda : [])
+# HDFInstrumentTranslationFunctions['counts'] = [['swapaxes',[1,2]]]
+HDFInstrumentTranslationFunctions['twoThetaPosition'] = [['mean',]]
+HDFInstrumentTranslationFunctions['wavelength'] = [['mean',]]
+HDFInstrumentTranslationFunctions['wavelength_raw'] = [['mean',]]
+
+extraAttributes = ['name','fileLocation']
+
+possibleAttributes = list(HDFTranslation.keys())+list(HDFInstrumentTranslation.keys())+extraAttributes
+possibleAttributes.sort(key=lambda v: v.lower())
+
+HDFTypes = defaultdict(lambda: lambda x: np.array([np.string_(x)]))
+HDFTypes['monitor'] = np.array
+HDFTypes['monitor1'] = np.array
+HDFTypes['monochromatorCurvature'] = np.array
+HDFTypes['monochromatorVerticalCurvature'] = np.array
+HDFTypes['monochromatorGoniometerLower'] = np.array
+HDFTypes['monochromatorGoniometerUpper'] = np.array
+HDFTypes['monochromatorRotationAngle'] = np.array
+HDFTypes['monochromatorTakeoffAngle'] = np.array
+HDFTypes['monochromatorTranslationLower'] = np.array
+HDFTypes['monochromatorTranslationUpper'] = np.array
+HDFTypes['wavelength'] = np.array
+HDFTypes['wavelength_raw'] = np.array
+HDFTypes['twoThetaPosition'] = np.array
+# HDFTypes['mode'] = lambda x: np.array([np.string_(x)])
+HDFTypes['preset'] = np.array
+# HDFTypes['startTime'] = np.string_
+HDFTypes['time'] = np.array
+# HDFTypes['endTime'] = np.string_
+# HDFTypes['comment'] = np.string_
+HDFTypes['absoluteTime'] = np.array
+HDFTypes['protonBeam'] = np.array
+
+
+HDFUnits = {
+    'monitor':'counts',
+    'monochromatorCurvature':'degree',
+    'monochromatorVerticalCurvature':'degree',
+    'monochromatorGoniometerLower':'degree',
+    'monochromatorGoniometerUpper':'degree',
+    'monochromatorRotationAngle':'degree',
+    'monochromatorTakeoffAngle':'degree',
+    'monochromatorTranslationLower':'mm',
+    'monochromatorTranslationUpper':'mm',
+    'twoThetaPosition':'degree',
+    'monitor':'counts',
+    'monitor1':'counts',
+    'protonBeam':'uA',
+    'wavelength':'A',
+    'wavelength_raw':'A'
+}
+
+
+
+def getNX_class(x,y,attribute):
+    try:
+        variableType = y.attrs['NX_class']
+    except:
+        variableType = ''
+    if variableType==attribute:
+        return x
+
+def getInstrument(file):
+    location = file.visititems(lambda x,y: getNX_class(x,y,b'NXinstrument'))
+    return file.get(location)
+
+
+@_tools.KwargChecker(include=['radius','twoTheta','verticalPosition','twoThetaPosition']+list(HDFTranslation.keys()))
+def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
+    """Load DMC data file, either powder or single crystal data.
+    
+    
+    """
+
+    if fileLocation is None:
+        return DataFile()
+
+    if isinstance(fileLocation,(DataFile)):
+        if fileLocation.fileType.lower() == 'powder':
+            return PowderDataFile(fileLocation)
+        elif fileLocation.fileType.lower() == 'singlecrystal':
+            return SingleCrystalDataFile(fileLocation)
+        else:
+            return DataFile(fileLocation)
+    elif not os.path.exists(fileLocation): # load file from disk
+        raise FileNotFoundError('Provided file path "{}" not found.'.format(fileLocation))
+
+    A3 = shallowRead([fileLocation],['A3'])[0]['A3']
+
+    se_r = shallowRead([fileLocation],['se_r'])[0]['se_r']
+    
+    T = 'Unknown' # type of datafile
+
+    if A3 is None: # there is no A3 values at all
+        T = 'powder'
+        
+    elif len(A3) == 1 and se_r.any() is None:
+        T = 'powder'
+    else:
+        T = 'singlecrystal'
+
+    ## here be genius function to determine type of data
+    
+    if fileType.lower() == 'powder' or T == 'powder':
+        df = PowderDataFile(fileLocation)
+    elif fileType.lower() == 'singlecrystal' or T == 'singlecrystal':
+        df = SingleCrystalDataFile(fileLocation)
+    else:
+        df = DataFile(fileLocation)
+
+    
+    repeats = df.countShape[1]
+    # Insert standard values if not present in kwargs
+    if not 'radius' in kwargs:
+        kwargs['radius'] = 0.8
+
+    if not 'verticalPosition' in kwargs:
+        kwargs['verticalPosition'] = np.linspace(-0.1,0.1,repeats,endpoint=True)
+
+    # Overwrite parameters provided in the kwargs
+    for key,item in kwargs.items():
+        setattr(df,key,item)
+        
+    if 'twoThetaPosition' in kwargs:
+        if not 'twoTheta' in kwargs:
+            df.twoTheta = np.linspace(0,-132,9*128)+df.twoThetaPosition
+        else:
+            df.twoTheta = kwargs['twoTheta']
+    elif 'twoTheta' in kwargs:
+        df.twoTheta = kwargs['twoTheta']
+    
+    df.initializeQ()
+    df.loadNormalization()
+
+    year,month,date = [int(x) for x in df.startTime.split(' ')[0].split('-')]
+    if year == 2022:
+        df.mask[0,-2,:] = True
+
+    return df
+
+
+
 class DataFile(object):
-    @_tools.KwargChecker(include=['radius','data','twoThetaPosition','A3','verticalPosition','Monitor','waveLength'])
-    def __init__(self, file=None,**kwargs):
-        """DataFile object holding all data from a single DMC powder scan file
-
-        Kwargs:
-
-            - file (string or object): File path or file object (default None)
-
-            - other kwargs will be used to overwrite values otherwise loaded from file. Following are possible to overwrite:
-
-                - radius (float)
-
-                - data (int shaped (n,128,1152))
-
-                - twoThetaPosition (float shaped (1), i.e. np.array([0.0]))
-
-                - A3 (float shaped (n))
-
-                - verticalPosition (float shaped (128))
-
-                - Monitor (float shaped (n))
-
-                - waveLength (float)
-
-        If a file path is given data is loaded into this object. If an existing DataFile object
-        is provided, its data is copied into the new object.
-
-        """
-
-        self._debugging = False
-        self.kwargs = kwargs
+    @_tools.KwargChecker()
+    def __init__(self, file=None):
+        self.fileType = 'DataFile'
+        self._twoThetaOffset = 0.0
+        self._counts = None
 
         if not file is None: 
             if isinstance(file,DataFile): # Copy everything from provided file
@@ -191,14 +377,7 @@ class DataFile(object):
 
 
             else:
-                if not file == 'DEBUG': # If testing is activated load a dummy data file
-                    raise FileNotFoundError('Provided file path "{}" not found.'.format(file))
-
-                self._debugging = True
-                self.folder = None
-                self.fileName = None
-
-
+                raise FileNotFoundError('Provided file path "{}" not found.'.format(file))
 
     @_tools.KwargChecker()
     def loadFile(self,filePath):
@@ -207,120 +386,70 @@ class DataFile(object):
 
         self.folder, self.fileName = os.path.split(filePath)
 
+        # setup standard parameters
+
+        self._wavelength = 0.0
+
+
         # Open file in reading mode
         with hdf.File(filePath,mode='r') as f:
-            bulkData = h5pyReader(exclude='entry')
-            f.visititems(bulkData) 
 
-            if 'entry/data' in f: # data1 is not included as it only contains soft links
-                data1 = h5pyReader()
-                f['entry/data'].visititems(data1)
-                bulkData.data1 = data1
+            self.sample = Sample.Sample(sample=f.get(HDFTranslation['sample']))
+            self.countShape = f.get(HDFCounts).shape
+            # load standard things using the shallow read
+            instr = getInstrument(f)
+            for parameter in HDFTranslation.keys():
+                if parameter in ['unitCell','sample','unitCell']:
+                    continue
+                if parameter in HDFTranslationAlternatives:
+                    for entry in HDFTranslationAlternatives[parameter]:
+                        value = np.array(f.get(entry))
+                        if not value.shape == ():
+                            break
 
-        self.updateProperty(bulkData.__dict__)
+                elif parameter in HDFTranslation:
+                    value = np.array(f.get(HDFTranslation[parameter]))
+                    TrF= HDFTranslationFunctions
+                elif parameter in HDFInstrumentTranslation:
+                    value = np.array(instr.get(HDFInstrumentTranslation[parameter]))
+                    TrF= HDFInstrumentTranslationFunctions
 
-        # copy important paramters to correct position
-        self.radius = self.kwargs.get('radius',0.8)
-        
-        countShape = self.DMC.detector.data.shape
-        if len(countShape) == 2:
-            self.scanType = 'Powder'
-            self.counts = self.kwargs.get('data',self.DMC.detector.data)
-            
-            self.counts.shape = (1,*self.counts.shape)
-            
-            try:
-                self.twoThetaPosition = self.kwargs.get('twoThetaPosition',self.DMC.detector.detector_position)
-            except AttributeError:
-                self.twoThetaPosition = np.array([0.0])
-            self.twoTheta = np.linspace(0,132,self.counts.shape[2])
-            if not np.isnan(self.twoThetaPosition[0]):
-                self.twoTheta+=self.twoThetaPosition
-            
-            try:
-                self.A3 = self.kwargs.get('A3',self.sample.rotation_angle)
-            except AttributeError:
-                pass
-        elif len(countShape) == 3: # We have 3D data! Assume A3 scan with shape (step,128*9,height)
-            self.counts = self.kwargs.get('data',self.DMC.detector.data)
-            self.A3 = self.kwargs.get('A3',self.sample.rotation_angle)
+                if value.shape == () or value is None:
+                    value = HDFTranslationDefault[parameter]
 
-            if not len(self.A3) == countShape[0]:
-                self.A3 = self.A3[:-1]
-
-                #raise AttributeError("Scan performed is not an A3 scan... Sorry, I can't work with this....")
-
-            if np.diff(self.A3).mean()>0:
-                self.scanType = 'A3'
-            else:
-                raise AttributeError('Scan is not A3!')
-
-            try:
-                self.twoThetaPosition = self.kwargs.get('twoThetaPosition',self.DMC.detector.detector_position)
-            except AttributeError:
-                self.twoThetaPosition = self.kwargs.get('twoThetaPosition',np.array([0.0]))
-
-            self.twoThetaPosition = self.twoThetaPosition[0]
-            self.twoTheta = np.linspace(0,132,self.counts.shape[2])+self.twoThetaPosition
-            
-            
+                else:
+                    for func,args in TrF[parameter]:
+                        value = getattr(value,func)(*args)
+                
+                setattr(self,parameter,value)
+                
+        self.countShape = (1,*self.countShape) # Standard shape
+    
+    def initializeQ(self):
+        if len(self.twoTheta.shape) == 2:
+            self.twoTheta, z = np.meshgrid(self.twoTheta[0].flatten(),self.verticalPosition,indexing='xy')
         else:
-            raise AttributeError('Data file format not understood. Size of counts is {}...'.format(self.DMC.detector.data.shape))
-
-        
-        repeats = self.counts.shape[1]
-        verticalPosition = self.kwargs.get('verticalPosition',np.linspace(-0.1,0.1,repeats,endpoint=True))
-        
-        
-        self.twoTheta, z = np.meshgrid(self.twoTheta.flatten(),verticalPosition,indexing='xy')
-        
-
-        
+            self.twoTheta, z = np.meshgrid(self.twoTheta.flatten(),self.verticalPosition,indexing='xy')
+            
         self.pixelPosition = np.array([self.radius*np.cos(np.deg2rad(self.twoTheta)),
                                     -self.radius*np.sin(np.deg2rad(self.twoTheta)),
-                                    z]).reshape(3,*self.counts.shape[1:])
+                                    z]).reshape(3,*self.countShape[1:])
         
         
-        self.Monitor = self.kwargs.get('Monitor',self.monitor)
-        self.monitor = self.monitor.monitor[0]
-        if self.monitor == np.array([0]): # error mode from commissioning
-            self.monitor = np.ones(self.counts.shape[0])
-        self.waveLength = self.kwargs.get('waveLength',self.DMC.monochromator.wavelength[0])
-        #self.correctedTwoTheta = np.rad2deg(np.arccos(self.pixelPosition[0]/(np.linalg.norm(self.pixelPosition,axis=0))))
+        #self.Monitor = self.monitor
+        
+        if np.any(np.isclose(self.monitor,0)): # error mode from commissioning
+            self.monitor = np.ones(self.countShape[0])
+        
         self.alpha = np.rad2deg(np.arctan2(self.pixelPosition[2],self.radius))
-
-        Ki = 2*np.pi/self.waveLength # length of ki
-        self.ki = np.array([Ki,0.0,0.0]) # along ki with x
-        self.ki.shape = (3,1,1)
-
-        self.kf = Ki * np.array([np.cos(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
-                                    -np.sin(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
-                                    np.sin(np.deg2rad(self.alpha))])
-        self.q = self.ki-self.kf   
+        # Above line makes an implicit call to the self.calculateQ method!
         
-        if len(self.DMC.detector.data.shape) == 3: # A3 Scan
-            # rotate kf to correct for A3
-            zero = np.zeros_like(self.A3)
-            ones = np.ones_like(self.A3)
-            rotMat = np.array([[np.cos(np.deg2rad(self.A3)),np.sin(np.deg2rad(self.A3)),zero],[-np.sin(np.deg2rad(self.A3)),np.cos(np.deg2rad(self.A3)),zero],[zero,zero,ones]])
-            q_temp = self.ki-self.kf
-
-            self.q = np.einsum('jki,k...->ji...',rotMat,q_temp)
-            
-        
-
-        self.Q = np.linalg.norm(self.q,axis=0)
-        
-
-        self.correctedTwoTheta = 2.0*np.rad2deg(np.arcsin(self.waveLength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
-        
-        self.phi = np.rad2deg(np.arctan2(self.q[2],np.linalg.norm(self.q[:2],axis=0)))
-
-        
-
+        self.calculateQ()
         self.generateMask(maskingFunction=None)
-            # Create a mask only containing False as to signify all points are allowed
 
+
+    
+    def loadNormalization(self):
         # Load calibration
         try:
             self.normalization, self.normalizationFile = findCalibration(self.fileName)
@@ -328,34 +457,151 @@ class DataFile(object):
             self.normalizationFile = 'None'
 
         if self.normalizationFile == 'None':
-            self.normalization = np.ones_like(self.counts,dtype=float)
+            self.normalization = np.ones(self.countShape,dtype=float)
         else:
             
-            if self.scanType == "A3": # A3 scan
-                self.normalization = np.repeat(self.normalization[np.newaxis],self.counts.shape[0],axis=0)
-                self.normalization = self.normalization.transpose(0,2,1)
+            if self.fileType.lower() == "singlecrystal": # A3 scan
+                self.normalization = self.normalization#np.repeat(self.normalization[np.newaxis],self.countShape[0],axis=0)
+                #self.normalization.shape = self.countShape
+                #self.normalization = self.normalization.reshape(self.countShape)
             else:
-                self.normalization.shape = self.counts.shape
+                self.normalization = self.normalization.reshape(self.countShape)
 
-        if hasattr(self,'sample'):
-            # If no temperature is saved in sample.sample_temperature
-            if not hasattr(self.sample,'sample_temperature'):
-                #print('No temperature... Adding zero then')
-                self.sample.sample_temperature = np.array([0])
-            if not hasattr(self.sample,'sample_name'):
-                self.sample.sample_name = 'UNKNONW'
-            #else:
-            #    print('Well all is good?')
-        self.time = self.Monitor.time
-    #else:
-    #    raise NotImplementedError("Expected data file to originate from DMC...")
+    def __len__(self):
+        if not hasattr(self,'countShape'):
+            if hasattr(self,'counts'):
+                self.countShape = self.counts.shape[0]
+            else:
+                return 0
+        return self.countShape[0]
 
-    def generateMask(self,maskingFunction = maskFunction, **pars):
-        """Generate maks to applied to data in data file
+    @property
+    def A3(self):
+        return self.sample.rotation_angle
+
+    @A3.getter
+    def A3(self):
+        if not hasattr(self.sample,'rotation_angle'):
+            self.sample.rotation_angle = np.array([0.0]*len(self.monitor))
+        return self.sample.rotation_angle
+        
+
+    @A3.setter
+    def A3(self,A3):
+        if A3 is None:
+            self.sample.rotation_angle = np.array([0.0]*len(self.monitor))
+        else:
+            self.sample.rotation_angle = A3
+        if hasattr(self,'ki'):
+            self.calculateQ()
+    
+
+    @property
+    def twoThetaPosition(self):
+        return self._detector_position
+
+    @twoThetaPosition.getter
+    def twoThetaPosition(self):
+        if not hasattr(self,'_detector_position'):
+            self._detector_position = np.array([0.0])
+        return self._detector_position+self.twoThetaOffset
+
+    @twoThetaPosition.setter
+    def twoThetaPosition(self,twoTheta):
+        if twoTheta is None:
+            self._detector_position = np.array([0.0]*len(self.A3))
+        elif np.isnan(twoTheta):
+            self._detector_position = np.array([0.0]*len(self.A3))
+        else:
+            self._detector_position = np.asarray(twoTheta)
+        self.twoTheta = np.repeat((np.linspace(0,-132,1152) + self._detector_position + self._twoThetaOffset)[np.newaxis],self.countShape[1],axis=0)
+        if hasattr(self,'_Ki') and hasattr(self,'twoTheta'):
+            self.calculateQ()
+
+    
+
+    @property
+    def Ki(self):
+        return self._Ki
+
+    @Ki.getter
+    def Ki(self):
+        return self._Ki
+
+    @Ki.setter
+    def Ki(self,Ki):
+        self._Ki = Ki
+        self.wavelength = np.full_like(self.wavelength,2*np.pi/Ki)
+        self.calculateQ()
+
+    @property
+    def twoThetaOffset(self):
+        return self._twoThetaOffset
+
+    @twoThetaOffset.getter
+    def twoThetaOffset(self):
+        return self._twoThetaOffset
+
+    @twoThetaOffset.setter
+    def twoThetaOffset(self,dTheta):
+        self._twoThetaOffset = dTheta
+        self.twoTheta = np.repeat((np.linspace(0,132,1152) + self._detector_position + self._twoThetaOffset)[np.newaxis],self.countShape[1],axis=0)
+        self.calculateQ()
+
+    @property
+    def wavelength(self):
+        return self._wavelength
+
+    @wavelength.getter
+    def wavelength(self):
+        if not hasattr(self,'_wavelength'):
+            self._wavelength = 0.0
+        return self._wavelength
+
+    @wavelength.setter
+    def wavelength(self,wavelength):
+        self._wavelength = wavelength
+        self._Ki = 2*np.pi/wavelength
+        self.calculateQ()
+    
+    def calculateQ(self):
+        """Calculate Q and qx,qy,qz using the current A3 values"""
+        if not (hasattr(self,'Ki') and hasattr(self,'twoTheta')
+                and hasattr(self,'alpha') and hasattr(self,'A3')):
+            return 
+        self.ki = np.array([0.0,self.Ki,0.0]) # along ki=2pi/lambda with x
+        self.ki.shape = (3,1,1)
+
+        self.kf = self.Ki * np.array([-np.sin(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
+                                    np.cos(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
+                                    np.sin(np.deg2rad(self.alpha))])
+           
+        if self.fileType.lower() == 'singlecrystal': # A3 Scan
+            # rotate kf to correct for A3
+            zero = np.zeros_like(self.A3)
+            ones = np.ones_like(self.A3)
+            self.rotMat = np.array([[np.cos(np.deg2rad(self.A3)),np.sin(np.deg2rad(self.A3)),zero],[-np.sin(np.deg2rad(self.A3)),np.cos(np.deg2rad(self.A3)),zero],[zero,zero,ones]])
+            self.q_temp = self.ki-self.kf
+
+            self.q = lazyQ(self.rotMat, self.q_temp)
+
+            self.Q = np.linalg.norm(self.q[None],axis=0)
+        else:
+            self.qLocal = self.ki-self.kf
+            self.Q = np.array([np.linalg.norm(self.qLocal,axis=0)])
+
+        #self.correctedTwoTheta = 2.0*np.rad2deg(np.arcsin(self.wavelength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
+        
+        
+
+    def generateMask(self,maskingFunction = maskFunction, replace=True, **pars):
+        """Generate mask to applied to data in data file
         
         Kwargs:
 
             - maskingFunction (function): Function called on self.phi to generate mask (default maskFunction)
+
+            - replace (bool): If true new mask replaces old one, otherwise add together (default True)
 
         All other arguments are passed to the masking function.
 
@@ -367,9 +613,15 @@ class DataFile(object):
             raise RuntimeError('DataFile does not contain any counts. Look for self.counts but found nothing.')
 
         if maskingFunction is None:
-            self.mask = np.ones_like(self.counts,dtype=bool)
+            if replace:
+                self.mask = np.zeros(self.countShape,dtype=bool)
+            else:
+                self.mask += np.zeros(self.countShape,dtype=bool)
         else:
-            self.mask = maskingFunction(self.phi,**pars)
+            if replace:
+                self.mask = maskingFunction(self.phi,**pars).reshape(*self.countShape)
+            else:
+                self.mask += maskingFunction(self.phi,**pars).reshape(*self.countShape)
         
         
 
@@ -381,53 +633,21 @@ class DataFile(object):
                 if key == 'kwargs': # copy kwargs directly and continue
                     self.kwargs = item
                     continue
-                if isinstance(item,entry):
-                    for key2,item2 in item.__dict__.items():
-                        item.__dict__[key2] = decode(item2)
-                else:
-                    item = decode(item)
-                    
+                item = decode(item)
                 self.__setattr__(key,copy.deepcopy(item))
         else:
             raise AttributeError('Provided argument is not of type dictionary. Received instance of type {}'.format(type(dictionary)))
 
 
-    def __eq__(self,other):
-        return len(self.difference(other))==0
-
-
-    def difference(self,other,keys = set(['fileName','folder'])):
-        """Return the difference between two data files by keys"""
-        dif = []
-        if not set(self.__dict__.keys()) == set(other.__dict__.keys()): # Check if same generation and type (hdf or nxs)
-            return list(set(self.__dict__.keys())-set(other.__dict__.keys()))
-
-        comparisonKeys = keys
-        for key in comparisonKeys:
-            skey = self.__dict__[key]
-            okey = other.__dict__[key]
-            if isinstance(skey,np.ndarray):
-                try:
-                    if not np.all(np.isclose(skey,okey)):
-                        if not np.all(np.isnan(skey),np.isnan(okey)):
-                            dif.append(key)
-                except (TypeError, AttributeError,ValueError):
-                    if np.all(skey!=okey):
-                        dif.append(key)
-            elif not np.all(self.__dict__[key]==other.__dict__[key]):
-                dif.append(key)
-        return dif
-
-
     @_tools.KwargChecker(function=plt.errorbar,include=_tools.MPLKwargs)
-    def plotDetector(self,ax=None,applyNormalization=True,**kwargs):
+    def plotDetector(self,ax=None,applyCalibration=True,**kwargs):
         """Plot intensity as function of twoTheta (and vertical position of pixel in 2D)
 
         Kwargs:
 
             - ax (axis): Matplotlib axis into which data is plotted (default None - generates new)
 
-            - applyNormalization (bool): If true, take detector efficiency into account (default True)
+            - applyCalibration (bool): If true, take detector efficiency into account (default True)
 
             - All other key word arguments are passed on to plotting routine
 
@@ -439,23 +659,24 @@ class DataFile(object):
             fig = ax.get_figure()
 
         
-        intensity = self.counts/self.monitor.reshape(-1,1,1)
-        if applyNormalization:
-            intensity*=1.0/self.normalization
+        if applyCalibration:
+            intensity=self.intensity/self.monitor.reshape(-1,1,1)#1.0/self.normalization
 
         count_err = np.sqrt(self.counts)
         intensity_err = count_err/self.monitor.reshape(-1,1,1)
-        if applyNormalization:
-            intensity_err*=1.0/self.normalization
+        if applyCalibration:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                intensity_err*=1.0/self.normalization
  
 
 
         # If data is one dimensional
         if self.twoTheta.shape[1] == 1:
             if not 'fmt' in kwargs:
-                kwargs['fmt'] = '.-'
+                kwargs['fmt'] = '_'
 
-            ax._err = ax.errorbar(self.twoTheta[self.mask],intensity[self.mask],intensity_err[self.mask],**kwargs)
+            ax._err = ax.errorbar(self.twoTheta[np.logical_not(self.mask)],intensity[np.logical_not(self.mask)],intensity_err[np.logical_not(self.mask)],**kwargs)
             ax.set_xlabel(r'$2\theta$ [deg]')
             ax.set_ylabel(r'Counts/mon [arb]')
 
@@ -474,7 +695,7 @@ class DataFile(object):
             ax.format_coord = lambda format_xdata,format_ydata:format_coord(ax,format_xdata,format_ydata)
         else: # plot a 2D image with twoTheta vs z
             # Set all masked out points to Nan
-            intensity[np.logical_not(self.mask)] = np.nan
+            intensity[self.mask] = np.nan
 
             if 'colorbar' in kwargs:
                 colorbar = kwargs['colorbar']
@@ -495,23 +716,280 @@ class DataFile(object):
         return ax
 
     @_tools.KwargChecker()
-    def save(self,filePath):
+    def save(self,filePath,compression=6):
         """Save data file in hdf format.
         
         Args:
 
             - filePath (path): Path into which file is to be saved
 
+        Kwargs:
+
+            - compression (int): Compression level used by gzip
+
         """
         if os.path.exists(filePath):
             raise AttributeError('File already exists! ({})'.format(filePath))
 
+        
+        with hdf.File(filePath,'w') as f:
+    
+            # Create correct header info
+            f.attrs['NeXus_Version'] = np.string_('4.4.0')
+            f.attrs['file_name'] = np.string_(filePath)
+            
+            
+            cT = datetime.datetime.now()
+            
+            f.attrs['file_time'] = np.string_('{}-{}-{} {}:{}:{}'.format(cT.year,cT.month,cT.day,cT.hour,cT.minute,cT.second))
+            f.attrs['instrument'] = np.string_('DMC')
+            f.attrs['owner'] = np.string_('Lukas Keller <lukas.keller@psi.ch>')
+
+            entry = f.create_group('entry')
+            entry.attrs['NX_class'] = np.string_('NXentry')
+            entry.attrs['default'] = np.string_('data')
+
+            # Generate file structure
+            DMC = entry.create_group('DMC')
+            DMC.attrs['NX_class'] = np.string_('NXinstrument')
+            
+            SINQ = DMC.create_group('SINQ')
+            SINQ.attrs['NX_class'] = np.string_('NXsource')
+            SINQ.attrs['name'] = np.string_('SINQ')
+            SINQ.attrs['type'] = np.string_('Continuous flux spallation source')
+            
+            detector = DMC.create_group('detector')
+            detector.attrs['NX_class'] = np.string_('NXdetector')
+
+            if self.fileType.lower() != 'singlecrystal':
+                position = detector.create_dataset('detector_position',data=np.array(self.twoThetaPosition))
+            else:
+                position = detector.create_dataset('detector_position',data=np.full(len(self),self.twoThetaPosition))
+            
+            position.attrs['units'] = np.string_('degree')
+
+            summedCounts = detector.create_dataset('summed_counts',data=self.counts.sum(axis=0))
+            summedCounts.attrs['units'] = np.string_('counts')
+            
+            
+            # Generate structure of file
+            
+            
+            
+            mono = DMC.create_group('monochromator')
+            mono.attrs['NX_class'] = np.string_('NXmonochromator')
+            mono.attrs['type'] = np.string_('Pyrolytic Graphite')
+            
+            wavelength = mono.create_dataset('wavelength',data=np.array([self.wavelength]))
+            wavelength.attrs['units'] = 'A'
+            
+            # data
+            data = entry.create_group('data')
+            data.attrs['NX_class'] = np.string_('NXdata')
+            data.attrs['signal'] = np.string_('data')
+            
+            Monitor = entry.create_group('monitor')
+            Monitor.attrs['NX_class'] = np.string_('NXmonitor')
+            
+            
+            user = entry.create_group('user')
+            user.attrs['NX_class'] = np.string_('NXuser')
+            
+            
+            for key,value in HDFTranslation.items():
+                if key in ['counts','summedCounts','wavelength','detector_position','twoThetaPosition']: continue
+                if 'sample' in value: continue
+                selfValue = HDFTypes[key](getattr(self,key))
+                
+                newEntry = f.create_dataset(value,data=selfValue)
+                if key in HDFUnits:
+                    newEntry.attrs['units'] = np.string_(HDFUnits[key])
+
+                    
+            
+            sample = entry.create_group('sample')
+            sample.attrs['NX_class'] = np.string_('NXsample')
+            
+            a3 = sample.create_dataset('rotation_angle',data=self.A3)
+            a3.attrs['units'] = 'degree'
+            
+            self.sample.saveToHdf(sample)
+            
+            
+            
+            # data
+            data = entry['data']
+            data.attrs['NX_class'] = np.string_('NXdata')
+            data.attrs['signal'] = np.string_('data')
+            
+            if self.fileType.lower() != 'singlecrystal':
+                Data = data.create_dataset('data',data=self.counts[0],compression=compression)
+            else:
+                Data = data.create_dataset('data',data=self.counts,compression=compression)
+            Data.attrs['units'] = np.string_('A')
+            
+            # Create link to data in the right place
+            data = detector['data'] = Data
+            data.attrs['signal'] = np.int32(1)
+            data.attrs['target'] = np.string_('/entry/DMC/detector/data')
+
+            
+            entry['monitor/monitor'].attrs['units'] = np.string_('counts')
+
+
+    def __eq__(self,other):
+        return len(self.difference(other))==0
+    
+    def difference(self,other,keys = set(['sample.name','wavelength','counts','A3','twoTheta','fileType','monitor'])):
+        """Return the difference between two data files by keys"""
+        dif = []
+        if not set(self.__dict__.keys()) == set(other.__dict__.keys()): # Check if same generation and type (hdf or nxs)
+            return list(set(self.__dict__.keys())-set(other.__dict__.keys()))
+
+        comparisonKeys = keys
+        for key in comparisonKeys:
+            skey = self
+            okey = other
+            while '.' in key:
+                baseKey,*keys = key.split('.')
+                skey = getattr(skey,baseKey)
+                okey = getattr(okey,baseKey)
+                key = '.'.join(keys)
+            if isinstance(skey,np.ndarray):
+                try:
+                    if not np.all(np.isclose(skey,okey)):
+                        if not np.all(np.isnan(skey),np.isnan(okey)):
+                            dif.append(key)
+                except (TypeError, AttributeError,ValueError):
+                    if np.all(skey!=okey):
+                        dif.append(key)
+            elif not np.all(getattr(skey,key)==getattr(okey,key)):
+                dif.append(key)
+        return dif
+
+
+    @property
+    def counts(self):
+        if self._counts is None:
+            with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
+                return np.array(f.get(HDFCounts)).reshape(self.countShape)
+        else:
+            return self._counts.reshape(self.countShape)
+    
+    def countsSliced(self,sl):
+        if self._counts is None:
+            with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
+                return np.array(f.get(HDFCounts)[sl])
+        else:
+            return self._counts[sl]
+            
 
     @property
     def intensity(self):
-        return np.divide(self.counts,self.normalization)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            if self.fileType.lower() == 'singlecrystal':
+                return np.divide(self.counts,self.normalization[np.newaxis])
+            else:
+                return np.divide(self.counts,self.normalization)
+
+    
+    def intensitySliced(self,sl):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            if self.fileType.lower() == 'singlecrystal':
+                return np.divide(self.countsSliced(sl),self.normalization[np.newaxis])
+            else:
+                return np.divide(self.countsSliced(sl),self.normalization)
+            #return np.divide(self.countsSliced(sl),self.normalization[sl])
+
+    
 
     def InteractiveViewer(self,**kwargs):
-        if not self.scanType.lower() in ['a3','powder'] :
+        if not self.fileType.lower() in ['singlecrystal','powder'] :
             raise AttributeError('Interactive Viewer can only be used for the new data files. Either for powder or for a single crystal A3 scan')
         return InteractiveViewer.InteractiveViewer(self.intensity,self.twoTheta,self.pixelPosition,self.A3,scanParameter = 'A3',scanValueUnit='deg',colorbar=True,**kwargs)
+
+    @property
+    def correctedTwoTheta(self):
+        return 2.0*np.rad2deg(np.arcsin(self.wavelength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
+
+    
+
+    @property
+    def phi(self):
+        if self.fileType.lower() == 'singlecrystal':
+            return np.rad2deg(np.arctan2(self.q[None][2],np.linalg.norm(self.q[None][:2],axis=0)))
+        else:
+            return np.rad2deg(np.arctan2(self.qLocal[2],np.linalg.norm(self.qLocal[:2],axis=0)))
+
+
+class SingleCrystalDataFile(DataFile):
+    def __init__(self,fileType):
+        super(SingleCrystalDataFile,self).__init__(fileType)
+        self.fileType = 'SingleCrystal'
+        self.countShape = (self.countShape[0]*self.countShape[1],128,1152)
+
+class PowderDataFile(DataFile):
+    def __init__(self,fileType):
+        super(PowderDataFile,self).__init__(fileType)
+        self.fileType = 'Powder'
+        self.counts.shape = (1,128,1152)
+
+
+
+def shallowRead(files,parameters):
+
+    parameters = np.array(parameters)
+    values = []
+    possibleAttributes.sort(key=lambda v: v.lower())
+    possible = []
+    for p in parameters:
+        possible.append(p in possibleAttributes)
+    
+    if not np.all(possible):
+        if np.sum(np.logical_not(possible))>1:
+            raise AttributeError('Parameters {} not found'.format(parameters[np.logical_not(possible)]))
+        else:
+            raise AttributeError('Parameter {} not found'.format(parameters[np.logical_not(possible)]))
+    
+    for file in files:
+        vals = {}
+        vals['file'] = file
+        with hdf.File(file,mode='r') as f:
+            instr = getInstrument(f)
+            for p in parameters:
+                if p == 'name':
+                    v = os.path.basename(file)
+                    vals[p] = v
+                    continue
+                elif p == 'fileLocation':
+                    v = os.path.dirname(file)
+                    vals[p] = v
+                    continue
+                elif p in HDFTranslationAlternatives:
+                    for entry in HDFTranslationAlternatives[p]:
+                        v = np.array(f.get(entry))
+                        if not v.shape == ():
+                            TrF= HDFTranslationFunctions
+                            break
+
+                elif p in HDFTranslation:
+                    v = np.array(f.get(HDFTranslation[p]))
+                    TrF= HDFTranslationFunctions
+                elif p in HDFInstrumentTranslation:
+                    v = np.array(instr.get(HDFInstrumentTranslation[p]))
+                    TrF= HDFInstrumentTranslationFunctions
+                else:
+                    raise AttributeError('Parameter "{}" not found'.format(p))
+                for func,args in TrF[p]:
+                    try:
+                        v = getattr(v,func)(*args)
+                    except (IndexError,AttributeError):
+                        warnings.warn('Parameter "{}" not found in file "{}"'.format(p,file))
+                        v = None
+                        
+                vals[p] = v
+        values.append(vals)
+
+    return values

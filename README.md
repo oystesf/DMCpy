@@ -9,5 +9,5 @@ This package is to be install through the Python Package Manager by issuing
 pip install DMCpy
 ```
 
-
+An up to date version should be preinstalled at the instrument computer for DMC.
 

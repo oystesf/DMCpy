@@ -2,9 +2,13 @@ import functools
 import numpy as np
 from difflib import SequenceMatcher
 import os.path
+import cProfile, pstats, io
+from itertools import product
+import pickle
+import h5py as hdf
 
 
-MPLKwargs = ['agg_filter','alpha','animated','antialiased or aa','clip_box','clip_on','clip_path','color or c','contains','dash_capstyle','dash_joinstyle','dashes','drawstyle','figure','fillstyle','gid','label','linestyle or ls','linewidth or lw','marker','markeredgecolor or mec','markeredgewidth or mew','markerfacecolor or mfc','markerfacecoloralt or mfcalt','markersize or ms','markevery','path_effects','picker','pickradius','rasterized','sketch_params','snap','solid_capstyle','solid_joinstyle','transform','url','visible','xdata','ydata','zorder']
+MPLKwargs = ['agg_filter','alpha','animated','antialiased','aa','clip_box','clip_on','clip_path','color','c','colorbar','contains','dash_capstyle','dash_joinstyle','dashes','drawstyle','figure','fillstyle','gid','label','linestyle or ls','linewidth or lw','marker','markeredgecolor or mec','markeredgewidth or mew','markerfacecolor or mfc','markerfacecoloralt or mfcalt','markersize or ms','markevery','path_effects','picker','pickradius','rasterized','sketch_params','snap','solid_capstyle','solid_joinstyle','transform','url','visible','xdata','ydata','zorder']
 
 def KwargChecker(function=None,include=None):
     """Function to check if given key-word is in the list of accepted Kwargs. If not directly therein, checks capitalization. If still not match raises error
@@ -75,10 +79,10 @@ def numberStringGenerator(fileNames,instrumentName='dmc'):
     # Find base name and remove extension
     if len(fileNames) != 1:
         prefix = os.path.commonprefix(list(names))
-        
+
         if instrumentName in prefix:
             # Remove all non-zero digits from prefix
-            while prefix[-1]!='0' and prefix[-1]!='n':
+            while prefix[-1]!='n': #  prefix[-1]!='0' and
                 prefix = prefix[:-1]
             year = int(prefix[len(instrumentName):len(instrumentName)+4])
             numbers = np.array([n[len(prefix):] for n in names],dtype=int)
@@ -231,7 +235,7 @@ def binData3D(dx,dy,dz,pos,data,norm=None,mon=None,bins=None):
         
         returndata.append(Normalization)
         
-    NormCount =    np.histogramdd(np.array(pos).T,bins=HistBins,weights=np.ones_like(data).flatten())[0].astype(int)
+    NormCount =    np.histogramdd(np.array(pos).T,bins=HistBins,weights=np.ones_like(data).flatten())[0].astype(float)
     returndata.append(NormCount)
     return returndata,bins
 
@@ -354,3 +358,410 @@ def calculateGrid3D(X,Y,Z):
     
     
     return XT,YT,ZT
+
+def rotMatrix(v,theta,deg=True):
+    """ Generalized rotation matrix.
+    
+    Args:
+        
+        - v (list): Rotation axis around which matrix rotates
+        
+        - theta (float): Rotation angle (by default in degrees)
+        
+    Kwargs:
+        
+        - deg (bool): Whether or not angle is in degrees or radians (Default True)
+        
+    Returns:
+        
+        - 3x3 matrix rotating points around vector v by amount theta.
+    """
+    if deg==True:
+        theta = np.deg2rad(theta.copy())
+    v/=np.linalg.norm(v)
+    m11 = np.cos(theta)+v[0]**2*(1-np.cos(theta))
+    m12 = v[0]*v[1]*(1-np.cos(theta))-v[2]*np.sin(theta)
+    m13 = v[0]*v[2]*(1-np.cos(theta))+v[1]*np.sin(theta)
+    m21 = v[0]*v[1]*(1-np.cos(theta))+v[2]*np.sin(theta)
+    m22 = np.cos(theta)+v[1]**2*(1-np.cos(theta))
+    m23 = v[1]*v[2]*(1-np.cos(theta))-v[0]*np.sin(theta)
+    m31 = v[0]*v[2]*(1-np.cos(theta))-v[1]*np.sin(theta)
+    m32 = v[1]*v[2]*(1-np.cos(theta))+v[0]*np.sin(theta)
+    m33 = np.cos(theta)+v[2]**2*(1-np.cos(theta))
+    return np.array([[m11,m12,m13],[m21,m22,m23],[m31,m32,m33]])
+
+
+def Norm2D(v):
+    reciprocal = np.abs(1/v)
+    if np.isclose(reciprocal[0],reciprocal[1]):
+        return v*reciprocal[0]
+    
+    ratio = np.max(reciprocal)/np.min(reciprocal)
+    if np.isclose(np.mod(ratio,1),0.0) or np.isclose(np.mod(ratio,1),1.0):
+        return v*np.min(reciprocal)*ratio
+    else:
+        return v
+
+def LengthOrder(v):
+    nonZeroPos = np.logical_not(np.isclose(v,0.0))
+    if np.sum(nonZeroPos)==1:
+        Rv = v/np.linalg.norm(v)
+        return Rv
+    if np.sum(nonZeroPos)==0:
+        raise AttributeError('Provided vector is zero vector!')
+    
+    if np.sum(nonZeroPos)==3:
+        v1 = Norm2D(v[:2])
+        ratio = v1[0]/v[0]
+        v2 = Norm2D(np.array([v1[0],v[2]*ratio]))
+        ratio2 = v2[0]/v1[0]
+        Rv = np.array([v2[0],v1[1]*ratio2,v2[1]])
+    else:
+        Rv = np.zeros(3)
+        nonZeros = v[nonZeroPos]
+        Rv[nonZeroPos] = Norm2D(nonZeros)
+    
+    if not np.isclose(np.dot(Rv,v)/(np.linalg.norm(Rv)*np.linalg.norm(v)),1.0):
+        raise AttributeError('The found vector is not parallel to original vector: {}, {}',format(Rv,v))
+    return Rv
+
+def overWritingFunctionDecorator(overWritingFunction):
+    def overWriter(func):
+        return overWritingFunction
+    return overWriter
+
+
+@KwargChecker()
+def vectorAngle(V1,V2):
+    """calculate angle between V1 and V2.
+    
+    Args:
+    
+        - V1 (list): List or array of numbers
+        
+        - V2 (list): List or array of numbers
+        
+    Return:
+        
+        - theta (float): Angle in degrees between the two vectors
+    """
+    return np.arccos(np.dot(V1,V2.T)/(np.linalg.norm(V1)*np.linalg.norm(V2)))
+
+def normlength(V):
+    """rescale V to have unit length"""
+    return V/np.linalg.norm(V)
+
+
+def invert(M):
+    """Invert non-square matrices as described on https://en.wikipedia.org/wiki/Generalized_inverse.
+    
+    Args:
+        
+        - M (matrix): Matrix in question.
+        
+    Returns:
+        
+        - Left or right inverse matrix depending on shape of provided matrix.
+    """
+    s = M.shape
+    if s[0]>s[1]:
+        return np.dot(np.linalg.inv(np.dot(M.T,M)),M.T)
+    else:
+        return np.dot(M.T,np.linalg.inv(np.dot(M,M.T)))
+
+
+
+def profile(fnc):
+    
+    """A decorator that uses cProfile to profile a function"""
+    
+    def inner(*args, **kwargs):
+        
+        pr = cProfile.Profile()
+        pr.enable()
+        retval = fnc(*args, **kwargs)
+        pr.disable()
+        s = io.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
+        return retval
+
+    return inner
+
+
+
+class CentreOfMass(object):
+    """Small helper class holding a center of gravity and its weight"""
+    def __init__(self,position,weight):
+        x,y,z = position
+        self.x = x
+        self.y = y
+        self.z = z
+        self.weight = weight
+        self.originals = [[position,weight]]
+        
+    def addPoint(self,position,weight=1.0):
+        totalWeight = self.weight+weight
+        newPosition = np.sum([self.position*self.weight,position*weight],axis=0)/totalWeight
+        self.position = newPosition
+        self.weight=totalWeight
+        self.originals.append([position,weight])
+        
+    @property
+    def position(self):
+        return np.array([self.x,self.y,self.z])
+    
+    @position.setter
+    def position(self,newPosition):
+        x,y,z = newPosition
+        self.x = x
+        self.y = y
+        self.z = z
+        
+    def __str__(self):
+        return "CentreOfMass at ({},{},{}) with weight {}".format(*self.position,self.weight)
+
+    def __repr__(self) -> str:
+        return 'CentreOfMass(position=[{},{},{}],weight={})'.format(*self.position,self.weight)
+        
+def distance(a,b,dx=1,dy=1,dz=1):
+    """Calculate distance with variable metric"""
+    return np.linalg.norm(np.dot(a-b,[dx,dy,dz]))
+
+
+
+def clusterPoints(positions,weights=None,distanceThreshold=0.01, shufflePoints=True, distanceFunction=None):
+    """Combine positions within distance threshold into centres of gravity with the provided weights
+    
+    Args:
+        
+        - positions (list [n,3]): List of positions to be combined
+        
+    Kwargs:
+        
+        - weights (list [n]): Weights corresponding to positions (default None -> ones)
+        
+        - distanceThreshold (float): Distance within which points are to be combined (default 0.01)
+        
+        - shufflePoints (bool): If True, shuffle the provided positions and correspondingly their weights (default False)
+        
+        - distanceFunction (function): Function to calculate distance (default None -> np.linalg.norm)
+        
+    Returns:
+        
+        - 
+        
+    Note:
+        
+        In situations where the positions provided are correlated it can happen that 
+        the found centres of gravity are different than expected.
+        
+    
+    """
+    positions = np.asarray(positions)
+    
+    if len(positions) == 0:
+        print('no peak positions found, too high threshold')
+
+    if distanceFunction is None:
+        distanceFunction = lambda a,b: np.linalg.norm(a-b)
+    if weights is None:
+        weights = np.zeros(len(positions))
+    else:
+        weights = np.asarray(weights)
+        
+    if shufflePoints:
+        shuffled = np.concatenate([positions,weights.reshape(-1,1)],axis=1)
+        np.random.shuffle(shuffled)
+        positions = shuffled[:,:3]
+        weights = shuffled[:,-1]
+       
+    if len(positions) == 0:
+        return []
+    centres = [CentreOfMass(weight=weights[0],position=positions[0])]
+    
+    for I,(pos,weight) in enumerate(zip(positions[1:],weights[1:])):
+        #if np.mod(I,100):
+            #print(I,'len(peak) = ',len(peaks))
+        posUsed = False
+        for p in centres:
+            if distanceFunction(p.position,pos)<distanceThreshold:
+                p.addPoint(pos,weight=weight)
+                posUsed = True
+                break
+            
+        if not posUsed:
+            centres.append(CentreOfMass(pos,weight))
+    return centres
+
+
+def calculateTriplets(reflections,normalized=False):
+    """Calculate cross product triples between all points
+    
+    Args: 
+        
+        - reflections (list [n,3]): List of reflections to use
+        
+    Kwargs:
+        
+        - normalized (bool): Normalize the length of normal (default False)
+        
+    """
+    tripletNormal = []
+     
+    points = [np.squeeze(a) for a in np.vsplit(reflections, reflections.shape[0])]
+    np.random.shuffle(points)
+    # Calculate the cross product of the vectors connecting 3 random points
+    
+    for a1, a2, a3 in product(points, repeat=3):
+        # find cross product
+        normal = np.cross(a2 - a1, a3 - a1)
+        
+        # if length of cross product is 0, continue
+        if np.allclose(normal, 0, atol=1e-2):
+            continue
+        if normalized:
+            # make it normalized and make it 'mostly positive'
+            normal /= np.linalg.norm(normal)
+            normal*=np.sign(np.sum(normal))
+        
+        tripletNormal.append(normal)
+    return tripletNormal
+
+
+def plusMinusGenerator():
+    """generator giving an infinite series following 0, -1, 1, -2, 2, ..."""
+
+    yield 0
+    start = 0
+    while True:
+        if start>0:
+            start=-start
+        else:
+            start=-start+1
+        yield start
+
+
+def calculateHKLWithinQLimitsGenerator(BMatrix,QMin=0,QMax=10):
+    """Generator to calculate all HKLs within a range of Qs"""
+    for h in plusMinusGenerator():
+        for k in plusMinusGenerator():
+            for l in plusMinusGenerator():
+                q = np.linalg.norm(np.dot(BMatrix,[h,k,l]))
+                if (q>QMax*1.5):
+                    break
+                if q>QMin and q<QMax:
+                    yield [h,k,l]
+            if np.linalg.norm(np.dot(BMatrix,[h,k,0]))>QMax*1.5:
+                break
+        if np.linalg.norm(np.dot(BMatrix,[h,0,0]))>QMax*1.5:
+            break
+    
+
+
+
+def calculateHKLWithinQLimits(BMatrix,QMin=0,QMax=10):
+    positions = []
+    
+    for h in plusMinusGenerator():
+        for k in plusMinusGenerator():
+            for l in plusMinusGenerator():
+                q = np.linalg.norm(np.dot(BMatrix,[h,k,l]))
+                if (q>QMax*1.5):
+                    break
+                if q>QMin and q<QMax:
+                    positions.append([h,k,l])
+            if np.linalg.norm(np.dot(BMatrix,[h,k,0]))>QMax*1.5:
+                break
+        if np.linalg.norm(np.dot(BMatrix,[h,0,0]))>QMax*1.5:
+            break
+    return positions
+
+
+def saveSampleToDesk(sample,fileName):
+    with open(fileName, 'wb') as handle:
+        pickle.dump(sample, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        
+        
+def loadSampleFromDesk(fileName):
+    with open(fileName, 'rb') as handle:
+        sample = pickle.load(handle)
+    
+    return sample
+
+
+def giveUnitCellToHDF(filePath,unitCell):
+    """
+    adds unit cell to hdf files
+
+    filePath (list): files that unit cell will be added to
+
+    unitCell (list): unit cell parameters
+
+    """
+
+    for file in filePath:
+        with hdf.File(file,mode='r+') as f:
+            sample = f.get('/entry/sample')
+            try:
+                sample.create_dataset('unit_cell',data = unitCell)
+            except ValueError:
+                print('Unit cell already added to: ',file)
+
+def without_keys(dictionary, keys): # Remove key word argument from kwargs
+    return {x: dictionary[x] for x in dictionary if x not in keys}
+
+
+def arange(start,stop,step):
+        stepsTaken = 0
+        while start+step*(stepsTaken+1)<stop:
+            yield (start+step*stepsTaken,start+step*(stepsTaken+1))
+            stepsTaken+=1
+            
+        yield(start+step*stepsTaken,stop)
+
+
+def calculateRotationMatrixAndOffset(points):
+    
+    v1, v2, v3 = points
+    dV1 = v2-v1
+    dV2 = v3-v1
+    
+    dV1*=1.0/np.linalg.norm(dV1)
+    dV2*=1.0/np.linalg.norm(dV2)
+    
+    
+    N = np.cross(dV2,dV1)
+    N *= 1.0/np.linalg.norm(N)
+    
+    rotVector = np.cross([0.0,0.0,1.0],N)
+    if np.isclose(np.linalg.norm(rotVector),0): # if they are parallel no rotation is needed
+        theta = 0.0
+        rotVector = np.array([0.0,0.0,1.0])
+    else:
+        #rotVector *=1.0/np.linalg.norm(rotVector)
+        theta = np.arccos(np.dot([0.0,0.0,1.0],N))#/np.linalg.norm(rotVector)) #
+    
+    
+    Rot3D = rotMatrix(rotVector, -theta,deg=False)
+    
+    v1m,v2m,v3m = np.einsum('ij,...j->...i',Rot3D,points)
+    
+    dV1m = v2m-v1m
+    dV2m = v3m-v1m
+    Nm = np.cross(dV2m,dV1m)
+    Nm *= 1.0/np.linalg.norm(Nm)
+    
+    offsetm = [np.dot(Nm,x) for x in [v1m,v2m,v3m]]
+    
+    if not np.all(np.isclose(offsetm,offsetm[0])):
+        raise AttributeError('Calculated plane does not have the defining points in the same distance from...')
+    
+    ## in plane rotation, so that v1m is || to x
+    thetaInPlan = np.arctan2(*-dV1m[-2::-1]) # take first two entries and flip the, i.e. y,x
+    Rot3DInPlane = rotMatrix(Nm, -thetaInPlan,deg=False)
+    
+    totalRotMat = np.dot(Rot3DInPlane,Rot3D)
+    return totalRotMat,-offsetm[0]
