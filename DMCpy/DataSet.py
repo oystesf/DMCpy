@@ -2161,8 +2161,10 @@ class DataSet(object):
 
 
 
-    def plotQPlane(self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=False,rmcFile=False,**kwargs):
-        raise NotImplementedError('TODODODODODDO!!')
+    def plotQPlane(self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None,log=False,ax=None,rmcFile=False,**kwargs):
+        #self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=False,rmcFile=False,**kwargs
+        # self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None
+        # raise NotImplementedError('TODODODODODDO!!')
         """Wrapper for plotting tool to show binned intensities in the Q plane between provided Qz values.
             
             
@@ -2222,7 +2224,7 @@ class DataSet(object):
             cmap = None
 
 
-        returndata,bins = self.cutQPlane(QzMin=QzMin,QzMax=QzMax,xBinTolerance=xBinTolerance,yBinTolerance=yBinTolerance,steps=steps,rlu=rlu)
+        returndata,bins,translation = self.cutQPlane(points=points,width=width,dQx=dQx,dQy=dQy,xBins=xBins,yBins=yBins,rlu=rlu,steps=steps)
 
         if ax is None:
             if rlu:
@@ -2295,7 +2297,7 @@ class DataSet(object):
 
         ax.set_clim(vmin,vmax)
         
-        ax.QzMean = 0.5*(QzMax+QzMin)
+        ax.QzMean = translation
             
         if len(ax.Qx)!=0:
             xmin = np.min([np.min(qx) for qx in ax.Qx])
