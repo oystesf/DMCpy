@@ -13,7 +13,10 @@ import os
 if len(sys.argv)==1:
 	
 	list_of_files = glob.glob('dist/*') # * means all if need specific format then *.csv
-	latest_file = os.path.split(max(list_of_files, key=os.path.getctime))[-1]
+	try:
+		latest_file = os.path.split(max(list_of_files, key=os.path.getctime))[-1]
+	except ValueError:
+		raise ValueError('It seems that there are no wheels in this project (no folder called "dist"). Please run "make wheel" first')
 
 
 	latestVersion = [int(x) for x in latest_file.split('-')[-1].replace('.tar.gz','').split('.')]
