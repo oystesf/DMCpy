@@ -13,7 +13,7 @@ from ntpath import join
 
 import os,glob
 
-possibleArguments = ['test', 'tutorials', 'wheel', 'html', 'upload', 'testVersion', 'version']
+possibleArguments = ['test', 'tutorials', 'wheel', 'html', 'upload', 'testVersion', 'version','update']
 
 parser = argparse.ArgumentParser(description="Make tool replacing linux Makefile.")
 parser.add_argument("task", nargs='?', default='help', type=str, help="Type of task to be performed. Possible tasks are: {}. Run without argument to see help menu.".format(', '.join(possibleArguments)))
@@ -96,6 +96,13 @@ elif args.task.lower() == 'wheel':
 
 elif args.task.lower() == 'upload':
     upload()
+
+elif args.task.lower() == 'update':
+    if args.version is None:
+        version = ''
+    else:
+        version = args.version
+    update(version = version)
 
 elif args.task.lower() == 'testversion':
     if args.version is None:
