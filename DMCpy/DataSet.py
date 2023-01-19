@@ -2102,7 +2102,7 @@ class DataSet(object):
             yBins = np.arange(-5,5,dQy)
 
         if rlu:
-            newPoints = [np.dot(self.sample[0].UB,point) for point in points]
+            newPoints = [np.dot(self[0].sample.UB,point) for point in points]
             for o,n in zip(points,newPoints):
                 print(' {} --> {}'.format(o,n))
 
@@ -2119,12 +2119,9 @@ class DataSet(object):
                 steps = len(df)
             
             stepsTaken = 0
-
             
-            if rlu:
-                totalRotMatDF = np.dot(totalRotMat,df.sample.UB)
-            else:
-                totalRotMatDF = totalRotMat
+            totalRotMatDF = totalRotMat
+            
             for idx in _tools.arange(0,len(df),steps):
                 
                 q = np.einsum('ij,jk->ik',totalRotMatDF,df.q[idx[0]:idx[1]].reshape(3,-1),optimize='greedy')
@@ -2135,7 +2132,6 @@ class DataSet(object):
                 
                 dat = df.intensitySliced(slice(idx[0],idx[1]))
                     
-
                 mon = df.monitor[idx[0]:idx[1]]
                 mon=np.repeat(np.repeat(mon[:,np.newaxis],dat.shape[1],axis=1)[:,:,np.newaxis],dat.shape[2],axis=-1)
                 
@@ -2150,14 +2146,12 @@ class DataSet(object):
                 dat = dat.flatten()[inside]
                 mon = mon.flatten()[inside]
                 
-                
                 #Monitor = df.monitor[idx[0]:idx[1]].flatten()[inside]
                 
                 intensity=np.histogram2d(*q,bins=(xBins,yBins),weights=I)[0].astype(I.dtype)
                 monitorCount=np.histogram2d(*q,bins=(xBins,yBins),weights=mon)[0].astype(mon.dtype)
                 Normalization=np.histogram2d(*q,bins=(xBins,yBins),weights=Norm)[0].astype(Norm.dtype)
                 NormCount=np.histogram2d(*q,bins=(xBins,yBins))[0].astype(I.dtype)
-                
                 
                 if returndata is None:
                     returndata = [intensity,monitorCount,Normalization,NormCount]
@@ -2348,7 +2342,7 @@ class DataSet(object):
                 ax.e = pd.DataFrame(dataToRMC)
                 if rmcFileName is None:
                     rmcFileName = 'sample_xtal_data_01.txt'
-                ax.e.to_csv(rmcFileName, header=None, index=None, sep=' ', mode='a')
+                ax.e.to_csv(rmcFileName, header=None, index=None, sep=' ', mode='w')
 
         
         #ax.to_csv = lambda fileName : to_csv(fileName,ax,spinteract,rmcFileName)
