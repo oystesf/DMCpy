@@ -12,17 +12,11 @@ import DMCpy
 class DataSet(object):
     def __init__(self, dataFiles=None,**kwargs):
         """DataSet object to hold a series of DataFile objects
-
         Kwargs:
-
             - dataFiles (list): List of data files to be used in reduction (default None)
-
         Raises:
-
             - NotImplementedError
-
             - AttributeError
-
         """
 
         if dataFiles is None:
@@ -120,13 +114,9 @@ class DataSet(object):
         """Generate mask to applied to data in data file
         
         Kwargs:
-
             - maskingFunction (function): Function called on self.phi to generate mask (default maskFunction)
-
             - replace (bool): If true new mask replaces old one, otherwise add together (default True)
-
         All other arguments are passed to the masking function.
-
         """
         for d in self:
             d.generateMask(maskingFunction,replace=replace,**pars)
@@ -135,25 +125,17 @@ class DataSet(object):
     @_tools.KwargChecker()
     def sumDetector(self,twoThetaBins=None,applyCalibration=True,correctedTwoTheta=True,dTheta=0.125):
         """Find intensity as function of either twoTheta or correctedTwoTheta
-
         Kwargs:
-
             - twoThetaBins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.5)
-
             - applyCalibration (bool): If true, take detector efficiency into account (default True)
-
             - correctedTwoTheta (bool): If true, use corrected two theta, otherwise sum vertically on detector (default True)
-
         Returns:
-
             - twoTheta
             
             - Normalized Intensity
             
             - Normalized Intensity Error
-
             - Total Monitor
-
         """
 
         if correctedTwoTheta:
@@ -193,31 +175,20 @@ class DataSet(object):
     @_tools.KwargChecker(function=plt.errorbar,include=_tools.MPLKwargs)
     def plotTwoTheta(self,ax=None,twoThetaBins=None,applyCalibration=True,correctedTwoTheta=True,dTheta=0.125,**kwargs):
         """Plot intensity as function of correctedTwoTheta or twoTheta
-
         Kwargs:
-
             - ax (axis): Matplotlib axis into which data is plotted (default None - generates new)
-
             - twoThetaBins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.1)
-
             - applyCalibration (bool): If true, take detector efficiency into account (default True)
-
             - correctedTwoTheta (bool): If true, use corrected two theta, otherwise sum vertically on detector (default True)
-
             - All other key word arguments are passed on to plotting routine
-
         Returns:
-
             - ax: Matplotlib axis into which data was plotted
-
             - twoThetaBins
             
             - normalizedIntensity
             
             - normalizedIntensityError
-
             - summedMonitor
-
         """
         
         
@@ -254,19 +225,12 @@ class DataSet(object):
 
     def plotInteractive(self,ax=None,masking=True,**kwargs):
         """Generate an interactive plot of data.
-
         Kwargs:
-
             - ax (axis): Matplotlib axis into which the plot is to be performed (default None -> new)
-
             - masking (bool): If true, the current mask in self.mask is applied (default True)
-
             - Kwargs: Passed on to errorbar or imshow depending on data dimensionality
-
         Returns:
-
             - ax: Interactive matplotlib axis
-
         """
         if ax is None:
             fig,ax = plt.subplots()
@@ -478,24 +442,15 @@ class DataSet(object):
 
     def plotOverview(self,**kwargs):
         """Quick plotting of data set with interactive plotter and summed intensity.
-
         Kwargs:
-
             - masking (bool): If true, the current mask in self.mask is applied (default True)
-
             - kwargs (dict): Kwargs to be used for interactive or plotTwoTheta plot
-
         returns:
-
             - Ax (list): List of two axis, first containing the interactive plot, second summed two theta
-
-
         Kwargs for plotInteractiveKwargs:
         
             - masking (bool): Use generated mask for dataset (default True)
-
         Kwargs for plotTwoThetaKwargs:
-
             - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.1 Deg)
             
             - applyCalibration (bool): Use normalization files (default True)
@@ -557,23 +512,14 @@ class DataSet(object):
             - dqy (float): Bin size along second axis in 1/AA
         
             - dqz (float): Bin size along third axis in 1/AA
-
         Kwargs:
-
             - rlu (bool): Plot using reciprocal lattice units (default False)
-
             - axis (int): Initial view direction for the viewer (default 2)
-
             - raw (bool): If True plot counts else plot normalized counts (default False)
-
             - log (bool): Plot intensity as logarithm of intensity (default False)
-
             - grid (bool): Plot a grid on the figure (default True)
-
             - outputFunction (function): Function called when clicking on the figure (default print)
-
             - cmap (str): Name of color map used for plot (default viridis)
-
             - multiplicationFactor (float): Multiply intensities with this factor (default 1)
         
         """
@@ -672,34 +618,20 @@ class DataSet(object):
         
     def plotCut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True,ax=None,fmt='.',**kwargs):
         """Cut and plot data from P1 to P2 in steps of stepSize [1/AA] width a cylindrical width [1/AA]
-
         Args:
-
             - P1 (list): Start position for cut in either (Qx,Qy,Qz) or (H,K,L)
-
             - P2 (list): End position for cut in either (Qx,Qy,Qz) or (H,K,L)
-
         Kwargs:
-
             - rlu (bool): If True, P1 and P2 are in HKL, otherwise in QxQyQz (default True)
-
             - stepSize (float): Size of bins along cut direction in units of [1/AA] (default 0.01)
-
             - width (float): Integration width orthogonal to cut in units of [1/AA] (default 0.02)
-
             - raw (bool): If True, do not normalize data (default False)
-
             - optimize (bool): If True, perform optimized cutting (default True)
-
             - ax (matplotlib.axes): If None, a new is created (default None)
-
             - kwargs: All other kwargs are provided to the errorbar plot of the axis
-
         Returns:
-
             - Pos,Int,Ax
             
-
         """
 
         hkl,I,err = self.cut1D(P1=P1,P2=P2,rlu=rlu,stepSize=stepSize,width=width,widthZ=widthZ,raw=raw,optimize=optimize)
@@ -717,30 +649,18 @@ class DataSet(object):
 
     def cut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True):
         """Cut data from P1 to P2 in steps of stepSize [1/AA] width a cylindrical width [1/AA]
-
         Args:
-
             - P1 (list): Start position for cut in either (Qx,Qy,Qz) or (H,K,L)
-
             - P2 (list): End position for cut in either (Qx,Qy,Qz) or (H,K,L)
-
         Kwargs:
-
             - rlu (bool): If True, P1 and P2 are in HKL, otherwise in QxQyQz (default True)
-
             - stepSize (float): Size of bins along cut direction in units of [1/AA] (default 0.01)
-
             - width (float): Integration width orthogonal to cut in units of [1/AA] (default 0.02)
-
             - raw (bool): If True, do not normalize data (default False)
-
             - optimize (bool): If True, perform optimized cutting (default True)
-
         Returns:
-
             - Pos,Int....
             
-
         """
         intensities = None
         for df in self:
@@ -898,11 +818,8 @@ class DataSet(object):
 
         """
         function to store sample object from a df into a binary file.
-
         kargs:
-
             - fileName (str): fileName for UB matrix file. Default is None and sample name form the ds
-
             - dataFolder (str): directory for saving UB file. Defualt is None, and in cwd
         """
 
@@ -921,9 +838,7 @@ class DataSet(object):
 
         """
         function to load UB from binary file into all dataFiles in a dataSet.
-
         args: 
-
             filePath (str): Filepath to UB matrix
             
         """
@@ -1358,13 +1273,10 @@ class DataSet(object):
 
     def alignToRef(self,coordinates,planeVector1,planeVector2,optimize=False,axisOffset=0.0):
         """
-
         Args:
             
             - coordinates (list): peak position to align for planeVector1 in Qx, Qy, Qz
-
             - planeVector1 (list): Indicies of the reflection used for alignment (Or directional vector???)
-
             - planeVector2 (list): Vector along y axis
             
             
@@ -1373,25 +1285,15 @@ class DataSet(object):
             - optimize = False (bool): Fit position of peak, default is False. NOT WORKING!
         
         This method takes coordinates of a reflection in Qz,Qy,Qz and align that peak to planeVector1. 
-
             1. find scattering normal from the plane vectors
-
             2. Find vector to rotate around from coordinates and scatteringNormal
-
             3. Find angle to rotate and rotation matrix
-
             4. Rotated peak to the scattering plane
-
             5. Find indices of reflection used for alignment
-
             6. calculate the actual position of the peak found along planeVector1 
-
             7. Find rotation matrix which is around the z-axis and has angle of -offsetA3
-
             8. sample rotation has now been found (converts between instrument  qx,qy,qz to qx along planeVector1 and qy along planeVector2)
-
             9. update sample
-
         """
 
         if optimize is True:
@@ -1466,7 +1368,6 @@ class DataSet(object):
         
         """
         Function to rotate a dataSet around the surface normal. Projection vectors are updated not change direction, e.g. stay along x and y axis
-
         rotation (float): angle to rotate dataSet around scattering plane normal
         """
 
@@ -1487,7 +1388,6 @@ class DataSet(object):
     def subtractBkgRange(self,bkgStart,bkgEnd):
         """
         function to subtract background defined by a range of the first dataFile of the dataSet
-
         bkgStart (int): start value in step for range used for background subtraction
         bkgEnd (int): end value in step for range used for background subtraction
         """
@@ -1502,7 +1402,6 @@ class DataSet(object):
         """
         Subtracts a dataSet with same a3 range from the dataSet.
          
-
         ds2 (dataset): dataSet that should be subtracted
         """
 
@@ -1528,17 +1427,14 @@ class DataSet(object):
             - Bins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.125)
             
             - outFile (str): String that will be used for outputfile. Default is automatic generated name.
-
             - outFolder (str): Path to folder data will be saved. Default is current working directory.
             
             - useMask (bool): export file with angular mask. Default is False
-
             - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
             
         - Arguments for automatic file name:
                 
             - sampleName (bool): Include sample name in filename. Default is True.
-
             - sampleTitle (bool): Include sample title in filename. Default is True.
         
             - temperature (bool): Include temperature in filename. Default is False.
@@ -1552,7 +1448,6 @@ class DataSet(object):
             - waveLength (bool): Include waveLength in filename. Default is False. 
             
         Kwargs for sumDetector:
-
             - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
                 
             - applyCalibration (bool): Use normalization files (default True)
@@ -1599,7 +1494,7 @@ class DataSet(object):
             intensity*=meanMonitor
             err*=meanMonitor
         else:
-            oneHourMonitor = (300000000)
+            oneHourMonitor = (100000000)
             intensity*=oneHourMonitor
             err*=oneHourMonitor
         
@@ -1696,10 +1591,11 @@ class DataSet(object):
         paramLines.append("")
         fileString = '\n'.join([titleLine,paramLine,paramLine2,dataLinesInt,dataLinesErr,fileList,*paramLines])
         
-        # get magnetic field
-        # get electric field
-        mag = "not defined"
-        elec = "not defined"
+        magneticFields = [df.magneticField for df in self]
+        mag = np.mean(magneticFields)
+
+        electricFields = [df.electricField for df in self]
+        elec = np.mean(electricFields)
         
         if outFile is None:
             saveFile = "DMC"
@@ -1712,9 +1608,9 @@ class DataSet(object):
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:5] + "K"
             if magneticField == True:
-                saveFile += "_" + mag + "T"
+                saveFile += "_" + str(mag) + "T"
             if electricField == True:
-                saveFile += "_" + elec + "keV"
+                saveFile += "_" + str(elec) + "keV"
             if waveLength == True:
                 saveFile += "_{}AA".format(str(wavelength).replace('.','p')[:5])
             if fileNumber == True:
@@ -1752,17 +1648,13 @@ class DataSet(object):
             - Bins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.125)
             
             - outFile (str): String that will be used for outputfile. Default is automatic generated name.
-
             - outFolder (str): Path to folder data will be saved. Default is current working directory.
-
             - useMask (bool): export file with angular mask. Default is False
-
             - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
             
         - Arguments for automatic file name:
                 
             - sampleName (bool): Include sample name in filename. Default is True.
-
             - sampleTitle (bool): Include sample title in filename. Default is True.
         
             - temperature (bool): Include temperature in filename. Default is False.
@@ -1772,11 +1664,9 @@ class DataSet(object):
             - electricField (bool): Include electric field in filename. Default is False.
         
             - fileNumber (bool): Include sample number in filename. Default is False.
-
             - waveLength (bool): Include waveLength in filename. Default is False. 
             
         Kwargs for sumDetector:
-
             - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
                 
             - applyCalibration (bool): Use normalization files (default True)
@@ -1823,7 +1713,7 @@ class DataSet(object):
             intensity*=meanMonitor
             err*=meanMonitor
         else:
-            oneHourMonitor = (300000000)
+            oneHourMonitor = (100000000)
             intensity*=oneHourMonitor
             err*=oneHourMonitor
         
@@ -1852,6 +1742,12 @@ class DataSet(object):
         temperatures = np.array([df.temperature for df in self])
         meanTemp = np.mean(temperatures)
         
+        magneticFields = [df.magneticField for df in self]
+        mag = np.mean(magneticFields)
+
+        electricFields = [df.electricField for df in self]
+        elec = np.mean(electricFields)
+
         # fileNumbers = str(self.fileName) 
         # fileNumbers_short = str(int(self.fileName[0].split('n')[-1].split('.')[0]))  # 
         
@@ -1865,13 +1761,11 @@ class DataSet(object):
         titleLine2 = "# Filelist='dmc:{}:{}'".format(year,fileNumbers)
         if useMask is True:
             titleLine2 += " , anngular mask: " + str(maxAngle) + " deg." 
-        titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+'., sample="'+samName+'"'
-
-            
-        # get magnetic field
-        # get electric field
-        mag = "not defined"
-        elec = "not defined"
+        if hourNormalization is False:
+            titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(meanMonitor)+', sample="'+samName+'"'
+        else:
+            titleLine3= '# '+' '.join(["{:7.3f}".format(x) for x in [start,step,stop]])+" {:7.0f}".format(oneHourMonitor)+', sample="'+samName+'"'
+       
         
         if outFile is None:
             saveFile = "DMC"
@@ -1884,9 +1778,9 @@ class DataSet(object):
             if temperature == True:
                 saveFile += "_" + str(meanTemp).replace(".","p")[:5] + "K"
             if magneticField == True:
-                saveFile += "_" + mag + "T"
+                saveFile += "_" + str(mag) + "T"
             if electricField == True:
-                saveFile += "_" + elec + "keV"
+                saveFile += "_" + str(elec) + "keV"
             if waveLength == True:
                 saveFile += "_{}AA".format(str(wavelength).replace('.','p')[:5])
             if fileNumber == True:
@@ -1911,7 +1805,7 @@ class DataSet(object):
             sf.write(titleLine3+"\n") 
             np.savetxt(sf,saveData.T,delimiter='  ')
             sf.close()
-        
+         
 
     def updateDataFiles(self,key,value):
         if np.all([hasattr(df,key) for df in self]): # all datafiles have the key
@@ -2067,28 +1961,19 @@ class DataSet(object):
 
     def cutQPlane(self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None):
         """Perform QPlane cut where points within +-0.5*width are collapsed onto the plane and binned into xBins and yBins
-
         Args:
-
             - points (list): List of three points within the wanted plane. X is parallel to point 2 - point 1 (p1, p2, p3 = points)
-
             - width (float): Total width of QPlane in units of 1/AA or rlu depending on the rlu flag
-
         Kwargs:
             - dQx (float): Step size along x if xBins is not provided (default None)
-
             - dQy (float): Step size along y if yBins is not provided (default None)
             
             - xBins (list): Binning edges along x, overwrites dQx (default None)
-
             - yBins (list): Binning edges along y, overwrites dQy (default None)
-
             - rlu (bool): If true utilize sample UB otherwise perform no rotation (default False)
-
             - steps (int): Number of a3 step computated at once when performing operation (default len(df))
         
         An error will be thrown if neither dQx (dQy) and  xBins (yBins) are set.
-
         """
         if np.all([x is None for x in [dQx,dQy,xBins,yBins]]):
             raise AttributeError('No bins or step sizes provided')
@@ -2101,18 +1986,17 @@ class DataSet(object):
             if dQy is None:
                 raise AttributeError('Neither dQx or xBins are set!')
             yBins = np.arange(-5,5,dQy)
-        
+
         if rlu:
-            newPoints = [np.dot(self.sample[0].UB,point) for point in points]
+            newPoints = [np.dot(self[0].sample.UB,point) for point in points]
             for o,n in zip(points,newPoints):
                 print(' {} --> {}'.format(o,n))
 
-            xBins /= np.linalg.norm(newPoints[1]-newPoints[0])
-            yBins /= np.linalg.norm(newPoints[2]-newPoints[0])
+            #xBins /= np.linalg.norm(newPoints[1]-newPoints[0])
+            #yBins /= np.linalg.norm(newPoints[2]-newPoints[0])
         else:
             newPoints = points
-        #return None,None, None
-
+        
         totalRotMat,translation = _tools.calculateRotationMatrixAndOffset(newPoints)
         returndata = None
         for df in self:
@@ -2121,12 +2005,9 @@ class DataSet(object):
                 steps = len(df)
             
             stepsTaken = 0
-
             
-            if rlu:
-                totalRotMatDF = np.dot(totalRotMat,df.sample.UB)
-            else:
-                totalRotMatDF = totalRotMat
+            totalRotMatDF = totalRotMat
+            
             for idx in _tools.arange(0,len(df),steps):
                 
                 q = np.einsum('ij,jk->ik',totalRotMatDF,df.q[idx[0]:idx[1]].reshape(3,-1),optimize='greedy')
@@ -2137,7 +2018,6 @@ class DataSet(object):
                 
                 dat = df.intensitySliced(slice(idx[0],idx[1]))
                     
-
                 mon = df.monitor[idx[0]:idx[1]]
                 mon=np.repeat(np.repeat(mon[:,np.newaxis],dat.shape[1],axis=1)[:,:,np.newaxis],dat.shape[2],axis=-1)
                 
@@ -2152,14 +2032,12 @@ class DataSet(object):
                 dat = dat.flatten()[inside]
                 mon = mon.flatten()[inside]
                 
-                
                 #Monitor = df.monitor[idx[0]:idx[1]].flatten()[inside]
                 
                 intensity=np.histogram2d(*q,bins=(xBins,yBins),weights=I)[0].astype(I.dtype)
                 monitorCount=np.histogram2d(*q,bins=(xBins,yBins),weights=mon)[0].astype(mon.dtype)
                 Normalization=np.histogram2d(*q,bins=(xBins,yBins),weights=Norm)[0].astype(Norm.dtype)
                 NormCount=np.histogram2d(*q,bins=(xBins,yBins))[0].astype(I.dtype)
-                
                 
                 if returndata is None:
                     returndata = [intensity,monitorCount,Normalization,NormCount]
@@ -2174,8 +2052,10 @@ class DataSet(object):
 
 
 
-    def plotQPlane(self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=False,rmcFile=False,**kwargs):
-        raise NotImplementedError('TODODODODODDO!!')
+    def plotQPlane(self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None,log=False,ax=None,rmcFile=False,**kwargs):
+        #self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=False,rmcFile=False,**kwargs
+        # self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None
+        # raise NotImplementedError('TODODODODODDO!!')
         """Wrapper for plotting tool to show binned intensities in the Q plane between provided Qz values.
             
             
@@ -2184,35 +2064,26 @@ class DataSet(object):
             - QzMin (float): Lower qz limit (Default None).
             
             - QzMax (float): Upper qz limit (Default None).
-
         Kwargs:
            
             - xBinTolerance (float): bin sizes along x direction (default 0.05). If enlargen is true, this is the minimum bin size.
-
             - yBinTolerance (float): bin sizes along y direction (default 0.05). If enlargen is true, this is the minimum bin size.
             
             - log (bool): Plot intensities as the logarithm (default False).
             
             - ax (matplotlib axes): Axes in which the data is plotted (default None). If None, the function creates a new axes object.
-
             - rlu (bool): If true and axis is None, a new reciprocal lattice axis is created and used for plotting (default True).
-
             - vmin (float): Lower limit for colorbar (default min(Intensity)).
             
             - vmax (float): Upper limit for colorbar (default max(Intensity)).
-
             - colorbar (bool): If True, a colorbar is created in figure (default False)
-
             - zorder (int): If provided decides the z ordering of plot (default 10)
-
             - other: Other key word arguments are passed to the pcolormesh plotting algorithm.
             
         Returns:
             
             - dataList (list): List of all data points in format [Intensity, Monitor, Normalization, Normcount]
-
             - bins (list): List of bin edges as function of plane in format [xBins,yBins].
-
             - ax (matplotlib axes): Returns provided matplotlib axis
             
         .. note::
@@ -2235,7 +2106,7 @@ class DataSet(object):
             cmap = None
 
 
-        returndata,bins = self.cutQPlane(QzMin=QzMin,QzMax=QzMax,xBinTolerance=xBinTolerance,yBinTolerance=yBinTolerance,steps=steps,rlu=rlu)
+        returndata,bins,translation = self.cutQPlane(points=points,width=width,dQx=dQx,dQy=dQy,xBins=xBins,yBins=yBins,rlu=rlu,steps=steps)
 
         if ax is None:
             if rlu:
@@ -2308,7 +2179,7 @@ class DataSet(object):
 
         ax.set_clim(vmin,vmax)
         
-        ax.QzMean = 0.5*(QzMax+QzMin)
+        ax.QzMean = translation
             
         if len(ax.Qx)!=0:
             xmin = np.min([np.min(qx) for qx in ax.Qx])
@@ -2348,7 +2219,7 @@ class DataSet(object):
                 ax.e = pd.DataFrame(dataToRMC)
                 if rmcFileName is None:
                     rmcFileName = 'sample_xtal_data_01.txt'
-                ax.e.to_csv(rmcFileName, header=None, index=None, sep=' ', mode='a')
+                ax.e.to_csv(rmcFileName, header=None, index=None, sep=' ', mode='w')
 
         
         #ax.to_csv = lambda fileName : to_csv(fileName,ax,spinteract,rmcFileName)
@@ -2384,27 +2255,20 @@ def add(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,d
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
-
         - useMask (bool): export file with angular mask. Default is True
-
         - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
         - hourNormalization (bool): export files normalized to one hour on monitor.
-
         - onlyHR (bool): export only data with an angular mask
-
         - onlyNorm (bool): export only data normalized to one hour files
-
         - dataYear (int): year of data collection
         
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
-
         - sampleTitle (bool): Include sample title in filename. Default is True.
     
         - temperature (bool): Include temperature in filename. Default is False.
@@ -2414,13 +2278,10 @@ def add(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,d
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
-
         - waveLength (bool): Include waveLength in filename. Default is False. 
-
         - addTitle (str): for adding text in addition to the automatically generated file name
         
     Kwargs for sumDetector:
-
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyCalibration (bool): Use normalization files (default True)
@@ -2496,27 +2357,20 @@ def export(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=Non
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
-
         - useMask (bool): export file with angular mask. Default is True
-
         - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
         - hourNormalization (bool): export files normalized to one hour on monitor.
-
         - onlyHR (bool): export only data with an angular mask
-
         - onlyNorm (bool): export only data normalized to one hour files
-
         - dataYear (int): year of data collection
         
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
-
         - sampleTitle (bool): Include sample title in filename. Default is True.
     
         - temperature (bool): Include temperature in filename. Default is False.
@@ -2526,13 +2380,10 @@ def export(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=Non
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
-
         - waveLength (bool): Include waveLength in filename. Default is False. 
-
         - addTitle (str): for adding text in addition to the automatically generated file name
         
     Kwargs for sumDetector:
-
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyCalibration (bool): Use normalization files (default True)
@@ -2606,27 +2457,20 @@ def exportAll(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
-
         - useMask (bool): export file with angular mask. Default is True
-
         - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
         - hourNormalization (bool): export files normalized to one hour on monitor.
-
         - onlyHR (bool): export only data with an angular mask
-
         - onlyNorm (bool): export only data normalized to one hour files
-
         - dataYear (int): year of data collection
         
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
-
         - sampleTitle (bool): Include sample title in filename. Default is True.
     
         - temperature (bool): Include temperature in filename. Default is False.
@@ -2636,13 +2480,10 @@ def exportAll(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
-
         - waveLength (bool): Include waveLength in filename. Default is False. 
-
         - addTitle (str): for adding text in addition to the automatically generated file name
         
     Kwargs for sumDetector:
-
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyCalibration (bool): Use normalization files (default True)
@@ -2701,7 +2542,6 @@ def export_from(startFile,PSI=True,xye=False,folder=None,outFolder=None,dataYear
     """
     
     Takes a starting file number and export xye format file for all the following files in the folder.
-
     Exports PSI and xye format file for all scans. 
     
     Kwargs:
@@ -2715,27 +2555,20 @@ def export_from(startFile,PSI=True,xye=False,folder=None,outFolder=None,dataYear
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
-
         - useMask (bool): export file with angular mask. Default is True
-
         - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
         - hourNormalization (bool): export files normalized to one hour on monitor.
-
         - onlyHR (bool): export only data with an angular mask
-
         - onlyNorm (bool): export only data normalized to one hour files
-
         - dataYear (int): year of data collection
         
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
-
         - sampleTitle (bool): Include sample title in filename. Default is True.
     
         - temperature (bool): Include temperature in filename. Default is False.
@@ -2745,13 +2578,10 @@ def export_from(startFile,PSI=True,xye=False,folder=None,outFolder=None,dataYear
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
-
         - waveLength (bool): Include waveLength in filename. Default is False. 
-
         - addTitle (str): for adding text in addition to the automatically generated file name
         
     Kwargs for sumDetector:
-
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyCalibration (bool): Use normalization files (default True)
@@ -2819,7 +2649,6 @@ def export_from_to(startFile,endFile,PSI=True,xye=False,folder=None,outFolder=No
     """
     
     Takes a starting file number and a end file number, export for all scans between (including start and end)
-
     Exports PSI and xye format file for all scans. 
     
     Kwargs:
@@ -2833,27 +2662,20 @@ def export_from_to(startFile,endFile,PSI=True,xye=False,folder=None,outFolder=No
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
-
         - useMask (bool): export file with angular mask. Default is True
-
         - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
         - hourNormalization (bool): export files normalized to one hour on monitor.
-
         - onlyHR (bool): export only data with an angular mask
-
         - onlyNorm (bool): export only data normalized to one hour files
-
         - dataYear (int): year of data collection
         
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
-
         - sampleTitle (bool): Include sample title in filename. Default is True.
     
         - temperature (bool): Include temperature in filename. Default is False.
@@ -2863,13 +2685,10 @@ def export_from_to(startFile,endFile,PSI=True,xye=False,folder=None,outFolder=No
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
-
         - waveLength (bool): Include waveLength in filename. Default is False. 
-
         - addTitle (str): for adding text in addition to the automatically generated file name
         
     Kwargs for sumDetector:
-
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyCalibration (bool): Use normalization files (default True)
@@ -2935,7 +2754,6 @@ def export_list(listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear
     """
     
     Takes a list and export all elements induvidually. If a list is given inside the list, these files will be added/merged.
-
     Exports PSI and xye format file for all scans. 
     
     Kwargs:
@@ -2947,27 +2765,20 @@ def export_list(listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
-
         - useMask (bool): export file with angular mask. Default is True
-
         - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
         - hourNormalization (bool): export files normalized to one hour on monitor.
-
         - onlyHR (bool): export only data with an angular mask
-
         - onlyNorm (bool): export only data normalized to one hour files
-
         - dataYear (int): year of data collection
         
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
-
         - sampleTitle (bool): Include sample title in filename. Default is True.
     
         - temperature (bool): Include temperature in filename. Default is False.
@@ -2977,13 +2788,10 @@ def export_list(listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
-
         - waveLength (bool): Include waveLength in filename. Default is False. 
-
         - addTitle (str): for adding text in addition to the automatically generated file name
         
     Kwargs for sumDetector:
-
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyCalibration (bool): Use normalization files (default True)
@@ -3052,11 +2860,9 @@ def subtract_PSI(file1,file2,outFile=None,folder=None,outFolder=None):
         - PSI (bool): Subtract PSI format. Default is True
         
         - xye (bool): Subtract xye format. Default is True
-
         - folder (str): Path to directory for data files, default is current working directory
         
         - outFile (str): string for name of outfile (given without extension)
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
                 
     Example:
@@ -3156,11 +2962,9 @@ def subtract_xye(file1,file2,outFile=None,folder=None,outFolder=None):
         - PSI (bool): Subtract PSI format. Default is True
         
         - xye (bool): Subtract xye format. Default is True
-
         - folder (str): Path to directory for data files, default is current working directory
         
         - outFile (str): string for name of outfile (given without extension)
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory. 
         
     Example:
@@ -3226,11 +3030,8 @@ def subtract_xye(file1,file2,outFile=None,folder=None,outFolder=None):
 
 def subtract(file1,file2,PSI=True,xye=True,outFile=None,folder=None,outFolder=None):
     """
-
     This function takes two files and export a differnce curve with correct uncertainties. 
-
     The second file is scaled after the monitor of the first file.
-
     Kwargs:
         
         - PSI (bool): Subtract PSI format. Default is True
@@ -3240,12 +3041,10 @@ def subtract(file1,file2,PSI=True,xye=True,outFile=None,folder=None,outFolder=No
         - folder (str): Path to directory for data files, default is current working directory
         
         - outFile (str): string for name of outfile (given without extension)
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory. 
         
     Example:
         >>> subtract('DMC_565.xye','DMC_573')
-
     """
 
 
