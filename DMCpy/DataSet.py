@@ -3,7 +3,7 @@ import numpy as np
 import pickle as pickle
 import matplotlib.pyplot as plt
 import pandas as pd
-import os
+import os, copy
 import json, os, time
 from DMCpy import DataFile, _tools, Viewer3D, RLUAxes, TasUBlibDEG
 import warnings
@@ -1959,7 +1959,7 @@ class DataSet(object):
     #     return returndata,bins
 
 
-    def cutQPlane(self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None):
+    def cutQPlane(self,points, width, sample = None, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None):
         """Perform QPlane cut where points within +-0.5*width are collapsed onto the plane and binned into xBins and yBins
         Args:
             - points (list): List of three points within the wanted plane. X is parallel to point 2 - point 1 (p1, p2, p3 = points)
@@ -1978,6 +1978,9 @@ class DataSet(object):
         if np.all([x is None for x in [dQx,dQy,xBins,yBins]]):
             raise AttributeError('No bins or step sizes provided')
 
+        if sample is None:
+            sample = self[0].sample
+
         if xBins is None:
             if dQx is None:
                 raise AttributeError('Neither dQx or xBins are set!')
@@ -1988,7 +1991,7 @@ class DataSet(object):
             yBins = np.arange(-5,5,dQy)
 
         if rlu:
-            newPoints = [np.dot(self[0].sample.UB,point) for point in points]
+            newPoints = [np.dot(sample.UB,point) for point in points]
             for o,n in zip(points,newPoints):
                 print(' {} --> {}'.format(o,n))
 
@@ -1997,7 +2000,8 @@ class DataSet(object):
         else:
             newPoints = points
         
-        totalRotMat,translation = _tools.calculateRotationMatrixAndOffset(newPoints)
+        totalRotMat,translation = _tools.calculateRotationMatrixAndOffset2(newPoints)
+        
         returndata = None
         for df in self:
             
@@ -2052,7 +2056,7 @@ class DataSet(object):
 
 
 
-    def plotQPlane(self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None,log=False,ax=None,rmcFile=False,**kwargs):
+    def plotQPlane(self,points, width, sample=None, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None,log=False,ax=None,rmcFile=False,**kwargs):
         #self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=False,rmcFile=False,**kwargs
         # self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None
         # raise NotImplementedError('TODODODODODDO!!')
@@ -2106,11 +2110,16 @@ class DataSet(object):
             cmap = None
 
 
-        returndata,bins,translation = self.cutQPlane(points=points,width=width,dQx=dQx,dQy=dQy,xBins=xBins,yBins=yBins,rlu=rlu,steps=steps)
+        returndata,bins,translation = self.cutQPlane(points=points,sample=sample,width=width,dQx=dQx,dQy=dQy,xBins=xBins,yBins=yBins,rlu=rlu,steps=steps)
+
+        if sample is None:
+            sample = copy.deepcopy(self[0].sample)
 
         if ax is None:
             if rlu:
-                ax = self.createRLUAxes()
+                fig,ax = plt.subplots()#self.createRLUAxes(sample=sample)
+                ax.set_xlabel('Qx [1/AA]')
+                ax.set_ylabel('Qy [1/AA]')    
             else:
                 fig,ax = plt.subplots()
                 ax.set_xlabel('Qx [1/AA]')
@@ -2118,7 +2127,7 @@ class DataSet(object):
 
         
 
-        ax.sample = self[0].sample       
+        ax.sample = sample       
         
         ax.intensity,ax.monitorCount,ax.Normalization,ax.NormCount, = returndata
 

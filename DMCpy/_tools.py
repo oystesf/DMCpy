@@ -765,3 +765,43 @@ def calculateRotationMatrixAndOffset(points):
     
     totalRotMat = np.dot(Rot3DInPlane,Rot3D)
     return totalRotMat,-offsetm[0]
+
+
+def calculateRotationMatrixAndOffset2(points):
+    v1, v2, v3 = points
+    Q1 = v2-v1
+    Q2 = v3-v1
+
+    # projectionVectors = np.array([[0,0,1],[1,1,0],[1,-1,0]])
+    axisVectors = np.eye(3)
+    ## Assume that Q1/HKL1 is along x-axis
+
+    Alpha1 = np.rad2deg(np.arccos(np.dot(Q1,axisVectors[0])/(np.linalg.norm(Q1))))
+    if np.isclose(Alpha1,0.0): # Q1 is parallel to 1 0 0
+        Rot1 = np.array([0.0,0.0,1.0])
+    else:
+        Rot1 = np.cross(Q1,axisVectors[0])
+
+        Rot1*=1.0/np.linalg.norm(Rot1)
+    ROT1 = rotMatrix(Rot1,Alpha1)
+
+    # Rotate Q2 into Q1's frame
+    Q2Rot = np.dot(ROT1,Q2)
+    Q2Rot-= np.dot(axisVectors[0],Q2Rot)*axisVectors[0]# project out [1,0,0] as this rotation has been done by Q1
+
+    Alpha2 = np.rad2deg(np.arccos(np.dot(Q2Rot,axisVectors[1])/(np.linalg.norm(Q2Rot))))#np.rad2deg(np.arccos(Q2Rot[1]/np.linalg.norm(Q2Rot)))
+    if np.isclose(Alpha1,0.0):
+        Rot2 = np.array([0.0,0.0,1.0])
+    else:
+        Rot2 = np.cross(Q2Rot,axisVectors[1])
+        Rot2*=1.0/np.linalg.norm(Rot2)
+    ROT2 = rotMatrix(Rot2,Alpha2)
+
+    ROT = np.dot(ROT2,ROT1)
+    offset = np.einsum('ij,...j->...i',ROT,[v1, v2, v3])[:,2]
+    if not np.all(np.isclose(offset,offset[0])):
+            raise AttributeError('Calculated plane does not have the defining points in the same distance from...')
+    
+    return ROT,offset.mean()
+
+
