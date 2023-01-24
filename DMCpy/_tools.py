@@ -777,7 +777,8 @@ def calculateRotationMatrixAndOffset2(points):
     ## Assume that Q1/HKL1 is along x-axis
 
     Alpha1 = np.rad2deg(np.arccos(np.dot(Q1,axisVectors[0])/(np.linalg.norm(Q1))))
-    if np.isclose(Alpha1,0.0): # Q1 is parallel to 1 0 0
+
+    if np.isclose(Alpha1,0.0) or np.isclose(Alpha1,180.0): # Q1 is parallel to 1 0 0
         Rot1 = np.array([0.0,0.0,1.0])
     else:
         Rot1 = np.cross(Q1,axisVectors[0])
@@ -790,17 +791,17 @@ def calculateRotationMatrixAndOffset2(points):
     Q2Rot-= np.dot(axisVectors[0],Q2Rot)*axisVectors[0]# project out [1,0,0] as this rotation has been done by Q1
 
     Alpha2 = np.rad2deg(np.arccos(np.dot(Q2Rot,axisVectors[1])/(np.linalg.norm(Q2Rot))))#np.rad2deg(np.arccos(Q2Rot[1]/np.linalg.norm(Q2Rot)))
-    if np.isclose(Alpha1,0.0):
+
+    if np.isclose(Alpha2,0.0) or np.isclose(Alpha2,180.0):
         Rot2 = np.array([0.0,0.0,1.0])
     else:
         Rot2 = np.cross(Q2Rot,axisVectors[1])
         Rot2*=1.0/np.linalg.norm(Rot2)
     ROT2 = rotMatrix(Rot2,Alpha2)
-
     ROT = np.dot(ROT2,ROT1)
     offset = np.einsum('ij,...j->...i',ROT,[v1, v2, v3])[:,2]
     if not np.all(np.isclose(offset,offset[0])):
-            raise AttributeError('Calculated plane does not have the defining points in the same distance from...')
+        raise AttributeError('Calculated plane does not have the defining points in the same distance from...')
     
     return ROT,offset.mean()
 
