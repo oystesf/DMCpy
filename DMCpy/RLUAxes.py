@@ -205,7 +205,7 @@ def axisChanged(axis,forceUpdate=False,direction='both'):
 
 
 
-def createRLUAxes(self,figure=None,ids=[1, 1, 1],basex=None,basey=None,projection=2,step=0):
+def createRLUAxes(self,sample=None, figure=None,ids=[1, 1, 1],basex=None,basey=None,projection=2,step=0):
     """Create a reciprocal lattice plot for a given DataSet object.
     
     Args:
@@ -241,8 +241,9 @@ def createRLUAxes(self,figure=None,ids=[1, 1, 1],basex=None,basey=None,projectio
         number is found and will update when zooming.
         
     """
-
-    sample = copy.deepcopy(self[0].sample)
+    if sample is None:
+        sample = copy.deepcopy(self[0].sample)
+        
 
     if figure is None:
         fig = plt.figure(figsize=(7, 4))
