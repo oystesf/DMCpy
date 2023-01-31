@@ -11,14 +11,6 @@ Main text about the tutorials below..
 
    Powder/2D_Detector_Plot.rst
 
-   Powder/Powder_Diffractogram.rst
-
-   Powder/ExportPowder.rst
-
-   View3D/Viewer3D.rst
-
-   View3D/Cut3D.rst
-
    Testing.rst
 
 
