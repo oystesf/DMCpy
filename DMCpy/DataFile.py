@@ -399,7 +399,7 @@ class DataFile(object):
             # load standard things using the shallow read
             instr = getInstrument(f)
 
-            if not f['/entry/reduction'] is None: # Data file is a merged/reduced data file
+            if not f.get('/entry/reduction') is None: # Data file is a merged/reduced data file
                 red = f['/entry/reduction']
 
                 # Complicated way to avoid having to guess the name of the reduction algorithm.....
