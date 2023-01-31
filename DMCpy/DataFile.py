@@ -398,6 +398,13 @@ class DataFile(object):
             self.countShape = f.get(HDFCounts).shape
             # load standard things using the shallow read
             instr = getInstrument(f)
+
+            if not f['/entry/reduction'] is None: # Data file is a merged/reduced data file
+                red = f['/entry/reduction']
+
+                # Complicated way to avoid having to guess the name of the reduction algorithm.....
+                self.original_files = np.asarray([name.decode('UTF8') for name in list(red.values())[0].get('rawdata')]) 
+                
             for parameter in HDFTranslation.keys():
                 if parameter in ['unitCell','sample','unitCell']:
                     continue
@@ -452,7 +459,11 @@ class DataFile(object):
     def loadNormalization(self):
         # Load calibration
         try:
-            self.normalization, self.normalizationFile = findCalibration(self.fileName)
+            if hasattr(self,'original_files'): # We are working with a converted/merged file
+                name = self.original_files[0]
+            else:
+                name = self.fileName
+            self.normalization, self.normalizationFile = findCalibration(name)
         except ValueError:
             self.normalizationFile = 'None'
 
