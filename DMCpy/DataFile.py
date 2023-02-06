@@ -8,12 +8,16 @@ import pandas as pd
 import DMCpy
 import os.path
 from DMCpy import InteractiveViewer
-from collections import defaultdict
+
 import warnings
 
 import copy
-from DMCpy import _tools
+from DMCpy._tools import KwargChecker, MPLKwargs, roundPower
 from DMCpy import Sample
+from DMCpy.FileStructure import HDFCounts, HDFTranslation, HDFTranslationAlternatives, HDFTranslationDefault, HDFTranslationFunctions
+from DMCpy.FileStructure import HDFInstrumentTranslation, HDFInstrumentTranslationFunctions, extraAttributes, possibleAttributes 
+from DMCpy.FileStructure import HDFTypes, HDFUnits, shallowRead
+
 
 scanTypes = ['Old Data','Powder','A3']
 
@@ -28,7 +32,7 @@ def decode(item):
     return item
 
 
-@_tools.KwargChecker()
+@KwargChecker()
 def maskFunction(phi,maxAngle=10.0):
     """Mask all phi angles outside plus/minus maxAngle
 
@@ -42,7 +46,7 @@ def maskFunction(phi,maxAngle=10.0):
     """
     return np.abs(phi)>maxAngle
 
-@_tools.KwargChecker()
+@KwargChecker()
 def findCalibration(fileName):
     """Find detector calibration for specified file
 
@@ -106,170 +110,6 @@ class lazyQ(object):
         return np.einsum('jki,k...->ji...',self.rotationMatrix[:,:,sl].reshape(3,3,-1),self.q_temp)
 
 
-HDFCounts = 'entry/DMC/detector/data'
-## Dictionary for holding hdf position of attributes. HDFTranslation['a3'] gives hdf position of 'a3'
-HDFTranslation = {'sample':'/entry/sample',
-                  'sampleName':'/entry/sample/name',
-                  'monitor':None,#'entry/monitor/monitor',
-                  'monitor1':'entry/monitor/monitor1',
-                  'unitCell':'/entry/sample/unit_cell',
-                  #'counts':'entry/DMC/detector/data',
-                  'summedCounts': 'entry/DMC/detector/summed_counts',
-                  'monochromatorCurvature':'entry/DMC/monochromator/curvature',
-                  'monochromatorVerticalCurvature':'entry/DMC/monochromator/curvature_vertical',
-                  'monochromatorGoniometerLower':'entry/DMC/monochromator/goniometer_lower',
-                  'monochromatorGoniometerUpper':'entry/DMC/monochromator/goniometer_upper',
-                  'monochromatorRotationAngle':'entry/DMC/monochromator/rotation_angle',
-                  'monochromatorTakeoffAngle':'entry/DMC/monochromator/takeoff_angle',
-                  'monochromatorTranslationLower':'entry/DMC/monochromator/translation_lower',
-                  'monochromatorTranslationUpper':'entry/DMC/monochromator/translation_upper',
-                  
-
-                  'wavelength':'entry/DMC/monochromator/wavelength',
-                  'wavelength_raw':'entry/DMC/monochromator/wavelength_raw',
-                  'twoThetaPosition':'entry/DMC/detector/detector_position',
-                  'mode':'entry/monitor/mode',
-                  'preset':'entry/monitor/preset',
-                  'startTime':'entry/start_time',
-                  'time':'Henning',# Is to be caught by HDFTranslationAlternatives 'entry/monitor/time',
-                  'endTime':'entry/end_time',
-                  'comment':'entry/comment',
-                  'proposal':'entry/proposal_id',
-                  'proposalTitle':'entry/proposal_title',
-                  'localContact':'entry/local_contact/name',
-                  'proposalUser':'entry/proposal_user/name',
-                  'proposalEmail':'entry/proposal_user/email',
-                  'user':'entry/user/name',
-                  'email':'entry/user/email',
-                  'address':'entry/user/address',
-                  'affiliation':'entry/user/affiliation',
-                  'A3':'entry/sample/rotation_angle',
-                  'se_r':'entry/sample/se_r',
-                  'temperature':'entry/sample/temperature',
-                  'magneticField':'entry/sample/magnetic_field',
-                  'electricField':'entry/sample/electric_field',
-                  'scanCommand':'entry/scancommand',
-                  'title':'entry/title',
-                  'absoluteTime':'entry/control/absolute_time',
-                  'protonBeam':None# 'entry/proton_beam/data'
-}
-
-HDFTranslationAlternatives = { # Alternatives to the above list. NOTTICE: The above positions are not checked if an entry in HDFTranslationAlternatives is present
-    'time':['entry/monitor/time','entry/monitor/monitor'],
-    'monitor':['entry/monitor/monitor','entry/monitor/monitor2'],
-    'protonBeam':['entry/proton_beam/data','entry/monitor/proton_charge']
-}
-
-## Dictionary for holding standard values 
-
-HDFTranslationDefault = {'twoThetaPosition':np.array([0.0]),
-                         'comment': 'No Comments',
-                         'endTime': '20yy-mm-dd hh:mm:ss',
-                         'proposalTitle': 'Unknown Title',
-                         'localContact': 'Unknown Local Contact',
-                         'proposalUser': 'Unknown User',
-                         'proposalEmail': 'Unknown Email',
-                         'address': 'Unknown Address',
-                         'affiliation': 'Unknown Affiliation',
-                         'scanCommand': 'Unknown scanCommand',
-
-                         'wavelength_raw':np.array([2.0]),
-                         'monitor1':np.array([0.0]),
-
-                         'temperature': np.array([0.0]),
-                         'magneticField': np.array([0.0]),
-                         'electricField': np.array([0.0]),
-
-                         'absoluteTime': np.array([0.0]),
-                         'protonBeam': np.array([0.0]),
-                         'se_r': np.array([0.0]),
-                         
-                         
-
-}
-
-## Default dictionary to perform on loaded data, i.e. take the zeroth element, swap axes, etc
-
-HDFTranslationFunctions = defaultdict(lambda : [])
-HDFTranslationFunctions['sampleName'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['mode'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['startTime'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['wavelength'] = [['mean',[]]]
-HDFTranslationFunctions['wavelength_raw'] = [['mean',[]]]
-HDFTranslationFunctions['twoThetaPosition'] = [['__getitem__',[0]]]
-HDFTranslationFunctions['endTime'] = [['__getitem__',[0]]]
-HDFTranslationFunctions['experimentalIdentifier'] = [['__getitem__',[0]]]
-HDFTranslationFunctions['comment'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['proposal'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['proposalTitle'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['localContact'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['proposalUser'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['proposalEmail'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['user'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['email'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['address'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['affiliation'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['scanCommand'] = [['__getitem__',[0]],['decode',['utf8']]]
-HDFTranslationFunctions['title'] = [['__getitem__',[0]],['decode',['utf8']]]
-
-
-
-HDFInstrumentTranslation = {
-}
-
-HDFInstrumentTranslationFunctions = defaultdict(lambda : [])
-# HDFInstrumentTranslationFunctions['counts'] = [['swapaxes',[1,2]]]
-HDFInstrumentTranslationFunctions['twoThetaPosition'] = [['mean',]]
-HDFInstrumentTranslationFunctions['wavelength'] = [['mean',]]
-HDFInstrumentTranslationFunctions['wavelength_raw'] = [['mean',]]
-
-extraAttributes = ['name','fileLocation']
-
-possibleAttributes = list(HDFTranslation.keys())+list(HDFInstrumentTranslation.keys())+extraAttributes
-possibleAttributes.sort(key=lambda v: v.lower())
-
-HDFTypes = defaultdict(lambda: lambda x: np.array([np.string_(x)]))
-HDFTypes['monitor'] = np.array
-HDFTypes['monitor1'] = np.array
-HDFTypes['monochromatorCurvature'] = np.array
-HDFTypes['monochromatorVerticalCurvature'] = np.array
-HDFTypes['monochromatorGoniometerLower'] = np.array
-HDFTypes['monochromatorGoniometerUpper'] = np.array
-HDFTypes['monochromatorRotationAngle'] = np.array
-HDFTypes['monochromatorTakeoffAngle'] = np.array
-HDFTypes['monochromatorTranslationLower'] = np.array
-HDFTypes['monochromatorTranslationUpper'] = np.array
-HDFTypes['wavelength'] = np.array
-HDFTypes['wavelength_raw'] = np.array
-HDFTypes['twoThetaPosition'] = np.array
-# HDFTypes['mode'] = lambda x: np.array([np.string_(x)])
-HDFTypes['preset'] = np.array
-# HDFTypes['startTime'] = np.string_
-HDFTypes['time'] = np.array
-# HDFTypes['endTime'] = np.string_
-# HDFTypes['comment'] = np.string_
-HDFTypes['absoluteTime'] = np.array
-HDFTypes['protonBeam'] = np.array
-
-
-HDFUnits = {
-    'monitor':'counts',
-    'monochromatorCurvature':'degree',
-    'monochromatorVerticalCurvature':'degree',
-    'monochromatorGoniometerLower':'degree',
-    'monochromatorGoniometerUpper':'degree',
-    'monochromatorRotationAngle':'degree',
-    'monochromatorTakeoffAngle':'degree',
-    'monochromatorTranslationLower':'mm',
-    'monochromatorTranslationUpper':'mm',
-    'twoThetaPosition':'degree',
-    'monitor':'counts',
-    'monitor1':'counts',
-    'protonBeam':'uA',
-    'wavelength':'A',
-    'wavelength_raw':'A'
-}
-
 
 
 def getNX_class(x,y,attribute):
@@ -285,7 +125,7 @@ def getInstrument(file):
     return file.get(location)
 
 
-@_tools.KwargChecker(include=['radius','twoTheta','verticalPosition','twoThetaPosition']+list(HDFTranslation.keys()))
+@KwargChecker(include=['radius','twoTheta','verticalPosition','twoThetaPosition']+list(HDFTranslation.keys()))
 def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
     """Load DMC data file, either powder or single crystal data.
     
@@ -361,7 +201,7 @@ def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
 
 
 class DataFile(object):
-    @_tools.KwargChecker()
+    @KwargChecker()
     def __init__(self, file=None):
         self.fileType = 'DataFile'
         self._twoThetaOffset = 0.0
@@ -379,7 +219,7 @@ class DataFile(object):
             else:
                 raise FileNotFoundError('Provided file path "{}" not found.'.format(file))
 
-    @_tools.KwargChecker()
+    @KwargChecker()
     def loadFile(self,filePath):
         if not os.path.exists(filePath):
             raise FileNotFoundError('Provided file path "{}" not found.'.format(filePath))
@@ -650,7 +490,7 @@ class DataFile(object):
             raise AttributeError('Provided argument is not of type dictionary. Received instance of type {}'.format(type(dictionary)))
 
 
-    @_tools.KwargChecker(function=plt.errorbar,include=_tools.MPLKwargs)
+    @KwargChecker(function=plt.errorbar,include=MPLKwargs)
     def plotDetector(self,ax=None,applyCalibration=True,**kwargs):
         """Plot intensity as function of twoTheta (and vertical position of pixel in 2D)
 
@@ -693,12 +533,12 @@ class DataFile(object):
 
             def format_coord(ax,xdata,ydata):
                 if not hasattr(ax,'xfmt'):
-                    ax.mean_x_power = _tools.roundPower(np.mean(np.diff(ax._err.get_children()[0].get_data()[0])))
+                    ax.mean_x_power = roundPower(np.mean(np.diff(ax._err.get_children()[0].get_data()[0])))
                     ax.xfmt = r'$2\theta$ = {:3.'+str(ax.mean_x_power)+'f} Deg'
                 if not hasattr(ax,'yfmt'):
                     ymin,ymax,ystep = [f(ax._err.get_children()[0].get_data()[1]) for f in [np.min,np.max,len]]
                     
-                    ax.mean_y_power = _tools.roundPower((ymax-ymin)/ystep)
+                    ax.mean_y_power = roundPower((ymax-ymin)/ystep)
                     ax.yfmt = r'Int = {:.'+str(ax.mean_y_power)+'f} cts'
 
                 return ', '.join([ax.xfmt.format(xdata),ax.yfmt.format(ydata)])
@@ -726,7 +566,7 @@ class DataFile(object):
 
         return ax
 
-    @_tools.KwargChecker()
+    @KwargChecker()
     def save(self,filePath,compression=6):
         """Save data file in hdf format.
         
@@ -947,60 +787,3 @@ class PowderDataFile(DataFile):
         self.fileType = 'Powder'
         self.counts.shape = (1,128,1152)
 
-
-
-def shallowRead(files,parameters):
-
-    parameters = np.array(parameters)
-    values = []
-    possibleAttributes.sort(key=lambda v: v.lower())
-    possible = []
-    for p in parameters:
-        possible.append(p in possibleAttributes)
-    
-    if not np.all(possible):
-        if np.sum(np.logical_not(possible))>1:
-            raise AttributeError('Parameters {} not found'.format(parameters[np.logical_not(possible)]))
-        else:
-            raise AttributeError('Parameter {} not found'.format(parameters[np.logical_not(possible)]))
-    
-    for file in files:
-        vals = {}
-        vals['file'] = file
-        with hdf.File(file,mode='r') as f:
-            instr = getInstrument(f)
-            for p in parameters:
-                if p == 'name':
-                    v = os.path.basename(file)
-                    vals[p] = v
-                    continue
-                elif p == 'fileLocation':
-                    v = os.path.dirname(file)
-                    vals[p] = v
-                    continue
-                elif p in HDFTranslationAlternatives:
-                    for entry in HDFTranslationAlternatives[p]:
-                        v = np.array(f.get(entry))
-                        if not v.shape == ():
-                            TrF= HDFTranslationFunctions
-                            break
-
-                elif p in HDFTranslation:
-                    v = np.array(f.get(HDFTranslation[p]))
-                    TrF= HDFTranslationFunctions
-                elif p in HDFInstrumentTranslation:
-                    v = np.array(instr.get(HDFInstrumentTranslation[p]))
-                    TrF= HDFInstrumentTranslationFunctions
-                else:
-                    raise AttributeError('Parameter "{}" not found'.format(p))
-                for func,args in TrF[p]:
-                    try:
-                        v = getattr(v,func)(*args)
-                    except (IndexError,AttributeError):
-                        warnings.warn('Parameter "{}" not found in file "{}"'.format(p,file))
-                        v = None
-                        
-                vals[p] = v
-        values.append(vals)
-
-    return values
