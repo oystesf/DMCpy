@@ -6,6 +6,7 @@ import pandas as pd
 import os, copy
 import json, os, time
 from DMCpy import DataFile, _tools, Viewer3D, RLUAxes, TasUBlibDEG
+from DMCpy.FileStructure import shallowRead
 import warnings
 import DMCpy
 
@@ -3079,7 +3080,7 @@ def subtract(file1,file2,PSI=True,xye=True,outFile=None,folder=None,outFolder=No
 
 def DMCsort(filelist,sortKey):
     
-    names =  DataFile.shallowRead(filelist,[str(sortKey)])
+    names =  shallowRead(filelist,[str(sortKey)])
     
     listOfFiles = []
     listOfTitles = []
