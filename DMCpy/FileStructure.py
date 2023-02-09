@@ -1,6 +1,7 @@
 import numpy as np
 from collections import defaultdict
 import warnings
+import h5py as hdf
 
 
 HDFCounts = 'entry/DMC/detector/data'
@@ -167,6 +168,17 @@ HDFUnits = {
     'wavelength_raw':'A'
 }
 
+def getNX_class(x,y,attribute):
+    try:
+        variableType = y.attrs['NX_class']
+    except:
+        variableType = ''
+    if variableType==attribute:
+        return x
+
+def getInstrument(file):
+    location = file.visititems(lambda x,y: getNX_class(x,y,b'NXinstrument'))
+    return file.get(location)
 
 def shallowRead(files,parameters):
 
