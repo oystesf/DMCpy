@@ -9,7 +9,8 @@ from itertools import product
 import pickle
 import h5py as hdf
 import datetime, shutil
-import DMCpy.DataFile
+from DMCpy.FileStructure import shallowRead, HDFTranslationAlternatives, HDFTranslation, HDFCounts
+
 import DMCpy
 
 
@@ -846,7 +847,7 @@ def merge(dataFilesList,saveFileName,directory=None, A3Tolerance=0.05, A4Toleran
     # Perform checks
     equalParameters = ['twoThetaPosition','wavelength']
     equalParametersTolerance = [A4Tolerance,wavelengthTolerance]
-    files = DMCpy.DataFile.shallowRead(dataFilesList,equalParameters)
+    files = shallowRead(dataFilesList,equalParameters)
     
     trueValue = None
     truthTable = []
@@ -883,7 +884,7 @@ def merge(dataFilesList,saveFileName,directory=None, A3Tolerance=0.05, A4Toleran
     shutil.copy(dataFilesList[0],savepath)
     
     # Find min and max of A3 as well as average across all files
-    A3files = DMCpy.DataFile.shallowRead(dataFilesList,['A3'])
+    A3files = shallowRead(dataFilesList,['A3'])
     
     # Check if length is 1, then it is a powder!!!
     powderFiles = [f['file'] for f in A3files if len(f['A3'])<2 ]
@@ -918,10 +919,10 @@ def merge(dataFilesList,saveFileName,directory=None, A3Tolerance=0.05, A4Toleran
     
     def getPositionInFile(file,parameter):
         """ Get position of specified parameter in HDF file"""
-        if not parameter in DMCpy.DataFile.HDFTranslationAlternatives:
-                intensityPositionsInFile = [DMCpy.DataFile.HDFTranslation[parameter]]
+        if not parameter in HDFTranslationAlternatives:
+                intensityPositionsInFile = [HDFTranslation[parameter]]
         else:
-            intensityPositionsInFile = DMCpy.DataFile.HDFTranslationAlternatives[parameter]
+            intensityPositionsInFile = HDFTranslationAlternatives[parameter]
             
         if len(intensityPositionsInFile)>1: # If there are multiple possible positions
             for pos in intensityPositionsInFile[::-1]: # Last entry is the newest
@@ -949,7 +950,7 @@ def merge(dataFilesList,saveFileName,directory=None, A3Tolerance=0.05, A4Toleran
     totalSteps = len(newA3)
     with hdf.File(savepath,'r') as saveFile:
         # Find positions in dataFilesList
-        countPositionInFile = '/'+DMCpy.DataFile.HDFCounts#
+        countPositionInFile = '/'+HDFCounts#
         countShape = saveFile[countPositionInFile].shape
         monitorPositionInFile = getPositionInFile(saveFile,'monitor')
         summedCountsPositionInFile = getPositionInFile(saveFile,'summedCounts')
