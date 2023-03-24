@@ -32,10 +32,26 @@ class DataSet(object):
             
             self._getData()
 
-    def _getData(self):
+    def _getData(self,verbose=True):
+
+        #data file lengths
+        lengths = np.asarray([len(df) for df in self])
+
         # Collect parameters listed below across data files into self
         for parameter in ['counts','monitor','twoTheta','correctedTwoTheta','fileName','pixelPosition','wavelength','mask','normalization','normalizationFile','time','temperature']:
-            setattr(self,parameter,np.array([getattr(d,parameter) for d in self],dtype=object))
+            if not np.all(lengths==lengths[0]):
+                setattr(self,parameter,np.array([getattr(d,parameter) for d in self],dtype=object))
+                if verbose: print('file length is not the same for all files => dtype=object')
+            else:
+                if parameter in ("fileName", "normalizationFile"):
+                    dtype = object
+                elif parameter in ("mask", ):
+                    dtype = bool
+                else:
+                    dtype = float
+
+                setattr(self,parameter,np.array([getattr(d,parameter) for d in self],dtype=dtype))
+                if verbose: print('file length is the same for all files => dtype is induvidual')
 
         
         types = [df.fileType for df in self]
@@ -56,6 +72,7 @@ class DataSet(object):
 
 
     def __getitem__(self,index):
+
         try:
             return self.dataFiles[index]
         except IndexError:
@@ -646,7 +663,7 @@ class DataSet(object):
         ax.errorbar(X,I,yerr=err,**kwargs)
 
         ax.get_figure().tight_layout()
-        return hkl,I,ax
+        return hkl,I,err,ax
 
     def cut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True):
         """Cut data from P1 to P2 in steps of stepSize [1/AA] width a cylindrical width [1/AA]
