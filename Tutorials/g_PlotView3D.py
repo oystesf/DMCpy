@@ -1,4 +1,4 @@
-import sys
+import sys, os
 # sys.path.append(r'C:\Users\lass_j\Documents\Software\DMCpy')
 from Tutorial_Class import Tutorial
 
@@ -124,7 +124,7 @@ introText = title+'\n'+'^'*len(title)+'\n'+introText
 
 
     
-Example = Tutorial('Viewer3D',introText,outroText,Tester,fileLocation = r'docs/Tutorials/View3D')
+Example = Tutorial('Viewer3D',introText,outroText,Tester,fileLocation = os.path.join(os.getcwd(),r'docs/Tutorials/View3D'))
 
 def test_Viewer3D():
     Example.test()

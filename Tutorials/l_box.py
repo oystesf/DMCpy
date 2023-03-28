@@ -1,4 +1,4 @@
-import sys
+import sys, os
 # sys.path.append(r'C:\Users\lass_j\Documents\Software\DMCpy')
 from Tutorial_Class import Tutorial
 
@@ -132,7 +132,7 @@ introText = title+'\n'+'^'*len(title)+'\n'+introText
 
 
     
-Example = Tutorial('box',introText,outroText,Tester,fileLocation = r'docs/Tutorials/box')
+Example = Tutorial('box',introText,outroText,Tester,fileLocation = os.path.join(os.getcwd(),r'docs/Tutorials/box'))
 
 def test_box():
     Example.test()
