@@ -15,7 +15,7 @@ A useful feature is to use a defined A3 range to subtract background from a samp
    scanNumbers = '8540' 
    folder = 'data/SC'
    year = 2022
-   
+      
    # Create complete filepath
    file = os.path.join(os.getcwd(),_tools.fileListGenerator(scanNumbers,folder,year=year)[0]) 
    

@@ -13,7 +13,7 @@ It can be very useful to subtract two data sets from each other, e.g. to look fo
    scanNumbers = '8540' 
    folder = 'data/SC'
    year = 2022
-   
+      
    # Create complete filepath
    file = os.path.join(os.getcwd(),_tools.fileListGenerator(scanNumbers,folder,year=year)[0]) 
    
@@ -32,13 +32,13 @@ It can be very useful to subtract two data sets from each other, e.g. to look fo
    
    # # # subtract dataSets
    if True:
-   files_sub = '8553'
-   filePath_sub =  os.path.join(os.getcwd(),_tools.fileListGenerator(files_sub,folder,year=year)[0]) 
-   
-   dataFiles_sub = DataFile.loadDataFile(filePath_sub)
-   ds_sub = DataSet.DataSet(dataFiles_sub)
-   
-   ds.subtractDS(ds_sub)
+      files_sub = '8553'
+      filePath_sub =  os.path.join(os.getcwd(),_tools.fileListGenerator(files_sub,folder,year=year)[0]) 
+      
+      dataFiles_sub = DataFile.loadDataFile(filePath_sub)
+      ds_sub = DataSet.DataSet(dataFiles_sub)
+      
+      ds.subtractDS(ds_sub)
    
    # run the Interactive Viewer
    IA2 = df.InteractiveViewer()
@@ -57,8 +57,8 @@ It can be very useful to subtract two data sets from each other, e.g. to look fo
    
    # # # mask data
    if True:
-   for df in ds:
-       df.mask[:,:,300:400] = True
+      for df in ds:
+         df.mask[:,:,300:400] = True
    
    Viewer2 = ds.Viewer3D(0.03,0.03,0.03,rlu=False)
    Viewer2.set_clim(0,0.001)
