@@ -24,8 +24,10 @@ def formatCode(text,indentChar = '   ', skipHeader=1):
     newText.append('.. code-block:: python\n   :linenos:\n')
     figCounter = 0
     for line in text:
-        if line[:8] == ' '*8: # Replace initial blank with >>>
-            line = indentChar + line[8:]
+        if line[:12] == ' '*12:
+            line = indentChar*3 + line[12:]
+        elif line[:8] == ' '*8: # Replace initial blank with >>>
+            line = indentChar*2 + line[8:]
         elif line[:4] == ' '*4:
             line = indentChar + line[4:]
         elif len(line)==0:

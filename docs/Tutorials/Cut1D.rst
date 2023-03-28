@@ -16,7 +16,7 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
    scanNumbers = '8540' 
    folder = 'data/SC'
    year = 2022
-   
+      
    # Create complete filepath
    file = os.path.join(os.getcwd(),_tools.fileListGenerator(scanNumbers,folder,year=year)[0]) 
    
@@ -33,20 +33,20 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
    # cut1D takes start and end point as lists.
    
    kwargs = {
-           'width' : 0.2,
-           'widthZ' : 0.2,
-           'stepSize' : 0.005,
-           'rlu' : True,
-           'optimize' : False,
-           'marker' : 'o',
-           'color' : 'green',
-           'markersize' : 8,
-           'mew' : 1.5,
-           'linewidth' : 1.5,
-           'capsize' : 3,
-           'linestyle' : (0, (1, 1)),
-           'mfc' : 'white',
-           }
+             'width' : 0.2,
+             'widthZ' : 0.2,
+             'stepSize' : 0.005,
+             'rlu' : True,
+             'optimize' : False,
+             'marker' : 'o',
+             'color' : 'green',
+             'markersize' : 8,
+             'mew' : 1.5,
+             'linewidth' : 1.5,
+             'capsize' : 3,
+             'linestyle' : (0, (1, 1)),
+             'mfc' : 'white',
+             }
    
    positionVector,I,err,ax = ds.plotCut1D([0.975,0.975,0],[1.075,1.075,0],**kwargs)
    fig = ax.get_figure()

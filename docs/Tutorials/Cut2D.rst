@@ -14,7 +14,7 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
    scanNumbers = '8540' 
    folder = 'data/SC'
    year = 2022
-   
+      
    # Create complete filepath
    file = os.path.join(os.getcwd(),_tools.fileListGenerator(scanNumbers,folder,year=year)[0]) 
    
@@ -31,9 +31,9 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
    width = 0.5
    
    points = np.array([[0.0,0.0,0.0],
-       [0.0,0.0,1.0],
-       [1.0,1.0,0.0]])
-   
+         [0.0,0.0,1.0],
+         [1.0,1.0,0.0]])
+      
    s = copy.deepcopy(ds.sample[0]) 
    
    projectionVector1 = points[1]-points[0]
@@ -52,17 +52,17 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
    
    xMult = 1.42 #1.41549208
    yMult = np.linalg.norm(ds[0].sample.calculateHKLToQxQyQz(1,1,0))          
-   
+      
    step = 0.02
    
    kwargs = {
-   'xBins' : np.arange(-1.0,3.0,step/xMult)*xMult,
-   'yBins' : np.arange(-0.0,3.0,step/yMult)*yMult,
-   'steps' : 151,
-   'rlu' : True,
-   'rmcFile' : True,
-   'colorbar' : True,             
-   }
+      'xBins' : np.arange(-1.0,3.0,step/xMult)*xMult,
+      'yBins' : np.arange(-0.0,3.0,step/yMult)*yMult,
+      'steps' : 151,
+      'rlu' : True,
+      'rmcFile' : True,
+      'colorbar' : True,             
+      }
    
    ax,returndata,bins = ds.plotQPlane(points=points,width=width,ax=ax,**kwargs) 
    
@@ -76,8 +76,8 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
    plt.savefig('figure0.png',format='png')
    
    kwargs = {
-   'rmcFileName' : planeFigName+'.txt'
-   }
+      'rmcFileName' : planeFigName+'.txt'
+      }
    
    ax.to_csv(planeFigName+'.csv',**kwargs)
    

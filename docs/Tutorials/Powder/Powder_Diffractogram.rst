@@ -20,7 +20,7 @@ When a powder sample has been measured at DMC it is saved in hdf files. Several 
    ds = DataSet.DataSet(dataFiles)
    
    for df in ds:
-   df.generateMask(lambda x: DataFile.maskFunction(x,maxAngle=180.0),replace=True)
+      df.generateMask(lambda x: DataFile.maskFunction(x,maxAngle=180.0),replace=True)
    ds._getData()
    
    # We can also give the step size for the integration. Default is 0.125 
@@ -41,7 +41,7 @@ When a powder sample has been measured at DMC it is saved in hdf files. Several 
    
    # Generate a diffraction pattern where the 2D detector is integrated in Q-space with and 5 deg. angular mask
    for df in ds:
-   df.generateMask(lambda x: DataFile.maskFunction(x,maxAngle=5.0),replace=True)
+      df.generateMask(lambda x: DataFile.maskFunction(x,maxAngle=5.0),replace=True)
    # for powder integration we need to use _getData() to apply the mask
    ds._getData()
    

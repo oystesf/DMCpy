@@ -11,7 +11,7 @@ The simplets data set on the DMC instrument is that of a powder measured with on
    scanNumbers = '1285'
    folder = 'data'
    year = 2022
-   
+      
    # Create complete filepath
    file = os.path.join(os.getcwd(),_tools.fileListGenerator(scanNumbers,folder,year=year)[0]) 
    

@@ -28,15 +28,15 @@ autoAlignScatteringPlane has the following method which is useful when many peak
    scanNumbers = '8540' 
    folder = 'data/SC'
    year = 2022
-   
+      
    # Create complete filepath
    file = os.path.join(os.getcwd(),_tools.fileListGenerator(scanNumbers,folder,year=year)[0]) 
    
    # edit files to contain lattice parameteres
    # this is needed if they are not in the file by default
    if False:
-   unitCell = np.array([ 7.91354 , 7.91354 , 4.43887,90.0,90.0,120.0])
-   _tools.giveUnitCellToHDF(file,unitCell)
+      unitCell = np.array([ 7.91354 , 7.91354 , 4.43887,90.0,90.0,120.0])
+      _tools.giveUnitCellToHDF(file,unitCell)
    
    # Load data file with corrected twoTheta
    df = DataFile.loadDataFile(file)
@@ -53,23 +53,23 @@ autoAlignScatteringPlane has the following method which is useful when many peak
    # generate a peak list and find scattering normal from cros products
    # rotate so scattering normal is along 001 and rotate to get reflection along x-axis
    if False:
-   ds.autoAlignScatteringPlane(np.array([0.0,0.0,1.0]),inPlaneRef=np.array([0.0,2.0,0.0]),threshold=1000)
+      ds.autoAlignScatteringPlane(np.array([0.0,0.0,1.0]),inPlaneRef=np.array([0.0,2.0,0.0]),threshold=1000)
    
    #
    if False:
-   P1 = [0,0,1]
-   P2 = [1,1,0]
-   P3 = [-1,1,0]
-   ds.autoAlignToRef(scatteringNormal=np.array(P3),inPlaneRef=np.array(P1),planeVector2=np.array(P2),threshold=1000)
+      P1 = [0,0,1]
+      P2 = [1,1,0]
+      P3 = [-1,1,0]
+      ds.autoAlignToRef(scatteringNormal=np.array(P3),inPlaneRef=np.array(P1),planeVector2=np.array(P2),threshold=1000)
    
    # save UB to file
    if False:
-   _tools.saveSampleToDesk(ds[0].sample,r'UB.bin')
+      _tools.saveSampleToDesk(ds[0].sample,r'UB.bin')
    
    # # # load UB from file
    if False:
-   rlu = True
-   ds.loadSample(r'UB.bin')
+      rlu = True
+      ds.loadSample(r'UB.bin')
    
 
   

@@ -91,7 +91,7 @@ Examples fo use of export functions:
    :linenos:
 
    from DMCpy import DataSet
-   
+      
    # print general help for exporting data.
    DataSet.export_help()
    

@@ -42,7 +42,7 @@ The Viewer 3D is an interactive plotting function which allows a look through th
    scanNumbers = '8540' 
    folder = 'data/SC'
    year = 2022
-   
+      
    # Create complete filepath
    file = os.path.join(os.getcwd(),_tools.fileListGenerator(scanNumbers,folder,year=year)[0]) 
    
@@ -90,8 +90,8 @@ The Viewer 3D is an interactive plotting function which allows a look through th
    
    # data from 3D Viewer can be saved as a mat file. The generated files are large.
    if False:
-   savedata = {'data':V.Data, 'bins':V.bins}
-   savemat("matlab_matrix.mat", savedata)         
+      savedata = {'data':V.Data, 'bins':V.bins}
+      savemat("matlab_matrix.mat", savedata)         
    
 
 The above code takes the data from the A3 scan file dmc2021n008540 and generates the Viewer 3D utilizing a voxel size of 0.03 x 0.03 x 0.03 A:math:`^{-3}`. By default, the viewer starts out in projection 2, i.e. with Qz being the axis stepped through. When handling the data directly it is more convenient to utilize the keyboard shortcuts but in a scripting interface these are not available. Instead one can utilize the *.setPlane* and *.changeAxis* methods. In addition, the color scale has been tweaked such that weaker peaks are visible. It is possible to slightly tweak the color scale directly in the Viewer 3D by using the sliders to the right of the color bar. Notice: When saving the figure these slides are rendered invisible. The end results are shown below:
