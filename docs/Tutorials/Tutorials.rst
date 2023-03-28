@@ -15,7 +15,21 @@ Main text about the tutorials below..
 
    Powder/ExportPowder.rst
 
-   View3D/Cut3D.rst
+   merge_files.rst
+
+   InteractiveViewer/InteractiveViewer.rst
+
+   View3D/Viewer3D.rst
+
+   View3D/Alignment.rst
+
+   Cut2D.rst
+
+   Cut1D.rst
+
+   subtract/subtract.rst
+
+   box/box.rst
 
    Testing.rst
 

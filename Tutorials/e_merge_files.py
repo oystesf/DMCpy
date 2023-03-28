@@ -1,4 +1,4 @@
-import sys
+import sys, os
 # sys.path.append(r'C:\Users\lass_j\Documents\Software\DMCpy')
 from Tutorial_Class import Tutorial
 
@@ -42,7 +42,7 @@ introText = title+'\n'+'^'*len(title)+'\n'+introText
 
 
     
-Example = Tutorial('merge_files',introText,outroText,Tester,fileLocation = r'docs/Tutorials')
+Example = Tutorial('merge_files',introText,outroText,Tester,fileLocation = os.path.join(os.getcwd(),r'docs/Tutorials'))
 
 def test_merge_files():
     Example.test()
