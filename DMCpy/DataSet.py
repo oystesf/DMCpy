@@ -32,7 +32,7 @@ class DataSet(object):
             
             self._getData()
 
-    def _getData(self,verbose=True):
+    def _getData(self,verbose=False):
 
         #data file lengths
         lengths = np.asarray([len(df) for df in self])
@@ -163,6 +163,9 @@ class DataSet(object):
                 twoTheta = self.twoTheta[:,np.newaxis].repeat(self.counts.shape[1],axis=1) # n = scan steps
             else:
                 twoTheta = self.twoTheta
+
+        if self.type.lower() == 'powder':
+            twoTheta = np.absolute(twoTheta)
 
         if twoThetaBins is None:
             anglesMin = np.min(twoTheta)
@@ -1719,7 +1722,7 @@ class DataSet(object):
             self.generateMask(maxAngle=maxAngle,replace=False)
 
         bins,intensity,err,monitor = self.sumDetector(bins,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta)
-        
+ 
         bins = bins + twoThetaOffset
         
         # find mean monitor

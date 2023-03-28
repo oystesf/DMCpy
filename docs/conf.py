@@ -26,7 +26,7 @@ sys.path.append(os.path.abspath('../DMCpy/CommandLineScripts'))
 # -- Project information -----------------------------------------------------
 
 project = u'DMCpy'
-copyright = u'2021, Jakob Lass'
+copyright = u'2023, Jakob Lass & Øystein Slagtern Fjellvåg'
 author = u'Jakob Lass'
 
 # The short X.Y version
