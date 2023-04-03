@@ -436,7 +436,7 @@ class DataFile(object):
 
             self.q = lazyQ(self.rotMat, self.q_temp)
 
-            self.Q = np.linalg.norm(self.q[None],axis=0)
+            self.Q = np.repeat(np.linalg.norm(self.q[0],axis=0),self.countShape[0],axis=0)
         else:
             self.qLocal = self.ki-self.kf
             self.Q = np.array([np.linalg.norm(self.qLocal,axis=0)])
