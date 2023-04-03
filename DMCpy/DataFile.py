@@ -126,22 +126,21 @@ def getInstrument(file):
 
 
 @KwargChecker(include=['radius','twoTheta','verticalPosition','twoThetaPosition']+list(HDFTranslation.keys()))
-def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
+def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,**kwargs):
     """Load DMC data file, either powder or single crystal data.
     
     
     """
-
     if fileLocation is None:
         return DataFile()
 
     if isinstance(fileLocation,(DataFile)):
         if fileLocation.fileType.lower() == 'powder':
-            return PowderDataFile(fileLocation)
+            return PowderDataFile(fileLocation,unitCell=unitCell)
         elif fileLocation.fileType.lower() == 'singlecrystal':
-            return SingleCrystalDataFile(fileLocation)
+            return SingleCrystalDataFile(fileLocation,unitCell=unitCell)
         else:
-            return DataFile(fileLocation)
+            return DataFile(fileLocation,unitCell=unitCell)
     elif not os.path.exists(fileLocation): # load file from disk
         raise FileNotFoundError('Provided file path "{}" not found.'.format(fileLocation))
 
@@ -162,11 +161,11 @@ def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
     ## here be genius function to determine type of data
     
     if fileType.lower() == 'powder' or T == 'powder':
-        df = PowderDataFile(fileLocation)
+        df = PowderDataFile(fileLocation,unitCell=unitCell)
     elif fileType.lower() == 'singlecrystal' or T == 'singlecrystal':
-        df = SingleCrystalDataFile(fileLocation)
+        df = SingleCrystalDataFile(fileLocation,unitCell=unitCell)
     else:
-        df = DataFile(fileLocation)
+        df = DataFile(fileLocation,unitCell=unitCell)
 
     
     repeats = df.countShape[1]
@@ -202,7 +201,7 @@ def loadDataFile(fileLocation=None,fileType='Unknown',**kwargs):
 
 class DataFile(object):
     @KwargChecker()
-    def __init__(self, file=None):
+    def __init__(self, file=None,unitCell=None):
         self.fileType = 'DataFile'
         self._twoThetaOffset = 0.0
         self._counts = None
@@ -218,9 +217,12 @@ class DataFile(object):
 
             else:
                 raise FileNotFoundError('Provided file path "{}" not found.'.format(file))
+            
+            if not unitCell is None:
+                self.sample.unitCell =unitCell
 
     @KwargChecker()
-    def loadFile(self,filePath):
+    def loadFile(self,filePath,unitCell=None):
         if not os.path.exists(filePath):
             raise FileNotFoundError('Provided file path "{}" not found.'.format(filePath))
 
@@ -436,7 +438,7 @@ class DataFile(object):
 
             self.q = lazyQ(self.rotMat, self.q_temp)
 
-            self.Q = np.linalg.norm(self.q[None],axis=0)
+            self.Q = np.repeat(np.linalg.norm(self.q[0],axis=0),self.countShape[0],axis=0)
         else:
             self.qLocal = self.ki-self.kf
             self.Q = np.array([np.linalg.norm(self.qLocal,axis=0)])
@@ -776,14 +778,14 @@ class DataFile(object):
 
 
 class SingleCrystalDataFile(DataFile):
-    def __init__(self,fileType):
-        super(SingleCrystalDataFile,self).__init__(fileType)
+    def __init__(self,fileType,*args,**kwargs):
+        super(SingleCrystalDataFile,self).__init__(fileType,*args,**kwargs)
         self.fileType = 'SingleCrystal'
         self.countShape = (self.countShape[0]*self.countShape[1],128,1152)
 
 class PowderDataFile(DataFile):
-    def __init__(self,fileType):
-        super(PowderDataFile,self).__init__(fileType)
+    def __init__(self,fileType,*args,**kwargs):
+        super(PowderDataFile,self).__init__(fileType,*args,**kwargs)
         self.fileType = 'Powder'
         self.counts.shape = (1,128,1152)
 

@@ -1,5 +1,5 @@
-Viewer 3D
-^^^^^^^^^
+Merge data files
+^^^^^^^^^^^^^^^^
 To load two data files that cover the same A3 range is slower than loading one single file. Therefore it is recommended to merge datafiles that covers the same A3 range. It is not required that the data files are of the same A3 range, but they should overlap.The code below is an example of merging of data files  together with a symmetrically curved line in Qz. This sheet is then rotated around the origin with each A3 step.
 
 .. code-block:: python
