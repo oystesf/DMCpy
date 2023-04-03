@@ -3,7 +3,7 @@ import numpy as np
 from DMCpy import _tools
 import h5py as hdf
 from DMCpy import TasUBlibDEG
-
+import warnings
 
 def cosd(x):
     return np.cos(np.deg2rad(x))
@@ -197,7 +197,15 @@ class Sample(object):
 
     def updateCell(self):
         self.fullCell = TasUBlibDEG.calcCell(self.unitCell)
-        self.B = TasUBlibDEG.calculateBMatrix(self.fullCell)
+        if hasattr(self,'B'): # Update already existing B and UB matrices
+            oldBInv = np.linalg.inv(self.B)
+            self.B = TasUBlibDEG.calculateBMatrix(self.fullCell)
+            newUB = np.dot(np.dot(self.UB,oldBInv),self.B)
+            self.UB = newUB
+            warnings.warn('Updating UB matrix with B')
+        else:
+            self.B = TasUBlibDEG.calculateBMatrix(self.fullCell)
+            self.UB = self.B
 
     def saveToHdf(self,entry):
         entry.create_dataset('name',data = [np.string_(self.name)])
