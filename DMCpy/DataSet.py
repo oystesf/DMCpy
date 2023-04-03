@@ -33,6 +33,8 @@ class DataSet(object):
             self._getData()
 
     def _getData(self,verbose=False):
+        self.type = self[0].fileType
+        return
 
         #data file lengths
         lengths = np.asarray([len(df) for df in self])
@@ -156,13 +158,18 @@ class DataSet(object):
             - Total Monitor
         """
 
-        if correctedTwoTheta:
-            twoTheta = self.correctedTwoTheta
+        if correctedTwoTheta: 
+            twoTheta = np.concatenate([df.correctedTwoTheta[np.logical_not(df.mask)] for df in self],axis=0)
         else:
-            if len(self.twoTheta.shape) == 3: # shape is (df,z,twoTheta), needs to be passed as (df,n,z,twoTheta)
-                twoTheta = self.twoTheta[:,np.newaxis].repeat(self.counts.shape[1],axis=1) # n = scan steps
-            else:
-                twoTheta = self.twoTheta
+            twThetaList = []
+            for df in self:
+                if len(df.twoTheta.shape) == 2: # shape is (df,z,twoTheta), needs to be passed as (df,n,z,twoTheta)
+                    twThetaList.append(df.twoTheta[np.newaxis].repeat(df.countShape[0],axis=0)[np.logical_not(df.mask)]) # n = scan steps
+                else:
+                    twThetaList.append(df.twoTheta[np.logical_not(df.mask)])
+            twoTheta = np.concatenate(twThetaList,axis=0)
+            
+            
 
         if self.type.lower() == 'powder':
             twoTheta = np.absolute(twoTheta)
@@ -173,21 +180,23 @@ class DataSet(object):
             twoThetaBins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
 
         if self.type.lower() == 'singlecrystal':
-            monitorRepeated = np.array([np.ones_like(df.counts)*df.monitor.reshape(-1,1,1) for df in self])
+            monitorRepeated = np.array([np.ones(df.countShape)*df.monitor.reshape(-1,1,1) for df in self])
         else:
-            monitorRepeated = np.repeat(np.repeat(self.monitor[:,np.newaxis,np.newaxis],self.counts.shape[-2],axis=1),self.counts.shape[-1],axis=2)
-            monitorRepeated.shape = self.counts.shape
-
-        summedRawIntensity, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=self.counts[np.logical_not(self.mask)])
+            monitorRepeated = np.concatenate([np.repeat(np.repeat(df.monitor[:,np.newaxis,np.newaxis],df.countShape[-2],axis=1),df.countShape[-1],axis=2)[np.logical_not(df.mask)] for df in self])
+            
+        counts = np.concatenate([df.counts[np.logical_not(df.mask)] for df in self])
+        
+        summedRawIntensity, _ = np.histogram(twoTheta,bins=twoThetaBins,weights=counts)
 
         if applyCalibration:
-            summedMonitor, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=monitorRepeated[np.logical_not(self.mask)]*self.normalization[np.logical_not(self.mask)])
+            normalization = np.concatenate([np.repeat(df.normalization,df.countShape[0],axis=0)[np.logical_not(df.mask)] for df in self])
+            summedMonitor, _ = np.histogram(twoTheta,bins=twoThetaBins,weights=monitorRepeated*normalization)
         else:
-            summedMonitor, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=monitorRepeated[np.logical_not(self.mask)])
-
-        inserted, _  = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins)
+            summedMonitor, _ = np.histogram(twoTheta,bins=twoThetaBins,weights=monitorRepeated)
         
-        normalizedIntensity = summedRawIntensity/summedMonitor
+        #inserted, _  = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins)
+        
+        normalizedIntensity = np.divide(summedRawIntensity,summedMonitor)
         normalizedIntensityError =  np.sqrt(summedRawIntensity)/summedMonitor
 
         return twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor
@@ -215,7 +224,6 @@ class DataSet(object):
         
         twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor = self.sumDetector(twoThetaBins=twoThetaBins,applyCalibration=applyCalibration,\
                                                                                        correctedTwoTheta=correctedTwoTheta,dTheta=dTheta)
-
         TwoThetaPositions = 0.5*(twoThetaBins[:-1]+twoThetaBins[1:])
 
         if not 'fmt' in kwargs:
@@ -244,282 +252,282 @@ class DataSet(object):
 
         return ax,twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor
 
-    def plotInteractive(self,ax=None,masking=True,**kwargs):
-        """Generate an interactive plot of data.
-        Kwargs:
-            - ax (axis): Matplotlib axis into which the plot is to be performed (default None -> new)
-            - masking (bool): If true, the current mask in self.mask is applied (default True)
-            - Kwargs: Passed on to errorbar or imshow depending on data dimensionality
-        Returns:
-            - ax: Interactive matplotlib axis
-        """
-        if ax is None:
-            fig,ax = plt.subplots()
-        else:
-            fig = ax.get_figure()
+    # def plotInteractive(self,ax=None,masking=True,**kwargs):
+    #     """Generate an interactive plot of data.
+    #     Kwargs:
+    #         - ax (axis): Matplotlib axis into which the plot is to be performed (default None -> new)
+    #         - masking (bool): If true, the current mask in self.mask is applied (default True)
+    #         - Kwargs: Passed on to errorbar or imshow depending on data dimensionality
+    #     Returns:
+    #         - ax: Interactive matplotlib axis
+    #     """
+    #     if ax is None:
+    #         fig,ax = plt.subplots()
+    #     else:
+    #         fig = ax.get_figure()
         
-        twoTheta = self.twoTheta
+    #     twoTheta = self.twoTheta
 
-        if self.type.lower() in ['singlecrystal','powder']:
-            shape = self.counts.shape
+    #     if self.type.lower() in ['singlecrystal','powder']:# TODO: Change
+    #         shape = self.countShape
             
-            intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,:,np.newaxis,np.newaxis]).reshape(-1,shape[2],shape[3])
-            mask = self.mask.reshape(-1,shape[2],shape[3])
-            ax.titles = np.concatenate([[df.fileName]*len(df.A3) for df in self],axis=0)
-        else:
-            # Find intensity
-            intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,np.newaxis,np.newaxis])
-            mask = self.mask
+    #         intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,:,np.newaxis,np.newaxis]).reshape(-1,shape[2],shape[3])
+    #         mask = self.mask.reshape(-1,shape[2],shape[3])
+    #         ax.titles = np.concatenate([[df.fileName]*len(df.A3) for df in self],axis=0)
+    #     else:
+    #         # Find intensity
+    #         intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,np.newaxis,np.newaxis])
+    #         mask = self.mask
             
 
-        if masking is True: # If masking, apply self.mask
-            intensityMatrix[mask] = np.nan
+    #     if masking is True: # If masking, apply self.mask
+    #         intensityMatrix[mask] = np.nan
 
-        # Find plotting limits (For 2D pixel limits found later)
-        thetaLimits = [f(twoTheta) for f in [np.min,np.max]]
-        intLimits = [f(intensityMatrix) for f in [np.nanmin,np.nanmax]]
+    #     # Find plotting limits (For 2D pixel limits found later)
+    #     thetaLimits = [f(twoTheta) for f in [np.min,np.max]]
+    #     intLimits = [f(intensityMatrix) for f in [np.nanmin,np.nanmax]]
 
-        # Copy relevant data to the axis
-        ax.intensityMatrix = intensityMatrix
-        ax.intLimits = intLimits
-        ax.twoTheta = twoTheta
-        ax.twoThetaLimits = thetaLimits
+    #     # Copy relevant data to the axis
+    #     ax.intensityMatrix = intensityMatrix
+    #     ax.intLimits = intLimits
+    #     ax.twoTheta = twoTheta
+    #     ax.twoThetaLimits = thetaLimits
         
 
-        if not hasattr(kwargs,'fmt'):
-            kwargs['fmt']='-'
+    #     if not hasattr(kwargs,'fmt'):
+    #         kwargs['fmt']='-'
 
-        if self.type.upper() == 'OLD DATA': # Data is 1D, plot using errorbar
-            ax.titles = [df.fileName for df in self]
-            # calculate errorbars
-            if 'colorbar' in kwargs: # Cannot be used for 1D plotting....
-                del kwargs['colorbar']
-            ax.errorbarMatrix = np.divide(np.sqrt(self.counts),self.normalization*self.monitor[:,np.newaxis,np.newaxis])
-            def plotSpectrum(ax,index=0,kwargs=kwargs):
-                if kwargs is None:
-                    kwargs = {}
-                if hasattr(ax,'_errorbar'): # am errorbar has already been plotted, delete ot
-                    ax._errorbar.remove()
-                    del ax._errorbar
+    #     if self.type.upper() == 'OLD DATA': # Data is 1D, plot using errorbar
+    #         ax.titles = [df.fileName for df in self]
+    #         # calculate errorbars
+    #         if 'colorbar' in kwargs: # Cannot be used for 1D plotting....
+    #             del kwargs['colorbar']
+    #         ax.errorbarMatrix = np.divide(np.sqrt(self.counts),self.normalization*self.monitor[:,np.newaxis,np.newaxis])
+    #         def plotSpectrum(ax,index=0,kwargs=kwargs):
+    #             if kwargs is None:
+    #                 kwargs = {}
+    #             if hasattr(ax,'_errorbar'): # am errorbar has already been plotted, delete ot
+    #                 ax._errorbar.remove()
+    #                 del ax._errorbar
                 
-                if hasattr(ax,'color'): # use the color from previous plot
-                    kwargs['color']=ax.color
+    #             if hasattr(ax,'color'): # use the color from previous plot
+    #                 kwargs['color']=ax.color
                 
-                if hasattr(ax,'fmt'):
-                    kwargs['fmt']=ax.fmt
+    #             if hasattr(ax,'fmt'):
+    #                 kwargs['fmt']=ax.fmt
 
-                # Plot data
-                ax._errorbar = ax.errorbar(ax.twoTheta[index],ax.intensityMatrix[index],yerr=ax.errorbarMatrix[index].flatten(),**kwargs)
-                ax.fmt = kwargs['fmt']
-                ax.index = index # Update index and color
-                ax.color = ax._errorbar.lines[0].get_color()
-                # Set plotting limits and title
-                ax.set_xlim(*ax.twoThetaLimits)
-                ax.set_ylim(*ax.intLimits)
-                ax.set_title(ax.titles[index])
-                plt.draw()
+    #             # Plot data
+    #             ax._errorbar = ax.errorbar(ax.twoTheta[index],ax.intensityMatrix[index],yerr=ax.errorbarMatrix[index].flatten(),**kwargs)
+    #             ax.fmt = kwargs['fmt']
+    #             ax.index = index # Update index and color
+    #             ax.color = ax._errorbar.lines[0].get_color()
+    #             # Set plotting limits and title
+    #             ax.set_xlim(*ax.twoThetaLimits)
+    #             ax.set_ylim(*ax.intLimits)
+    #             ax.set_title(ax.titles[index])
+    #             plt.draw()
 
-                ax.set_ylabel('Inensity [arb]')
+    #             ax.set_ylabel('Inensity [arb]')
             
-        elif self.type.upper() == 'POWDER':
-            ax.titles = [df.fileName for df in self]
-            # Find limits for y direction
+    #     elif self.type.upper() == 'POWDER':
+    #         ax.titles = [df.fileName for df in self]
+    #         # Find limits for y direction
             
-            ax.twoTheta = np.array([df.twoTheta for df in self])
-            ax.idxSpans = np.cumsum([len(df.A3) for df in self]) # limits of indices corresponding to data file limits
-            ax.IDX = -1 # index of current data file
-            ax.twoThetaLimits = [f(ax.twoTheta) for f in [np.nanmin,np.nanmax]]
-            ax.pixelLimits = [-0.1,0.1]
+    #         ax.twoTheta = np.array([df.twoTheta for df in self])
+    #         ax.idxSpans = np.cumsum([len(df.A3) for df in self]) # limits of indices corresponding to data file limits
+    #         ax.IDX = -1 # index of current data file
+    #         ax.twoThetaLimits = [f(ax.twoTheta) for f in [np.nanmin,np.nanmax]]
+    #         ax.pixelLimits = [-0.1,0.1]
 
-            def plotSpectrum(ax,index=0,kwargs=kwargs):
-                # find color bar limits
-                vmin,vmax = ax.intLimits
+    #         def plotSpectrum(ax,index=0,kwargs=kwargs):
+    #             # find color bar limits
+    #             vmin,vmax = ax.intLimits
 
-                newIDX = np.sum(index>=ax.idxSpans)
-                if newIDX != ax.IDX:
-                    ax.IDX = newIDX
-                    if hasattr(ax,'_pcolormesh'):
-                        ax.cla()
-                    ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
+    #             newIDX = np.sum(index>=ax.idxSpans)
+    #             if newIDX != ax.IDX:
+    #                 ax.IDX = newIDX
+    #                 if hasattr(ax,'_pcolormesh'):
+    #                     ax.cla()
+    #                 ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
                 
-                elif hasattr(ax,'_pcolormesh'):
-                    ax._pcolormesh.set_array(ax.intensityMatrix[index])
-                else:
-                    ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
+    #             elif hasattr(ax,'_pcolormesh'):
+    #                 ax._pcolormesh.set_array(ax.intensityMatrix[index])
+    #             else:
+    #                 ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
 
-                ax.index = index
-                if 'colorbar' in kwargs: # If colorbar attribute is given, use it
-                    if kwargs['colorbar']: 
-                        if not hasattr(ax,'_colorbar'): # If no colorbar is present, create one
-                            ax._colorbar = fig.colorbar(ax._pcolormesh,ax=ax)
-                # Set limits
-                ax.set_xlim(*ax.twoThetaLimits)
-                ax.set_ylim(*ax.pixelLimits)
-                ax.set_title(ax.titles[index])
-                ax.set_aspect('auto')
+    #             ax.index = index
+    #             if 'colorbar' in kwargs: # If colorbar attribute is given, use it
+    #                 if kwargs['colorbar']: 
+    #                     if not hasattr(ax,'_colorbar'): # If no colorbar is present, create one
+    #                         ax._colorbar = fig.colorbar(ax._pcolormesh,ax=ax)
+    #             # Set limits
+    #             ax.set_xlim(*ax.twoThetaLimits)
+    #             ax.set_ylim(*ax.pixelLimits)
+    #             ax.set_title(ax.titles[index])
+    #             ax.set_aspect('auto')
                 
-                plt.draw()
+    #             plt.draw()
                 
-                ax.set_ylabel('Intensity [arb]')
+    #             ax.set_ylabel('Intensity [arb]')
 
-        elif self.type.lower() == 'singlecrystal':
+    #     elif self.type.lower() == 'singlecrystal':
             
             
-            ax.A3 = np.concatenate([df.A3 for df in self],axis=0)
-            ax.twoTheta = np.array([df.twoTheta for df in self])
-            ax.idxSpans = np.cumsum([len(df.A3) for df in self]) # limits of indices corresponding to data file limits
-            ax.IDX = -1 # index of current data file
-            ax.twoThetaLimits = [f(ax.twoTheta) for f in [np.nanmin,np.nanmax]]
-            ax.pixelLimits = [-0.1,0.1]
+    #         ax.A3 = np.concatenate([df.A3 for df in self],axis=0)
+    #         ax.twoTheta = np.array([df.twoTheta for df in self])
+    #         ax.idxSpans = np.cumsum([len(df.A3) for df in self]) # limits of indices corresponding to data file limits
+    #         ax.IDX = -1 # index of current data file
+    #         ax.twoThetaLimits = [f(ax.twoTheta) for f in [np.nanmin,np.nanmax]]
+    #         ax.pixelLimits = [-0.1,0.1]
 
-            def plotSpectrum(ax,index=0,kwargs=kwargs):
-                # find color bar limits
-                vmin,vmax = ax.intLimits
+    #         def plotSpectrum(ax,index=0,kwargs=kwargs):
+    #             # find color bar limits
+    #             vmin,vmax = ax.intLimits
 
-                newIDX = np.sum(index>=ax.idxSpans)
-                if newIDX != ax.IDX:
-                    ax.IDX = newIDX
-                    if hasattr(ax,'_pcolormesh'):
-                        ax.cla()
-                    ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
+    #             newIDX = np.sum(index>=ax.idxSpans)
+    #             if newIDX != ax.IDX:
+    #                 ax.IDX = newIDX
+    #                 if hasattr(ax,'_pcolormesh'):
+    #                     ax.cla()
+    #                 ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
                 
-                elif hasattr(ax,'_pcolormesh'):
-                    ax._pcolormesh.set_array(ax.intensityMatrix[index])
-                else:
-                    ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
+    #             elif hasattr(ax,'_pcolormesh'):
+    #                 ax._pcolormesh.set_array(ax.intensityMatrix[index])
+    #             else:
+    #                 ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
 
                 
-                ax.index = index
-                if 'colorbar' in kwargs: # If colorbar attribute is given, use it
-                    if kwargs['colorbar']: 
-                        if not hasattr(ax,'_colorbar'): # If no colorbar is present, create one
-                            ax._colorbar = fig.colorbar(ax._imshow,ax=ax)
-                # Set limits
-                ax.set_xlim(*ax.twoThetaLimits)
-                ax.set_ylim(*ax.pixelLimits)
-                #print(index)
-                ax.set_title(ax.titles[index]+' - A3: {:.2f} [deg]'.format(ax.A3[index]))
-                ax.set_aspect('auto')
+    #             ax.index = index
+    #             if 'colorbar' in kwargs: # If colorbar attribute is given, use it
+    #                 if kwargs['colorbar']: 
+    #                     if not hasattr(ax,'_colorbar'): # If no colorbar is present, create one
+    #                         ax._colorbar = fig.colorbar(ax._imshow,ax=ax)
+    #             # Set limits
+    #             ax.set_xlim(*ax.twoThetaLimits)
+    #             ax.set_ylim(*ax.pixelLimits)
+    #             #print(index)
+    #             ax.set_title(ax.titles[index]+' - A3: {:.2f} [deg]'.format(ax.A3[index]))
+    #             ax.set_aspect('auto')
                 
                 
-                plt.draw()
+    #             plt.draw()
 
             
-            ax.set_ylabel(r'Pixel z position [m]')
+    #         ax.set_ylabel(r'Pixel z position [m]')
 
-        # For all cases, x axis is two theta in degrees
-        ax.set_xlabel(r'2$\theta$ [deg]')
-        # Add function as method
-        ax.plotSpectrum = lambda index,**kwargs: plotSpectrum(ax,index,**kwargs)
+    #     # For all cases, x axis is two theta in degrees
+    #     ax.set_xlabel(r'2$\theta$ [deg]')
+    #     # Add function as method
+    #     ax.plotSpectrum = lambda index,**kwargs: plotSpectrum(ax,index,**kwargs)
         
-        # Plot first data point
-        ax.plotSpectrum(0)
+    #     # Plot first data point
+    #     ax.plotSpectrum(0)
 
-        ##### Interactivity #####
+    #     ##### Interactivity #####
 
-        def increaseAxis(self,step=1): # Call function to increase index
-            index = self.index
-            index+=step
-            if index>=len(self.intensityMatrix):
-                index = len(self.intensityMatrix)-1
-            self.plotSpectrum(index)
+    #     def increaseAxis(self,step=1): # Call function to increase index
+    #         index = self.index
+    #         index+=step
+    #         if index>=len(self.intensityMatrix):
+    #             index = len(self.intensityMatrix)-1
+    #         self.plotSpectrum(index)
             
-        def decreaseAxis(self,step=1): # Call function to decrease index
-            index = self.index
-            index-=step
-            if index<=-1:
-                index = 0
-            self.plotSpectrum(index)
+    #     def decreaseAxis(self,step=1): # Call function to decrease index
+    #         index = self.index
+    #         index-=step
+    #         if index<=-1:
+    #             index = 0
+    #         self.plotSpectrum(index)
 
-        # Connect functions to key presses
-        def onKeyPress(self,event): # pragma: no cover
-            if event.key in ['+','up']:
-                increaseAxis(self)
-            elif event.key in ['-','down']:
-                decreaseAxis(self)
-            elif event.key in ['home']:
-                index = 0
-                self.plotSpectrum(index)
-            elif event.key in ['end']:
-                index = len(self.intensityMatrix)-1
-                self.plotSpectrum(index)
-            elif event.key in ['pageup']: # Pressing page up or page down performs steps of 10
-                increaseAxis(self,step=10)
-            elif event.key in ['pagedown']:
-                decreaseAxis(self,step=10)
+    #     # Connect functions to key presses
+    #     def onKeyPress(self,event): # pragma: no cover
+    #         if event.key in ['+','up']:
+    #             increaseAxis(self)
+    #         elif event.key in ['-','down']:
+    #             decreaseAxis(self)
+    #         elif event.key in ['home']:
+    #             index = 0
+    #             self.plotSpectrum(index)
+    #         elif event.key in ['end']:
+    #             index = len(self.intensityMatrix)-1
+    #             self.plotSpectrum(index)
+    #         elif event.key in ['pageup']: # Pressing page up or page down performs steps of 10
+    #             increaseAxis(self,step=10)
+    #         elif event.key in ['pagedown']:
+    #             decreaseAxis(self,step=10)
 
-        # Call function for scrolling with mouse wheel
-        def onScroll(self,event): # pragma: no cover
-            if(event.button=='up'):
-                increaseAxis(self)
-            elif event.button=='down':
-                decreaseAxis(self)
-        # Connect function calls to slots
-        fig.canvas.mpl_connect('key_press_event',lambda event: onKeyPress(ax,event) )
-        fig.canvas.mpl_connect('scroll_event',lambda event: onScroll(ax,event) )
+    #     # Call function for scrolling with mouse wheel
+    #     def onScroll(self,event): # pragma: no cover
+    #         if(event.button=='up'):
+    #             increaseAxis(self)
+    #         elif event.button=='down':
+    #             decreaseAxis(self)
+    #     # Connect function calls to slots
+    #     fig.canvas.mpl_connect('key_press_event',lambda event: onKeyPress(ax,event) )
+    #     fig.canvas.mpl_connect('scroll_event',lambda event: onScroll(ax,event) )
         
-        return ax
+    #     return ax
 
 
-    def plotOverview(self,**kwargs):
-        """Quick plotting of data set with interactive plotter and summed intensity.
-        Kwargs:
-            - masking (bool): If true, the current mask in self.mask is applied (default True)
-            - kwargs (dict): Kwargs to be used for interactive or plotTwoTheta plot
-        returns:
-            - Ax (list): List of two axis, first containing the interactive plot, second summed two theta
-        Kwargs for plotInteractiveKwargs:
+    # def plotOverview(self,**kwargs):
+    #     """Quick plotting of data set with interactive plotter and summed intensity.
+    #     Kwargs:
+    #         - masking (bool): If true, the current mask in self.mask is applied (default True)
+    #         - kwargs (dict): Kwargs to be used for interactive or plotTwoTheta plot
+    #     returns:
+    #         - Ax (list): List of two axis, first containing the interactive plot, second summed two theta
+    #     Kwargs for plotInteractiveKwargs:
         
-            - masking (bool): Use generated mask for dataset (default True)
-        Kwargs for plotTwoThetaKwargs:
-            - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.1 Deg)
+    #         - masking (bool): Use generated mask for dataset (default True)
+    #     Kwargs for plotTwoThetaKwargs:
+    #         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.1 Deg)
             
-            - applyCalibration (bool): Use normalization files (default True)
+    #         - applyCalibration (bool): Use normalization files (default True)
             
-            - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+    #         - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
         
-        """
+    #     """
 
-        fig,Ax = plt.subplots(2,1,figsize=(11,9),sharex=True)
+    #     fig,Ax = plt.subplots(2,1,figsize=(11,9),sharex=True)
 
-        Ax = Ax.flatten()
-
-
-        if not 'fmt' in kwargs:
-            kwargs['fmt']='_'
-
-        if not 'masking' in kwargs:
-            kwargs['masking']= True
-
-        if not 'twoThetaBins' in kwargs:
-            kwargs['twoThetaBins']= None
-
-        if not 'applyCalibration' in kwargs:
-            kwargs['applyCalibration']= True
+    #     Ax = Ax.flatten()
 
 
-        if not 'correctedTwoTheta' in kwargs:
-            kwargs['correctedTwoTheta']= True
+    #     if not 'fmt' in kwargs:
+    #         kwargs['fmt']='_'
 
-        if not 'colorbar' in kwargs:
-            kwargs['colorbar']= False
+    #     if not 'masking' in kwargs:
+    #         kwargs['masking']= True
 
-        plotInteractiveKwargs = {}
-        for key in ['masking','fmt','colorbar']:
-            plotInteractiveKwargs[key] = kwargs[key]
+    #     if not 'twoThetaBins' in kwargs:
+    #         kwargs['twoThetaBins']= None
+
+    #     if not 'applyCalibration' in kwargs:
+    #         kwargs['applyCalibration']= True
+
+
+    #     if not 'correctedTwoTheta' in kwargs:
+    #         kwargs['correctedTwoTheta']= True
+
+    #     if not 'colorbar' in kwargs:
+    #         kwargs['colorbar']= False
+
+    #     plotInteractiveKwargs = {}
+    #     for key in ['masking','fmt','colorbar']:
+    #         plotInteractiveKwargs[key] = kwargs[key]
         
-        plotTwoThetaKwargs = {}
-        for key in ['twoThetaBins','fmt','correctedTwoTheta','applyCalibration']:
-            plotTwoThetaKwargs[key] = kwargs[key]
+    #     plotTwoThetaKwargs = {}
+    #     for key in ['twoThetaBins','fmt','correctedTwoTheta','applyCalibration']:
+    #         plotTwoThetaKwargs[key] = kwargs[key]
 
-        ax2,*_= self.plotTwoTheta(ax=Ax[1],**plotTwoThetaKwargs)
-        ax = self.plotInteractive(ax = Ax[0],**plotInteractiveKwargs)
+    #     ax2,*_= self.plotTwoTheta(ax=Ax[1],**plotTwoThetaKwargs)
+    #     ax = self.plotInteractive(ax = Ax[0],**plotInteractiveKwargs)
 
-        ax.set_xlabel('')
-        ax2.set_title('Integrated Intensity')
+    #     ax.set_xlabel('')
+    #     ax2.set_title('Integrated Intensity')
 
-        fig.tight_layout()
-        return Ax
+    #     fig.tight_layout()
+    #     return Ax
 
     def Viewer3D(self,dqx,dqy,dqz,rlu=True,axis=2, raw=False,  log=False, grid = True, outputFunction=print, 
                  cmap='viridis',smart=False, steps=None, multiplicationFactor=1):
@@ -1491,10 +1499,10 @@ class DataSet(object):
         
         """
 
-        twoTheta = np.abs(self.twoTheta)
+        twoTheta = np.asarray([[func(np.abs(df.twoTheta)) for func in [np.min,np.max]] for df in self])
         
-        anglesMin = np.min(twoTheta)
-        anglesMax = np.max(twoTheta)
+        anglesMin = np.min(twoTheta[:,0])
+        anglesMax = np.max(twoTheta[:,1])
         
         if bins is None:
             bins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
@@ -1527,8 +1535,8 @@ class DataSet(object):
         meanTemp = np.mean(temperatures)
         stdTemp = np.std(temperatures)
 
-        if np.all([x == self.sample[0].name for x in [s.name for s in self.sample[1:]]]):
-            samName = self.sample[0].name        #.decode("utf-8")
+        if np.all([x == self[0].sample.name for x in [s.name for s in self.sample[1:]]]):
+            samName = self[0].sample.name        #.decode("utf-8")
         else:
             samName ='Unknown! Combined different sample names'
         
@@ -1537,8 +1545,8 @@ class DataSet(object):
         else:
             samTitle ='Unknown! Combined different sample titles'
 
-        if np.all([np.isclose(x,self.wavelength[0]) for x in self.wavelength[1:]]):
-            wavelength = self.wavelength[0]
+        if np.all([np.isclose(df.wavelength,self[0].wavelength) for df in self[1:]]):
+            wavelength = self[0].wavelength
         else:
             wavelength ='Unknown! Combined different Wavelengths'
         
@@ -1567,16 +1575,16 @@ class DataSet(object):
         ## Generate bottom information part
         if len(self) == 1:
             year = 2022
-            fileNumbers = str(int(self.fileName[0].split('n')[-1].split('.')[0]))
+            fileNumbers = str(int(self[0].fileName.split('n')[-1].split('.')[0]))
         else:
-            year,fileNumbers = _tools.numberStringGenerator(self.fileName)
+            year,fileNumbers = _tools.numberStringGenerator([df.fileName for df in self])
         
         fileList = " Filelist='dmc:{}:{}'".format(year,fileNumbers)
         
         minmax = [np.nanmin,np.nanmax]
         
-        twoThetaStart = self.twoTheta[:,0]
-        twoTheta = [np.min(twoThetaStart),np.max(twoThetaStart)]
+        
+        twoTheta = [anglesMin,anglesMax]
         Counts = [int(func(intensity)) for func in minmax]
         numor = fileNumbers.replace('-',' ')
         Npkt = len(bins) - 1        
@@ -1595,7 +1603,7 @@ class DataSet(object):
         pMon = [df.monitor for df in self]
         sMon = [[0.0]]
         
-        timeMin, timeMax = [func(self.time) for func in minmax]
+        timeMin, timeMax = [func([df.time for df in self]) for func in minmax]
         sMonMin, sMonMax = [func(sMon) for func in minmax]
         bMonMin, bMonMax = [func(bMon) for func in minmax]
         aMon = np.mean([0.0 for df in self])
@@ -1710,10 +1718,10 @@ class DataSet(object):
             
         """
 
-        twoTheta = np.abs(self.twoTheta)
+        twoTheta = np.asarray([[func(np.abs(df.twoTheta)) for func in [np.min,np.max]] for df in self])
         
-        anglesMin = np.min(twoTheta)
-        anglesMax = np.max(twoTheta)
+        anglesMin = np.min(twoTheta[:,0])
+        anglesMax = np.max(twoTheta[:,1])
         
         if bins is None:
             bins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
@@ -1755,8 +1763,8 @@ class DataSet(object):
         else:
             samTitle ='Unknown! Combined different sample titles'
 
-        if np.all([np.isclose(x,self.wavelength[0]) for x in self.wavelength[1:]]):
-            wavelength = self.wavelength[0]
+        if np.all([np.isclose(df,self[0].wavelength) for df in self[1:]]):
+            wavelength = self[0].wavelength
         else:
             wavelength ='Unknown! Combined different Wavelengths'
         
@@ -1774,9 +1782,9 @@ class DataSet(object):
         
         if len(self) == 1:
             year = 2022
-            fileNumbers = str(int(self.fileName[0].split('n')[-1].split('.')[0]))
+            fileNumbers = str(int(self[0].fileName.split('n')[-1].split('.')[0]))
         else:
-            year,fileNumbers = _tools.numberStringGenerator(self.fileName)
+            year,fileNumbers = _tools.numberStringGenerator([df.fileName for df in self])
         
         titleLine1 = f"# DMC at SINQ, PSI: Sample name = {samName}, title = {samTitle}, wavelength = {str(wavelength)[:5]} AA, T = {str(meanTemp)[:5]} K"
         titleLine2 = "# Filelist='dmc:{}:{}'".format(year,fileNumbers)
