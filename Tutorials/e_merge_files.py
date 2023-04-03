@@ -23,7 +23,7 @@ def Tester():
     
     
     
-title = 'Viewer 3D'
+title = 'Merge data files'
 
 introText = 'To load two data files that cover the same A3 range is slower than loading one single file. '\
 +'Therefore it is recommended to merge datafiles that covers the same A3 range. '\
