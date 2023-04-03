@@ -11,7 +11,7 @@ import warnings
 import DMCpy
 
 class DataSet(object):
-    def __init__(self, dataFiles=None,**kwargs):
+    def __init__(self, dataFiles=None,unitCell=None,**kwargs):
         """DataSet object to hold a series of DataFile objects
         Kwargs:
             - dataFiles (list): List of data files to be used in reduction (default None)
@@ -26,7 +26,7 @@ class DataSet(object):
             if isinstance(dataFiles,(str,DataFile.DataFile)): # If either string or DataFile instance wrap in a list
                 dataFiles = [dataFiles]
             try:
-                self.dataFiles = [DataFile.loadDataFile(dF) if isinstance(dF,(str)) else dF for dF in dataFiles]
+                self.dataFiles = [DataFile.loadDataFile(dF,unitCell=unitCell) if isinstance(dF,(str)) else dF for dF in dataFiles]
             except TypeError:
                 raise AttributeError('Provided dataFiles attribute is not iterable, filepath, or of type DataFile. Got {}'.format(dataFiles))
             
@@ -2064,13 +2064,18 @@ class DataSet(object):
                 I = I.flatten()[inside]
                 dat = dat.flatten()[inside]
                 mon = mon.flatten()[inside]
-                
-                #Monitor = df.monitor[idx[0]:idx[1]].flatten()[inside]
-                
-                intensity=np.histogram2d(*q,bins=(xBins,yBins),weights=I)[0].astype(I.dtype)
-                monitorCount=np.histogram2d(*q,bins=(xBins,yBins),weights=mon)[0].astype(mon.dtype)
-                Normalization=np.histogram2d(*q,bins=(xBins,yBins),weights=Norm)[0].astype(Norm.dtype)
-                NormCount=np.histogram2d(*q,bins=(xBins,yBins))[0].astype(I.dtype)
+                if True:
+                    #Monitor = df.monitor[idx[0]:idx[1]].flatten()[inside]
+                    weights = [I,mon,Norm]
+                    #print(q.shape)
+                    #print(xBins)
+                    #print(yBins)
+                    intensity,monitorCount,Normalization,NormCount = _tools.histogramdd(q.T,bins=(xBins,yBins),weights=weights,returnCounts=True)
+
+                # intensity=np.histogram2d(*q,bins=(xBins,yBins),weights=I)[0].astype(I.dtype)
+                # monitorCount=np.histogram2d(*q,bins=(xBins,yBins),weights=mon)[0].astype(mon.dtype)
+                # Normalization=np.histogram2d(*q,bins=(xBins,yBins),weights=Norm)[0].astype(Norm.dtype)
+                # NormCount=np.histogram2d(*q,bins=(xBins,yBins))[0].astype(I.dtype)
                 
                 if returndata is None:
                     returndata = [intensity,monitorCount,Normalization,NormCount]
