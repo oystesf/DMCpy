@@ -26,7 +26,7 @@ def Tester():
     # load UB matrix
     ds.loadSample(r'data/SC/UB.bin')
 
-    # define 2D cut
+    # define 2D cut width orthogonal to cut plane
     width = 0.5
     
     points = np.array([[0.0,0.0,0.0],
@@ -92,8 +92,7 @@ introText = 'After inspecting the scattering plane, we want to perform cuts alon
 
 
 outroText = 'The above code takes the data from the A3 scan file dmc2021n000590, align and plot the scattering plane.'\
-+'Then three cuts along different directions are performed.'\
-+'\n\nFirst data overview with Qz slightly positive and Qx and Qy in the plane\n'\
++'\n\nFigure of the 2D plane in RLU. \n'\
 +'\n.. figure:: 2Dcut.png \n  :width: 50%\n  :align: center\n\n '\
 
 introText = title+'\n'+'^'*len(title)+'\n'+introText
