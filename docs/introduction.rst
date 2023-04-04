@@ -37,6 +37,8 @@ The package can be installed using the Python Package manager `PyPI <https://pyp
 
 After the initial installation, try running one of the :ref:`Tutorials` to check that the installation was successful. Make sure to activate the created environment before running tutorials or notebooks.
 
+To update to the newest version of DMCpy, you can run this command:  :code:`pip install --upgrade DMCpy`
+
 
 IPython
 ^^^^^^^

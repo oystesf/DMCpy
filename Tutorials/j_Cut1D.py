@@ -14,6 +14,7 @@ def Tester():
     # Give file number and folder the file is stored in.
     scanNumbers = '8540' 
     folder = 'data/SC'
+    path = os.path.join(os.getcwd(),folder)
     year = 2022
         
     # Create complete filepath
@@ -53,7 +54,7 @@ def Tester():
 
     #export of cut to text file
     saveData = np.column_stack([positionVector[0],positionVector[1],positionVector[2],I,err])
-    np.savetxt('cut.txt',saveData,header='h,k,l,I,err',delimiter=',')
+    np.savetxt(os.path.join(path,'cut.txt'),saveData,header='h,k,l,I,err',delimiter=',')
     
       
 title = 'Cut1D'
