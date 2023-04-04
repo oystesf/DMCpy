@@ -71,6 +71,7 @@ title = 'Subtracting data sets'
 
 introText = 'It can be very useful to subtract two data sets from each other, e.g. to look for diffuse magnetic scattering. '\
 +'In DMCpy, two data sets with the same A3 can be subtracted from each other. An example of a code is below. '\
++'The subtraction is perfomed on the DataSet and 3DViewer, plotQPlane, and plotCut1D can be used on the subtracted data. '
 
 
 
@@ -79,7 +80,7 @@ outroText = 'The above code takes the data from the A3 scan file dmc2022n008540 
 +'We see in both interactive Viewer and 3DViewer that we have good subtractoin, but the Cu rings from the sample can is still visible together with some intensity on the 111-reflection. '\
 +'\n\nFirst data overview \n'\
 +'\n.. figure:: InteractiveViewer1.png \n  :width: 50%\n  :align: center\n\n '\
-+'\n\Second data overview with background subtraction and A3 step 114\n'\
++'\n\nSecond data overview with background subtraction and A3 step 114\n'\
 +'\n.. figure:: InteractiveViewerSub.png \n  :width: 50%\n  :align: center\n\n '\
 +'\n\nThird data overview with background subtraction and A3 step 114\n'\
 +'\n.. figure:: 3DSub.png \n  :width: 50%\n  :align: center\n\n '\

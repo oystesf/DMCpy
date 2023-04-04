@@ -61,11 +61,13 @@ title = 'Cut1D'
 
 introText = 'After inspecting the scattering plane, we want to perform cuts along certain directions.'\
 +' In this tutorial, we demonstrate the cut1D function. Cuts can be made given by hkl or Qx, Qy, Qz.'\
-+' The width of the cut can be adjusted by the keywords width and widthZ.'
++' The width of the cut can be adjusted by the keywords width and widthZ.'\
++' Note that this function is not intended for obtaining integrated intensities of Bragg peaks.'
 
 
 outroText = 'The above code takes the data from the A3 scan file dmc2021n008540, and align it by a UB matrix loaded from disk.'\
 +'Then one cuts across the 110 relection is performed. '\
++'The example also demonstrate how kwargs can be given to the functions to adjust the apperance of the figure. '\
 +'\n\nThe cut is diplayed below \n'\
 +'\n.. figure:: Cut1.png \n  :width: 50%\n  :align: center\n\n '\
 

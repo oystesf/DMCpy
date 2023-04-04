@@ -73,7 +73,6 @@ This tutorial demonstrate a primitive method for integrating Bragg peaks from si
    ax.plot(plotx, ploty, 'r', label='fit')
    plt.xlabel('a3 (deg.)')
    plt.ylabel('Intensity (arb. units)')
-   #plt.ylim(0,1.5)
    
    fig.savefig('figure0.png',format='png')
    
@@ -86,7 +85,7 @@ This tutorial demonstrate a primitive method for integrating Bragg peaks from si
    print('The maximum intensity of the gaussian fit is', H + A)
    print('The Amplitude of the gaussian fit is', A)
    print('The FWHM of the gaussian fit is', FWHM)
-   print('The integrated intensity is (if I did it correctly)',integrated)
+   print('The integrated intensity is',integrated)
    ################################################
    
    total = len(df.A3[startA3:stopA3])
@@ -113,9 +112,9 @@ This tutorial demonstrate a primitive method for integrating Bragg peaks from si
    fig.savefig('figure1.png',format='png')
    
 
-The above code takes the data from the A3 scan file dmc2022n008540, e d blebla blablebla blablebla blablebla blablebla blablebla bla. 
+The above code takes the data from the A3 scan file dmc2022n008540, and select and area in A3 and pixels. It then sums the detector in the given pixel area and extract the intensity as a function of A3. 
 
-First data overview 
+Intensity as a function of A3 
 
 .. figure:: box1.png 
   :width: 50%
@@ -123,7 +122,7 @@ First data overview
 
  
 
-Second data overview with background subtraction
+Visualization of the pixel area of the detector used 
 
 .. figure:: box2.png 
   :width: 50%

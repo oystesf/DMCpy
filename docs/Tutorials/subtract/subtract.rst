@@ -1,6 +1,6 @@
 Subtracting data sets
 ^^^^^^^^^^^^^^^^^^^^^
-It can be very useful to subtract two data sets from each other, e.g. to look for diffuse magnetic scattering. In DMCpy, two data sets with the same A3 can be subtracted from each other. An example of a code is below. 
+It can be very useful to subtract two data sets from each other, e.g. to look for diffuse magnetic scattering. In DMCpy, two data sets with the same A3 can be subtracted from each other. An example of a code is below. The subtraction is perfomed on the DataSet and 3DViewer, plotQPlane, and plotCut1D can be used on the subtracted data. 
 
 .. code-block:: python
    :linenos:
@@ -77,7 +77,8 @@ First data overview
   :align: center
 
  
-\Second data overview with background subtraction and A3 step 114
+
+Second data overview with background subtraction and A3 step 114
 
 .. figure:: InteractiveViewerSub.png 
   :width: 50%

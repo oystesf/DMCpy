@@ -72,7 +72,6 @@ def Tester():
     ax.plot(plotx, ploty, 'r', label='fit')
     plt.xlabel('a3 (deg.)')
     plt.ylabel('Intensity (arb. units)')
-    #plt.ylim(0,1.5)
 
     fig.savefig(r'docs/Tutorials/box/box1.png',format='png',dpi=300)
     
@@ -85,7 +84,7 @@ def Tester():
     print('The maximum intensity of the gaussian fit is', H + A)
     print('The Amplitude of the gaussian fit is', A)
     print('The FWHM of the gaussian fit is', FWHM)
-    print('The integrated intensity is (if I did it correctly)',integrated)
+    print('The integrated intensity is',integrated)
     ################################################
 
     total = len(df.A3[startA3:stopA3])
@@ -121,11 +120,11 @@ introText = 'This tutorial demonstrate a primitive method for integrating Bragg 
 
 
 
-outroText = 'The above code takes the data from the A3 scan file dmc2022n008540, e '\
-+'d blebla blablebla blablebla blablebla blablebla blablebla bla. '\
-+'\n\nFirst data overview \n'\
+outroText = 'The above code takes the data from the A3 scan file dmc2022n008540, and select and area in A3 and pixels. '\
++'It then sums the detector in the given pixel area and extract the intensity as a function of A3. '\
++'\n\nIntensity as a function of A3 \n'\
 +'\n.. figure:: box1.png \n  :width: 50%\n  :align: center\n\n '\
-+'\n\nSecond data overview with background subtraction\n'\
++'\n\nVisualization of the pixel area of the detector used \n'\
 +'\n.. figure:: box2.png \n  :width: 50%\n  :align: center\n\n '\
 
 introText = title+'\n'+'^'*len(title)+'\n'+introText

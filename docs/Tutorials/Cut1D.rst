@@ -1,6 +1,6 @@
 Cut1D
 ^^^^^
-After inspecting the scattering plane, we want to perform cuts along certain directions. In this tutorial, we demonstrate the cut1D function. Cuts can be made given by hkl or Qx, Qy, Qz. The width of the cut can be adjusted by the keywords width and widthZ.
+After inspecting the scattering plane, we want to perform cuts along certain directions. In this tutorial, we demonstrate the cut1D function. Cuts can be made given by hkl or Qx, Qy, Qz. The width of the cut can be adjusted by the keywords width and widthZ. Note that this function is not intended for obtaining integrated intensities of Bragg peaks.
 
 .. code-block:: python
    :linenos:
@@ -58,7 +58,7 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
    np.savetxt(os.path.join(path,'cut.txt'),saveData,header='h,k,l,I,err',delimiter=',')
    
 
-The above code takes the data from the A3 scan file dmc2021n008540, and align it by a UB matrix loaded from disk.Then one cuts across the 110 relection is performed. 
+The above code takes the data from the A3 scan file dmc2021n008540, and align it by a UB matrix loaded from disk.Then one cuts across the 110 relection is performed. The example also demonstrate how kwargs can be given to the functions to adjust the apperance of the figure. 
 
 The cut is diplayed below 
 
