@@ -15,6 +15,7 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
    # Give file number and folder the file is stored in.
    scanNumbers = '8540' 
    folder = 'data/SC'
+   path = os.path.join(os.getcwd(),folder)
    year = 2022
       
    # Create complete filepath
@@ -54,7 +55,7 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
    
    #export of cut to text file
    saveData = np.column_stack([positionVector[0],positionVector[1],positionVector[2],I,err])
-   np.savetxt('cut.txt',saveData,header='h,k,l,I,err',delimiter=',')
+   np.savetxt(os.path.join(path,'cut.txt'),saveData,header='h,k,l,I,err',delimiter=',')
    
 
 The above code takes the data from the A3 scan file dmc2021n008540, and align it by a UB matrix loaded from disk.Then one cuts across the 110 relection is performed. 

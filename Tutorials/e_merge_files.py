@@ -13,12 +13,13 @@ def Tester():
     year = 2022
 
     folder = 'data/SC'
+    path = os.path.join(os.getcwd(),folder)
 
     for numbers,saveFileName in zip(mergeNumbers,saveFileList):
         print(numbers)
-        dataFilesList = _tools.fileListGenerator(numbers,os.path.join(os.getcwd(),folder),year=year)
+        dataFilesList = _tools.fileListGenerator(numbers,path,year=year)
         print(dataFilesList)
-        _tools.merge(dataFilesList, os.path.join(os.getcwd(),saveFileName)) 
+        _tools.merge(dataFilesList, os.path.join(path,saveFileName)) 
 
     
     
