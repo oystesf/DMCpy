@@ -1753,20 +1753,21 @@ class DataSet(object):
         Centres=0.5*(bins[1:]+bins[:-1])
         saveData = np.array([Centres,intensity,err])
         
-        if np.all([x == self.sample[0].name for x in [s.name for s in self.sample[1:]]]):
-            samName = self.sample[0].name        #.decode("utf-8")
+        if np.all([x == self[0].sample.name for x in [s.name for s in self.sample[1:]]]):
+            samName = self[0].sample.name        #.decode("utf-8")
         else:
             samName ='Unknown! Combined different sample names'
-
+        
         if np.all([x == self[0].title for x in [s.title for s in self[1:]]]):
             samTitle = self[0].title        #.decode("utf-8")
         else:
             samTitle ='Unknown! Combined different sample titles'
 
-        if np.all([np.isclose(df,self[0].wavelength) for df in self[1:]]):
+        if np.all([np.isclose(df.wavelength,self[0].wavelength) for df in self[1:]]):
             wavelength = self[0].wavelength
         else:
             wavelength ='Unknown! Combined different Wavelengths'
+            
         
         temperatures = np.array([df.temperature for df in self])
         meanTemp = np.mean(temperatures)
