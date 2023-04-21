@@ -84,7 +84,7 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
 
 The above code takes the data from the A3 scan file dmc2021n000590, align and plot the scattering plane.
 
-Figure of the 2D plane in RLU.
+Figure of the 2D plane in RLU. 
 
 .. figure:: 2Dcut.png 
   :width: 50%

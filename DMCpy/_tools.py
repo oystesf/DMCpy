@@ -550,7 +550,7 @@ def distance(a,b,dx=1,dy=1,dz=1):
 
 
 
-def clusterPoints(positions,weights=None,distanceThreshold=0.01, shufflePoints=True, distanceFunction=None):
+def clusterPoints(positions,weights=None,distanceThreshold=0.01, shufflePoints=True, distanceFunction=None, fileName = None):
     """Combine positions within distance threshold into centres of gravity with the provided weights
     
     Args:
@@ -581,7 +581,10 @@ def clusterPoints(positions,weights=None,distanceThreshold=0.01, shufflePoints=T
     positions = np.asarray(positions)
     
     if len(positions) == 0:
-        print('no peak positions found, too high threshold')
+        if fileName is not None:
+            print('no peak positions found in {}, too high threshold'.format(str(fileName)))
+        else:
+            print('no peak positions found, too high threshold')
 
     if distanceFunction is None:
         distanceFunction = lambda a,b: np.linalg.norm(a-b)
