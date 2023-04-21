@@ -280,9 +280,9 @@ class DataFile(object):
         else:
             self.twoTheta, z = np.meshgrid(self.twoTheta.flatten(),self.verticalPosition,indexing='xy')
             
-        self.pixelPosition = np.array([self.radius*np.cos(np.deg2rad(self.twoTheta)),
-                                    -self.radius*np.sin(np.deg2rad(self.twoTheta)),
-                                    z]).reshape(3,*self.countShape[1:])
+        self.pixelPosition = np.array([-self.radius*np.sin(np.deg2rad(self.twoTheta)),
+                                    self.radius*np.cos(np.deg2rad(self.twoTheta)),
+                                    -z]).reshape(3,*self.countShape[1:])
         
         
         #self.Monitor = self.monitor
@@ -398,7 +398,7 @@ class DataFile(object):
     @twoThetaOffset.setter
     def twoThetaOffset(self,dTheta):
         self._twoThetaOffset = dTheta
-        self.twoTheta = np.repeat((np.linspace(0,132,1152) + self._detector_position + self._twoThetaOffset)[np.newaxis],self.countShape[1],axis=0)
+        self.twoTheta = np.repeat((np.linspace(0,-132,1152) + self._detector_position + self._twoThetaOffset)[np.newaxis],self.countShape[1],axis=0)
         self.calculateQ()
 
     @property
@@ -422,19 +422,17 @@ class DataFile(object):
         if not (hasattr(self,'Ki') and hasattr(self,'twoTheta')
                 and hasattr(self,'alpha') and hasattr(self,'A3')):
             return 
-        self.ki = np.array([0.0,self.Ki,0.0]) # along ki=2pi/lambda with x
+        self.ki = np.array([0.0,self.Ki,0.0]) # along ki=2pi/lambda with y (Lumsden2005)
         self.ki.shape = (3,1,1)
 
-        self.kf = self.Ki * np.array([-np.sin(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
-                                    np.cos(np.deg2rad(self.twoTheta))*np.cos(np.deg2rad(self.alpha)),
-                                    np.sin(np.deg2rad(self.alpha))])
+        self.kf = self.Ki*self.pixelPosition/np.linalg.norm(self.pixelPosition,axis=0)
            
         if self.fileType.lower() == 'singlecrystal': # A3 Scan
             # rotate kf to correct for A3
             zero = np.zeros_like(self.A3)
             ones = np.ones_like(self.A3)
             self.rotMat = np.array([[np.cos(np.deg2rad(self.A3)),np.sin(np.deg2rad(self.A3)),zero],[-np.sin(np.deg2rad(self.A3)),np.cos(np.deg2rad(self.A3)),zero],[zero,zero,ones]])
-            self.q_temp = self.ki-self.kf
+            self.q_temp = self.kf-self.ki
 
             self.q = lazyQ(self.rotMat, self.q_temp)
 

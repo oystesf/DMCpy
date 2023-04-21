@@ -2106,17 +2106,18 @@ class DataSet(object):
                 raise AttributeError('Neither dQx or xBins are set!')
             yBins = np.arange(-5,5,dQy)
 
-        if rlu:
-            newPoints = [np.dot(sample.UB,point) for point in points]
-            for o,n in zip(points,newPoints):
-                print(' {} --> {}'.format(o,n))
+        if not points is None:
+            if rlu:
+                newPoints = [np.dot(sample.UB,point) for point in points]
+                for o,n in zip(points,newPoints):
 
-            #xBins /= np.linalg.norm(newPoints[1]-newPoints[0])
-            #yBins /= np.linalg.norm(newPoints[2]-newPoints[0])
+            else:
+                newPoints = points
+            
+            totalRotMat,translation = _tools.calculateRotationMatrixAndOffset2(newPoints)
         else:
-            newPoints = points
-        
-        totalRotMat,translation = _tools.calculateRotationMatrixAndOffset2(newPoints)
+            totalRotMat = np.eye(3)
+            translation = np.asarray([0.0])
         
         returndata = None
         for df in self:
@@ -2151,19 +2152,10 @@ class DataSet(object):
                 I = I.flatten()[inside]
                 dat = dat.flatten()[inside]
                 mon = mon.flatten()[inside]
-                if True:
-                    #Monitor = df.monitor[idx[0]:idx[1]].flatten()[inside]
-                    weights = [I,mon,Norm]
-                    #print(q.shape)
-                    #print(xBins)
-                    #print(yBins)
-                    intensity,monitorCount,Normalization,NormCount = _tools.histogramdd(q.T,bins=(xBins,yBins),weights=weights,returnCounts=True)
-
-                # intensity=np.histogram2d(*q,bins=(xBins,yBins),weights=I)[0].astype(I.dtype)
-                # monitorCount=np.histogram2d(*q,bins=(xBins,yBins),weights=mon)[0].astype(mon.dtype)
-                # Normalization=np.histogram2d(*q,bins=(xBins,yBins),weights=Norm)[0].astype(Norm.dtype)
-                # NormCount=np.histogram2d(*q,bins=(xBins,yBins))[0].astype(I.dtype)
+                weights = [I,mon,Norm]
                 
+                intensity,monitorCount,Normalization,NormCount = _tools.histogramdd(q.T,bins=(xBins,yBins),weights=weights,returnCounts=True)
+
                 if returndata is None:
                     returndata = [intensity,monitorCount,Normalization,NormCount]
                 else:
@@ -2173,7 +2165,7 @@ class DataSet(object):
         Qy =np.outer(np.ones_like(xBins),yBins)
         bins = [Qx,Qy]
 
-        return returndata,bins,translation
+        return returndata,bins,totalRotMat,translation
 
 
 
@@ -2231,24 +2223,36 @@ class DataSet(object):
             cmap = None
 
 
-        returndata,bins,translation = self.cutQPlane(points=points,sample=sample,width=width,dQx=dQx,dQy=dQy,xBins=xBins,yBins=yBins,rlu=rlu,steps=steps)
+        returndata,bins,rotationMatrix,translation = self.cutQPlane(points=points,sample=sample,width=width,dQx=dQx,dQy=dQy,xBins=xBins,yBins=yBins,rlu=rlu,steps=steps)
 
         if sample is None:
             sample = copy.deepcopy(self[0].sample)
 
         if ax is None:
             if rlu:
-                fig,ax = plt.subplots()#self.createRLUAxes(sample=sample)
-                ax.set_xlabel('Qx [1/AA]')
-                ax.set_ylabel('Qy [1/AA]')    
+                s = copy.deepcopy(self[0].sample)
+                p1 = points[1]-points[0]
+                p2 = points[2]-points[0]
+
+                p1Q = np.dot(s.B,p1)
+                p2Q = np.dot(s.B,p2)
+
+                p3 = _tools.LengthOrder(np.dot(np.linalg.inv(s.B),np.cross(p1Q,p2Q)))
+
+                s.P1 = p1
+                s.P2 = p2
+                s.P3 = p3
+                s.projectionVectors = np.array([s.P1,s.P2,s.P3]).T
+                s.ROT = rotationMatrix
+
+
+                ax = self.createRLUAxes(sample=s)
+                ax._step = translation
+    
             else:
                 fig,ax = plt.subplots()
                 ax.set_xlabel('Qx [1/AA]')
                 ax.set_ylabel('Qy [1/AA]')    
-
-        
-
-        ax.sample = sample       
         
         ax.intensity,ax.monitorCount,ax.Normalization,ax.NormCount, = returndata
 
