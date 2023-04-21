@@ -898,15 +898,15 @@ class DataSet(object):
             pos = sign*along.flatten()[insideQ]
 
                 
-        
+            weights = [intensity]
+            _intensities,_normCounts = _tools.histogramdd(pos.reshape(-1,1),bins=[bins],weights=weights,returnCounts=True)
+            _monitors = np.full_like(_intensities,df.monitor[0])
             if intensities is None:
-                intensities = np.histogram(pos,bins=bins,weights=intensity)[0]
-                normCounts = np.histogram(pos,bins=bins)[0]
-                monitors = np.full_like(intensities,df.monitor[0])
+                intensities,normCounts,monitors = _intensities,_normCounts,_monitors
             else:
-                intensities+=np.histogram(pos,bins=bins,weights=intensity)[0]
-                normCounts+=np.histogram(pos,bins=bins)[0]
-                monitors += np.full_like(intensities,df.monitor[0])
+                intensities+=_intensities
+                normCounts+=_normCounts
+                monitors += _monitors
         
         I = np.divide(intensities,monitors)
         errors = np.divide(np.sqrt(intensities),monitors)
@@ -1464,7 +1464,38 @@ class DataSet(object):
             
             sample.peakUsedForAlignment = peakUsedForAlignment 
 
+    def alignToRefs(self,q1,q2,HKL1,HKL2):
+                
+        
+        E = np.power(self[0].Ki/TasUBlibDEG.factorsqrtEK,2.0)
+        
+        A31,A41 = np.asarray(TasUBlibDEG.calcTasQAngles(np.eye(3),np.array([0.0,0.0,-1.0]),ss=1,A3Off = 0.0,qe=[*q1,E,E]))[:2]#[[-1,1]]
 
+        A32,A42 = np.asarray(TasUBlibDEG.calcTasQAngles(np.eye(3),np.array([0.0,0.0,-1.0]),ss=1,A3Off = 0.0,qe=[*q2,E,E]))[:2]#[[-1,1]]
+        
+        # H K L A3 A4 sgu sgl Ei Ef
+        R1 = [*HKL1, A31, A41, 0.0, 0.0, E, E]
+        R2 = [*HKL2, A32, A42, 0.0, 0.0, E, E]
+        newUB = TasUBlibDEG.calcTasUBFromTwoReflections(self[0].sample.fullCell, R1, R2)
+        
+        projectionVector1,projectionVector2,projectionVector3 = np.eye(3)
+            
+        pV1q = np.dot(newUB,projectionVector1)
+        pV2q = np.dot(newUB,projectionVector2)
+        
+        points = np.asarray([[0.0,0.0,0.0],pV1q,pV2q])
+        rot,tr = _tools.calculateRotationMatrixAndOffset2(points)
+        
+        for s in self.sample:
+            
+            s.UB = newUB
+            s.P1 = projectionVector1
+            s.P2 = projectionVector2
+            s.P3 = projectionVector3
+            s.ROT = rot
+        
+            s.projectionVectors = np.array([s.P1,s.P2,s.P3]).T
+            
 
 
 
