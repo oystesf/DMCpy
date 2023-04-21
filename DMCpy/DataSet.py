@@ -2109,8 +2109,6 @@ class DataSet(object):
         if not points is None:
             if rlu:
                 newPoints = [np.dot(sample.UB,point) for point in points]
-                for o,n in zip(points,newPoints):
-
             else:
                 newPoints = points
             
