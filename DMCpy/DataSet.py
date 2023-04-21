@@ -554,12 +554,89 @@ class DataSet(object):
         """
 
         if rlu:
-            rluAxesQxQy = self.createRLUAxes(projection=2)#**kwargs)
+            
+            QxQySample = copy.deepcopy(self.sample[0])
+            p1,p2,p3 = _tools.findOrthogonalBasis(*QxQySample.projectionVectors, QxQySample.B)
+
+            points = [[0.0,0.0,0.0],p1,p2]
+            rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
+            
+            QxQySample.P1 = p1
+            QxQySample.P2 = p2
+            QxQySample.P3 = p3
+            QxQySample.projectionVectors = np.array([QxQySample.P1,QxQySample.P2,QxQySample.P3]).T
+            QxQySample.UB = np.dot(QxQySample.UB,rot.T)
+
+            rluAxesQxQy = self.createRLUAxes(sample=QxQySample)#**kwargs)
+
+            #h=kkk
+
             figure = rluAxesQxQy.get_figure()
             figure.delaxes(rluAxesQxQy)
-            rluAxesQxQz = self.createRLUAxes(figure=figure,projection=1)
+
+            ### ----------- ###
+            QxQzSample = copy.deepcopy(self.sample[0])
+
+
+
+            p1,p2,p3 = _tools.findOrthogonalBasis(*QxQzSample.projectionVectors, QxQzSample.B)[[0,2,1]]
+
+
+            QxQzSample.P1 = p1
+            QxQzSample.P2 = p2
+            QxQzSample.P3 = p3
+            QxQzSample.projectionVectors = np.array([QxQzSample.P1,QxQzSample.P2,QxQzSample.P3]).T
+            #s.ROT = rotationMatrix
+
+
+            points = [[0.0,0.0,0.0],p1,p2]
+            rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
+
+
+            QxQzSample.P1 = p1
+            QxQzSample.P2 = p2
+            QxQzSample.P3 = p3
+            QxQzSample.projectionVectors = np.array([QxQzSample.P1,QxQzSample.P2,QxQzSample.P3]).T
+            
+
+            R = _tools.rotMatrix(np.asarray([1.0,0.0,0.0]),np.asarray(-90))
+
+
+            QxQzSample.ROT = np.dot(R,QxQzSample.ROT)
+
+
+            #self.createRLUAxes(sample=QxQzSample)
+
+            rluAxesQxQz = self.createRLUAxes(figure=figure,sample=QxQzSample)
             figure.delaxes(rluAxesQxQz)
-            rluAxesQyQz = self.createRLUAxes(figure=figure,projection=0)
+
+            ### ----------- ###
+            QyQzSample = copy.deepcopy(self.sample[0])
+
+            p1,p2,p3 = _tools.findOrthogonalBasis(*QyQzSample.projectionVectors, QxQzSample.B)[[1,2,0]]
+
+
+            QyQzSample.P1 = p1
+            QyQzSample.P2 = p2
+            QyQzSample.P3 = p3
+            QyQzSample.projectionVectors = np.array([QyQzSample.P1,QyQzSample.P2,QyQzSample.P3]).T
+
+            points = [[0.0,0.0,0.0],p1,p2]
+            rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
+
+
+            R = _tools.rotMatrix(np.asarray([0.0,0.0,1.0]),np.asarray(-90))
+            R2 = _tools.rotMatrix(np.asarray([1.0,0.0,0.0]),np.asarray(-90))
+
+
+            QyQzSample.ROT = np.dot(np.dot(R2,R),QyQzSample.ROT)
+            #QyQzSample.UB = np.dot(QyQzSample.UB,rot.T)
+
+
+            #rluAxesQyQz = self.createRLUAxes(sample=QyQzSample)
+
+
+            rluAxesQyQz = self.createRLUAxes(figure=figure,sample=QyQzSample)
             figure.delaxes(rluAxesQyQz)
             axes = [rluAxesQyQz,rluAxesQxQz,rluAxesQxQy]
 
@@ -722,7 +799,7 @@ class DataSet(object):
                 data = df.counts
             if optimize:
                
-                optimizationStepInPlane = 0.005
+                optimizationStepInPlane = 0.05
                 optimizationStepInPlane = np.min([optimizationStepInPlane,width*0.6])
                 
                 ## Define boundig box
@@ -732,7 +809,7 @@ class DataSet(object):
                 orthogonal = np.cross(direction,np.array([0,0,1]))
                 
                 # Factor between actual cut and width used for cutoff
-                expansionFactior = 1.5
+                expansionFactior = 1.25
                 effectiveWidth = expansionFactior*width
                     
                 if not np.isclose(np.abs(np.dot(direction,[0,0,1])),1.0): # If cut is not along z
@@ -756,8 +833,8 @@ class DataSet(object):
                 #print(checkPositions)
                 # Calcualte the corresponding A3 and A4 positons
                 E = np.power(df.ki[1,0][0]/0.694692,2.0)
-                A3,A4 = np.array([TasUBlibDEG.converterToA3A4(*pos,E,E) for pos in checkPositions.T]).T
-                
+                A3,A4 = np.array([TasUBlibDEG.converterToA3A4(*pos,E,E,A4Sign=-1) for pos in checkPositions.T]).T
+            
                 # remove nan-values
                 A4NonNaN = np.logical_not(np.isnan(A4))
                 A3 = A3[A4NonNaN]
@@ -821,15 +898,15 @@ class DataSet(object):
             pos = sign*along.flatten()[insideQ]
 
                 
-        
+            weights = [intensity]
+            _intensities,_normCounts = _tools.histogramdd(pos.reshape(-1,1),bins=[bins],weights=weights,returnCounts=True)
+            _monitors = np.full_like(_intensities,df.monitor[0])
             if intensities is None:
-                intensities = np.histogram(pos,bins=bins,weights=intensity)[0]
-                normCounts = np.histogram(pos,bins=bins)[0]
-                monitors = np.full_like(intensities,df.monitor[0])
+                intensities,normCounts,monitors = _intensities,_normCounts,_monitors
             else:
-                intensities+=np.histogram(pos,bins=bins,weights=intensity)[0]
-                normCounts+=np.histogram(pos,bins=bins)[0]
-                monitors += np.full_like(intensities,df.monitor[0])
+                intensities+=_intensities
+                normCounts+=_normCounts
+                monitors += _monitors
         
         I = np.divide(intensities,monitors)
         errors = np.divide(np.sqrt(intensities),monitors)
@@ -1387,7 +1464,38 @@ class DataSet(object):
             
             sample.peakUsedForAlignment = peakUsedForAlignment 
 
+    def alignToRefs(self,q1,q2,HKL1,HKL2):
+                
+        
+        E = np.power(self[0].Ki/TasUBlibDEG.factorsqrtEK,2.0)
+        
+        A31,A41 = np.asarray(TasUBlibDEG.calcTasQAngles(np.eye(3),np.array([0.0,0.0,-1.0]),ss=1,A3Off = 0.0,qe=[*q1,E,E]))[:2]#[[-1,1]]
 
+        A32,A42 = np.asarray(TasUBlibDEG.calcTasQAngles(np.eye(3),np.array([0.0,0.0,-1.0]),ss=1,A3Off = 0.0,qe=[*q2,E,E]))[:2]#[[-1,1]]
+        
+        # H K L A3 A4 sgu sgl Ei Ef
+        R1 = [*HKL1, A31, A41, 0.0, 0.0, E, E]
+        R2 = [*HKL2, A32, A42, 0.0, 0.0, E, E]
+        newUB = TasUBlibDEG.calcTasUBFromTwoReflections(self[0].sample.fullCell, R1, R2)
+        
+        projectionVector1,projectionVector2,projectionVector3 = np.eye(3)
+            
+        pV1q = np.dot(newUB,projectionVector1)
+        pV2q = np.dot(newUB,projectionVector2)
+        
+        points = np.asarray([[0.0,0.0,0.0],pV1q,pV2q])
+        rot,tr = _tools.calculateRotationMatrixAndOffset2(points)
+        
+        for s in self.sample:
+            
+            s.UB = newUB
+            s.P1 = projectionVector1
+            s.P2 = projectionVector2
+            s.P3 = projectionVector3
+            s.ROT = rot
+        
+            s.projectionVectors = np.array([s.P1,s.P2,s.P3]).T
+            
 
 
 
@@ -2022,8 +2130,6 @@ class DataSet(object):
         if not points is None:
             if rlu:
                 newPoints = [np.dot(sample.UB,point) for point in points]
-                for o,n in zip(points,newPoints):
-
             else:
                 newPoints = points
             
