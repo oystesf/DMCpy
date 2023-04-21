@@ -3,26 +3,21 @@ import numpy as np
 import pickle as pickle
 import matplotlib.pyplot as plt
 import pandas as pd
-import os
+import os, copy
 import json, os, time
 from DMCpy import DataFile, _tools, Viewer3D, RLUAxes, TasUBlibDEG
+from DMCpy.FileStructure import shallowRead
 import warnings
 import DMCpy
 
 class DataSet(object):
-    def __init__(self, dataFiles=None,**kwargs):
+    def __init__(self, dataFiles=None,unitCell=None,**kwargs):
         """DataSet object to hold a series of DataFile objects
-
         Kwargs:
-
             - dataFiles (list): List of data files to be used in reduction (default None)
-
         Raises:
-
             - NotImplementedError
-
             - AttributeError
-
         """
 
         if dataFiles is None:
@@ -31,16 +26,34 @@ class DataSet(object):
             if isinstance(dataFiles,(str,DataFile.DataFile)): # If either string or DataFile instance wrap in a list
                 dataFiles = [dataFiles]
             try:
-                self.dataFiles = [DataFile.loadDataFile(dF) if isinstance(dF,(str)) else dF for dF in dataFiles]
+                self.dataFiles = [DataFile.loadDataFile(dF,unitCell=unitCell) if isinstance(dF,(str)) else dF for dF in dataFiles]
             except TypeError:
                 raise AttributeError('Provided dataFiles attribute is not iterable, filepath, or of type DataFile. Got {}'.format(dataFiles))
             
             self._getData()
 
-    def _getData(self):
+    def _getData(self,verbose=False):
+        self.type = self[0].fileType
+        return
+
+        #data file lengths
+        lengths = np.asarray([len(df) for df in self])
+
         # Collect parameters listed below across data files into self
         for parameter in ['counts','monitor','twoTheta','correctedTwoTheta','fileName','pixelPosition','wavelength','mask','normalization','normalizationFile','time','temperature']:
-            setattr(self,parameter,np.array([getattr(d,parameter) for d in self],dtype=object))
+            if not np.all(lengths==lengths[0]):
+                setattr(self,parameter,np.array([getattr(d,parameter) for d in self],dtype=object))
+                if verbose: print('file length is not the same for all files => dtype=object')
+            else:
+                if parameter in ("fileName", "normalizationFile"):
+                    dtype = object
+                elif parameter in ("mask", ):
+                    dtype = bool
+                else:
+                    dtype = float
+
+                setattr(self,parameter,np.array([getattr(d,parameter) for d in self],dtype=dtype))
+                if verbose: print('file length is the same for all files => dtype is induvidual')
 
         
         types = [df.fileType for df in self]
@@ -61,6 +74,7 @@ class DataSet(object):
 
 
     def __getitem__(self,index):
+
         try:
             return self.dataFiles[index]
         except IndexError:
@@ -120,13 +134,9 @@ class DataSet(object):
         """Generate mask to applied to data in data file
         
         Kwargs:
-
             - maskingFunction (function): Function called on self.phi to generate mask (default maskFunction)
-
             - replace (bool): If true new mask replaces old one, otherwise add together (default True)
-
         All other arguments are passed to the masking function.
-
         """
         for d in self:
             d.generateMask(maskingFunction,replace=replace,**pars)
@@ -135,34 +145,34 @@ class DataSet(object):
     @_tools.KwargChecker()
     def sumDetector(self,twoThetaBins=None,applyCalibration=True,correctedTwoTheta=True,dTheta=0.125):
         """Find intensity as function of either twoTheta or correctedTwoTheta
-
         Kwargs:
-
             - twoThetaBins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.5)
-
             - applyCalibration (bool): If true, take detector efficiency into account (default True)
-
             - correctedTwoTheta (bool): If true, use corrected two theta, otherwise sum vertically on detector (default True)
-
         Returns:
-
             - twoTheta
             
             - Normalized Intensity
             
             - Normalized Intensity Error
-
             - Total Monitor
-
         """
 
-        if correctedTwoTheta:
-            twoTheta = self.correctedTwoTheta
+        if correctedTwoTheta: 
+            twoTheta = np.concatenate([df.correctedTwoTheta[np.logical_not(df.mask)] for df in self],axis=0)
         else:
-            if len(self.twoTheta.shape) == 3: # shape is (df,z,twoTheta), needs to be passed as (df,n,z,twoTheta)
-                twoTheta = self.twoTheta[:,np.newaxis].repeat(self.counts.shape[1],axis=1) # n = scan steps
-            else:
-                twoTheta = self.twoTheta
+            twThetaList = []
+            for df in self:
+                if len(df.twoTheta.shape) == 2: # shape is (df,z,twoTheta), needs to be passed as (df,n,z,twoTheta)
+                    twThetaList.append(df.twoTheta[np.newaxis].repeat(df.countShape[0],axis=0)[np.logical_not(df.mask)]) # n = scan steps
+                else:
+                    twThetaList.append(df.twoTheta[np.logical_not(df.mask)])
+            twoTheta = np.concatenate(twThetaList,axis=0)
+            
+            
+
+        if self.type.lower() == 'powder':
+            twoTheta = np.absolute(twoTheta)
 
         if twoThetaBins is None:
             anglesMin = np.min(twoTheta)
@@ -170,21 +180,23 @@ class DataSet(object):
             twoThetaBins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
 
         if self.type.lower() == 'singlecrystal':
-            monitorRepeated = np.array([np.ones_like(df.counts)*df.monitor.reshape(-1,1,1) for df in self])
+            monitorRepeated = np.array([np.ones(df.countShape)*df.monitor.reshape(-1,1,1) for df in self])
         else:
-            monitorRepeated = np.repeat(np.repeat(self.monitor[:,np.newaxis,np.newaxis],self.counts.shape[-2],axis=1),self.counts.shape[-1],axis=2)
-            monitorRepeated.shape = self.counts.shape
-
-        summedRawIntensity, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=self.counts[np.logical_not(self.mask)])
+            monitorRepeated = np.concatenate([np.repeat(np.repeat(df.monitor[:,np.newaxis,np.newaxis],df.countShape[-2],axis=1),df.countShape[-1],axis=2)[np.logical_not(df.mask)] for df in self])
+            
+        counts = np.concatenate([df.counts[np.logical_not(df.mask)] for df in self])
+        
+        summedRawIntensity, _ = np.histogram(twoTheta,bins=twoThetaBins,weights=counts)
 
         if applyCalibration:
-            summedMonitor, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=monitorRepeated[np.logical_not(self.mask)]*self.normalization[np.logical_not(self.mask)])
+            normalization = np.concatenate([np.repeat(df.normalization,df.countShape[0],axis=0)[np.logical_not(df.mask)] for df in self])
+            summedMonitor, _ = np.histogram(twoTheta,bins=twoThetaBins,weights=monitorRepeated*normalization)
         else:
-            summedMonitor, _ = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins,weights=monitorRepeated[np.logical_not(self.mask)])
-
-        inserted, _  = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins)
+            summedMonitor, _ = np.histogram(twoTheta,bins=twoThetaBins,weights=monitorRepeated)
         
-        normalizedIntensity = summedRawIntensity/summedMonitor
+        #inserted, _  = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins)
+        
+        normalizedIntensity = np.divide(summedRawIntensity,summedMonitor)
         normalizedIntensityError =  np.sqrt(summedRawIntensity)/summedMonitor
 
         return twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor
@@ -193,37 +205,25 @@ class DataSet(object):
     @_tools.KwargChecker(function=plt.errorbar,include=_tools.MPLKwargs)
     def plotTwoTheta(self,ax=None,twoThetaBins=None,applyCalibration=True,correctedTwoTheta=True,dTheta=0.125,**kwargs):
         """Plot intensity as function of correctedTwoTheta or twoTheta
-
         Kwargs:
-
             - ax (axis): Matplotlib axis into which data is plotted (default None - generates new)
-
             - twoThetaBins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.1)
-
             - applyCalibration (bool): If true, take detector efficiency into account (default True)
-
             - correctedTwoTheta (bool): If true, use corrected two theta, otherwise sum vertically on detector (default True)
-
             - All other key word arguments are passed on to plotting routine
-
         Returns:
-
             - ax: Matplotlib axis into which data was plotted
-
             - twoThetaBins
             
             - normalizedIntensity
             
             - normalizedIntensityError
-
             - summedMonitor
-
         """
         
         
         twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor = self.sumDetector(twoThetaBins=twoThetaBins,applyCalibration=applyCalibration,\
                                                                                        correctedTwoTheta=correctedTwoTheta,dTheta=dTheta)
-
         TwoThetaPositions = 0.5*(twoThetaBins[:-1]+twoThetaBins[1:])
 
         if not 'fmt' in kwargs:
@@ -252,298 +252,282 @@ class DataSet(object):
 
         return ax,twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor
 
-    def plotInteractive(self,ax=None,masking=True,**kwargs):
-        """Generate an interactive plot of data.
-
-        Kwargs:
-
-            - ax (axis): Matplotlib axis into which the plot is to be performed (default None -> new)
-
-            - masking (bool): If true, the current mask in self.mask is applied (default True)
-
-            - Kwargs: Passed on to errorbar or imshow depending on data dimensionality
-
-        Returns:
-
-            - ax: Interactive matplotlib axis
-
-        """
-        if ax is None:
-            fig,ax = plt.subplots()
-        else:
-            fig = ax.get_figure()
+    # def plotInteractive(self,ax=None,masking=True,**kwargs):
+    #     """Generate an interactive plot of data.
+    #     Kwargs:
+    #         - ax (axis): Matplotlib axis into which the plot is to be performed (default None -> new)
+    #         - masking (bool): If true, the current mask in self.mask is applied (default True)
+    #         - Kwargs: Passed on to errorbar or imshow depending on data dimensionality
+    #     Returns:
+    #         - ax: Interactive matplotlib axis
+    #     """
+    #     if ax is None:
+    #         fig,ax = plt.subplots()
+    #     else:
+    #         fig = ax.get_figure()
         
-        twoTheta = self.twoTheta
+    #     twoTheta = self.twoTheta
 
-        if self.type.lower() in ['singlecrystal','powder']:
-            shape = self.counts.shape
+    #     if self.type.lower() in ['singlecrystal','powder']:# TODO: Change
+    #         shape = self.countShape
             
-            intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,:,np.newaxis,np.newaxis]).reshape(-1,shape[2],shape[3])
-            mask = self.mask.reshape(-1,shape[2],shape[3])
-            ax.titles = np.concatenate([[df.fileName]*len(df.A3) for df in self],axis=0)
-        else:
-            # Find intensity
-            intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,np.newaxis,np.newaxis])
-            mask = self.mask
+    #         intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,:,np.newaxis,np.newaxis]).reshape(-1,shape[2],shape[3])
+    #         mask = self.mask.reshape(-1,shape[2],shape[3])
+    #         ax.titles = np.concatenate([[df.fileName]*len(df.A3) for df in self],axis=0)
+    #     else:
+    #         # Find intensity
+    #         intensityMatrix = np.divide(self.counts,self.normalization*self.monitor[:,np.newaxis,np.newaxis])
+    #         mask = self.mask
             
 
-        if masking is True: # If masking, apply self.mask
-            intensityMatrix[mask] = np.nan
+    #     if masking is True: # If masking, apply self.mask
+    #         intensityMatrix[mask] = np.nan
 
-        # Find plotting limits (For 2D pixel limits found later)
-        thetaLimits = [f(twoTheta) for f in [np.min,np.max]]
-        intLimits = [f(intensityMatrix) for f in [np.nanmin,np.nanmax]]
+    #     # Find plotting limits (For 2D pixel limits found later)
+    #     thetaLimits = [f(twoTheta) for f in [np.min,np.max]]
+    #     intLimits = [f(intensityMatrix) for f in [np.nanmin,np.nanmax]]
 
-        # Copy relevant data to the axis
-        ax.intensityMatrix = intensityMatrix
-        ax.intLimits = intLimits
-        ax.twoTheta = twoTheta
-        ax.twoThetaLimits = thetaLimits
+    #     # Copy relevant data to the axis
+    #     ax.intensityMatrix = intensityMatrix
+    #     ax.intLimits = intLimits
+    #     ax.twoTheta = twoTheta
+    #     ax.twoThetaLimits = thetaLimits
         
 
-        if not hasattr(kwargs,'fmt'):
-            kwargs['fmt']='-'
+    #     if not hasattr(kwargs,'fmt'):
+    #         kwargs['fmt']='-'
 
-        if self.type.upper() == 'OLD DATA': # Data is 1D, plot using errorbar
-            ax.titles = [df.fileName for df in self]
-            # calculate errorbars
-            if 'colorbar' in kwargs: # Cannot be used for 1D plotting....
-                del kwargs['colorbar']
-            ax.errorbarMatrix = np.divide(np.sqrt(self.counts),self.normalization*self.monitor[:,np.newaxis,np.newaxis])
-            def plotSpectrum(ax,index=0,kwargs=kwargs):
-                if kwargs is None:
-                    kwargs = {}
-                if hasattr(ax,'_errorbar'): # am errorbar has already been plotted, delete ot
-                    ax._errorbar.remove()
-                    del ax._errorbar
+    #     if self.type.upper() == 'OLD DATA': # Data is 1D, plot using errorbar
+    #         ax.titles = [df.fileName for df in self]
+    #         # calculate errorbars
+    #         if 'colorbar' in kwargs: # Cannot be used for 1D plotting....
+    #             del kwargs['colorbar']
+    #         ax.errorbarMatrix = np.divide(np.sqrt(self.counts),self.normalization*self.monitor[:,np.newaxis,np.newaxis])
+    #         def plotSpectrum(ax,index=0,kwargs=kwargs):
+    #             if kwargs is None:
+    #                 kwargs = {}
+    #             if hasattr(ax,'_errorbar'): # am errorbar has already been plotted, delete ot
+    #                 ax._errorbar.remove()
+    #                 del ax._errorbar
                 
-                if hasattr(ax,'color'): # use the color from previous plot
-                    kwargs['color']=ax.color
+    #             if hasattr(ax,'color'): # use the color from previous plot
+    #                 kwargs['color']=ax.color
                 
-                if hasattr(ax,'fmt'):
-                    kwargs['fmt']=ax.fmt
+    #             if hasattr(ax,'fmt'):
+    #                 kwargs['fmt']=ax.fmt
 
-                # Plot data
-                ax._errorbar = ax.errorbar(ax.twoTheta[index],ax.intensityMatrix[index],yerr=ax.errorbarMatrix[index].flatten(),**kwargs)
-                ax.fmt = kwargs['fmt']
-                ax.index = index # Update index and color
-                ax.color = ax._errorbar.lines[0].get_color()
-                # Set plotting limits and title
-                ax.set_xlim(*ax.twoThetaLimits)
-                ax.set_ylim(*ax.intLimits)
-                ax.set_title(ax.titles[index])
-                plt.draw()
+    #             # Plot data
+    #             ax._errorbar = ax.errorbar(ax.twoTheta[index],ax.intensityMatrix[index],yerr=ax.errorbarMatrix[index].flatten(),**kwargs)
+    #             ax.fmt = kwargs['fmt']
+    #             ax.index = index # Update index and color
+    #             ax.color = ax._errorbar.lines[0].get_color()
+    #             # Set plotting limits and title
+    #             ax.set_xlim(*ax.twoThetaLimits)
+    #             ax.set_ylim(*ax.intLimits)
+    #             ax.set_title(ax.titles[index])
+    #             plt.draw()
 
-                ax.set_ylabel('Inensity [arb]')
+    #             ax.set_ylabel('Inensity [arb]')
             
-        elif self.type.upper() == 'POWDER':
-            ax.titles = [df.fileName for df in self]
-            # Find limits for y direction
+    #     elif self.type.upper() == 'POWDER':
+    #         ax.titles = [df.fileName for df in self]
+    #         # Find limits for y direction
             
-            ax.twoTheta = np.array([df.twoTheta for df in self])
-            ax.idxSpans = np.cumsum([len(df.A3) for df in self]) # limits of indices corresponding to data file limits
-            ax.IDX = -1 # index of current data file
-            ax.twoThetaLimits = [f(ax.twoTheta) for f in [np.nanmin,np.nanmax]]
-            ax.pixelLimits = [-0.1,0.1]
+    #         ax.twoTheta = np.array([df.twoTheta for df in self])
+    #         ax.idxSpans = np.cumsum([len(df.A3) for df in self]) # limits of indices corresponding to data file limits
+    #         ax.IDX = -1 # index of current data file
+    #         ax.twoThetaLimits = [f(ax.twoTheta) for f in [np.nanmin,np.nanmax]]
+    #         ax.pixelLimits = [-0.1,0.1]
 
-            def plotSpectrum(ax,index=0,kwargs=kwargs):
-                # find color bar limits
-                vmin,vmax = ax.intLimits
+    #         def plotSpectrum(ax,index=0,kwargs=kwargs):
+    #             # find color bar limits
+    #             vmin,vmax = ax.intLimits
 
-                newIDX = np.sum(index>=ax.idxSpans)
-                if newIDX != ax.IDX:
-                    ax.IDX = newIDX
-                    if hasattr(ax,'_pcolormesh'):
-                        ax.cla()
-                    ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
+    #             newIDX = np.sum(index>=ax.idxSpans)
+    #             if newIDX != ax.IDX:
+    #                 ax.IDX = newIDX
+    #                 if hasattr(ax,'_pcolormesh'):
+    #                     ax.cla()
+    #                 ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
                 
-                elif hasattr(ax,'_pcolormesh'):
-                    ax._pcolormesh.set_array(ax.intensityMatrix[index])
-                else:
-                    ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
+    #             elif hasattr(ax,'_pcolormesh'):
+    #                 ax._pcolormesh.set_array(ax.intensityMatrix[index])
+    #             else:
+    #                 ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
 
-                ax.index = index
-                if 'colorbar' in kwargs: # If colorbar attribute is given, use it
-                    if kwargs['colorbar']: 
-                        if not hasattr(ax,'_colorbar'): # If no colorbar is present, create one
-                            ax._colorbar = fig.colorbar(ax._pcolormesh,ax=ax)
-                # Set limits
-                ax.set_xlim(*ax.twoThetaLimits)
-                ax.set_ylim(*ax.pixelLimits)
-                ax.set_title(ax.titles[index])
-                ax.set_aspect('auto')
+    #             ax.index = index
+    #             if 'colorbar' in kwargs: # If colorbar attribute is given, use it
+    #                 if kwargs['colorbar']: 
+    #                     if not hasattr(ax,'_colorbar'): # If no colorbar is present, create one
+    #                         ax._colorbar = fig.colorbar(ax._pcolormesh,ax=ax)
+    #             # Set limits
+    #             ax.set_xlim(*ax.twoThetaLimits)
+    #             ax.set_ylim(*ax.pixelLimits)
+    #             ax.set_title(ax.titles[index])
+    #             ax.set_aspect('auto')
                 
-                plt.draw()
+    #             plt.draw()
                 
-                ax.set_ylabel('Intensity [arb]')
+    #             ax.set_ylabel('Intensity [arb]')
 
-        elif self.type.lower() == 'singlecrystal':
+    #     elif self.type.lower() == 'singlecrystal':
             
             
-            ax.A3 = np.concatenate([df.A3 for df in self],axis=0)
-            ax.twoTheta = np.array([df.twoTheta for df in self])
-            ax.idxSpans = np.cumsum([len(df.A3) for df in self]) # limits of indices corresponding to data file limits
-            ax.IDX = -1 # index of current data file
-            ax.twoThetaLimits = [f(ax.twoTheta) for f in [np.nanmin,np.nanmax]]
-            ax.pixelLimits = [-0.1,0.1]
+    #         ax.A3 = np.concatenate([df.A3 for df in self],axis=0)
+    #         ax.twoTheta = np.array([df.twoTheta for df in self])
+    #         ax.idxSpans = np.cumsum([len(df.A3) for df in self]) # limits of indices corresponding to data file limits
+    #         ax.IDX = -1 # index of current data file
+    #         ax.twoThetaLimits = [f(ax.twoTheta) for f in [np.nanmin,np.nanmax]]
+    #         ax.pixelLimits = [-0.1,0.1]
 
-            def plotSpectrum(ax,index=0,kwargs=kwargs):
-                # find color bar limits
-                vmin,vmax = ax.intLimits
+    #         def plotSpectrum(ax,index=0,kwargs=kwargs):
+    #             # find color bar limits
+    #             vmin,vmax = ax.intLimits
 
-                newIDX = np.sum(index>=ax.idxSpans)
-                if newIDX != ax.IDX:
-                    ax.IDX = newIDX
-                    if hasattr(ax,'_pcolormesh'):
-                        ax.cla()
-                    ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
+    #             newIDX = np.sum(index>=ax.idxSpans)
+    #             if newIDX != ax.IDX:
+    #                 ax.IDX = newIDX
+    #                 if hasattr(ax,'_pcolormesh'):
+    #                     ax.cla()
+    #                 ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
                 
-                elif hasattr(ax,'_pcolormesh'):
-                    ax._pcolormesh.set_array(ax.intensityMatrix[index])
-                else:
-                    ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
+    #             elif hasattr(ax,'_pcolormesh'):
+    #                 ax._pcolormesh.set_array(ax.intensityMatrix[index])
+    #             else:
+    #                 ax._pcolormesh = ax.pcolormesh(self.twoTheta[ax.IDX],self.pixelPosition[ax.IDX,2],ax.intensityMatrix[index],shading='auto',vmin=vmin,vmax=vmax)
 
                 
-                ax.index = index
-                if 'colorbar' in kwargs: # If colorbar attribute is given, use it
-                    if kwargs['colorbar']: 
-                        if not hasattr(ax,'_colorbar'): # If no colorbar is present, create one
-                            ax._colorbar = fig.colorbar(ax._imshow,ax=ax)
-                # Set limits
-                ax.set_xlim(*ax.twoThetaLimits)
-                ax.set_ylim(*ax.pixelLimits)
-                #print(index)
-                ax.set_title(ax.titles[index]+' - A3: {:.2f} [deg]'.format(ax.A3[index]))
-                ax.set_aspect('auto')
+    #             ax.index = index
+    #             if 'colorbar' in kwargs: # If colorbar attribute is given, use it
+    #                 if kwargs['colorbar']: 
+    #                     if not hasattr(ax,'_colorbar'): # If no colorbar is present, create one
+    #                         ax._colorbar = fig.colorbar(ax._imshow,ax=ax)
+    #             # Set limits
+    #             ax.set_xlim(*ax.twoThetaLimits)
+    #             ax.set_ylim(*ax.pixelLimits)
+    #             #print(index)
+    #             ax.set_title(ax.titles[index]+' - A3: {:.2f} [deg]'.format(ax.A3[index]))
+    #             ax.set_aspect('auto')
                 
                 
-                plt.draw()
+    #             plt.draw()
 
             
-            ax.set_ylabel(r'Pixel z position [m]')
+    #         ax.set_ylabel(r'Pixel z position [m]')
 
-        # For all cases, x axis is two theta in degrees
-        ax.set_xlabel(r'2$\theta$ [deg]')
-        # Add function as method
-        ax.plotSpectrum = lambda index,**kwargs: plotSpectrum(ax,index,**kwargs)
+    #     # For all cases, x axis is two theta in degrees
+    #     ax.set_xlabel(r'2$\theta$ [deg]')
+    #     # Add function as method
+    #     ax.plotSpectrum = lambda index,**kwargs: plotSpectrum(ax,index,**kwargs)
         
-        # Plot first data point
-        ax.plotSpectrum(0)
+    #     # Plot first data point
+    #     ax.plotSpectrum(0)
 
-        ##### Interactivity #####
+    #     ##### Interactivity #####
 
-        def increaseAxis(self,step=1): # Call function to increase index
-            index = self.index
-            index+=step
-            if index>=len(self.intensityMatrix):
-                index = len(self.intensityMatrix)-1
-            self.plotSpectrum(index)
+    #     def increaseAxis(self,step=1): # Call function to increase index
+    #         index = self.index
+    #         index+=step
+    #         if index>=len(self.intensityMatrix):
+    #             index = len(self.intensityMatrix)-1
+    #         self.plotSpectrum(index)
             
-        def decreaseAxis(self,step=1): # Call function to decrease index
-            index = self.index
-            index-=step
-            if index<=-1:
-                index = 0
-            self.plotSpectrum(index)
+    #     def decreaseAxis(self,step=1): # Call function to decrease index
+    #         index = self.index
+    #         index-=step
+    #         if index<=-1:
+    #             index = 0
+    #         self.plotSpectrum(index)
 
-        # Connect functions to key presses
-        def onKeyPress(self,event): # pragma: no cover
-            if event.key in ['+','up']:
-                increaseAxis(self)
-            elif event.key in ['-','down']:
-                decreaseAxis(self)
-            elif event.key in ['home']:
-                index = 0
-                self.plotSpectrum(index)
-            elif event.key in ['end']:
-                index = len(self.intensityMatrix)-1
-                self.plotSpectrum(index)
-            elif event.key in ['pageup']: # Pressing page up or page down performs steps of 10
-                increaseAxis(self,step=10)
-            elif event.key in ['pagedown']:
-                decreaseAxis(self,step=10)
+    #     # Connect functions to key presses
+    #     def onKeyPress(self,event): # pragma: no cover
+    #         if event.key in ['+','up']:
+    #             increaseAxis(self)
+    #         elif event.key in ['-','down']:
+    #             decreaseAxis(self)
+    #         elif event.key in ['home']:
+    #             index = 0
+    #             self.plotSpectrum(index)
+    #         elif event.key in ['end']:
+    #             index = len(self.intensityMatrix)-1
+    #             self.plotSpectrum(index)
+    #         elif event.key in ['pageup']: # Pressing page up or page down performs steps of 10
+    #             increaseAxis(self,step=10)
+    #         elif event.key in ['pagedown']:
+    #             decreaseAxis(self,step=10)
 
-        # Call function for scrolling with mouse wheel
-        def onScroll(self,event): # pragma: no cover
-            if(event.button=='up'):
-                increaseAxis(self)
-            elif event.button=='down':
-                decreaseAxis(self)
-        # Connect function calls to slots
-        fig.canvas.mpl_connect('key_press_event',lambda event: onKeyPress(ax,event) )
-        fig.canvas.mpl_connect('scroll_event',lambda event: onScroll(ax,event) )
+    #     # Call function for scrolling with mouse wheel
+    #     def onScroll(self,event): # pragma: no cover
+    #         if(event.button=='up'):
+    #             increaseAxis(self)
+    #         elif event.button=='down':
+    #             decreaseAxis(self)
+    #     # Connect function calls to slots
+    #     fig.canvas.mpl_connect('key_press_event',lambda event: onKeyPress(ax,event) )
+    #     fig.canvas.mpl_connect('scroll_event',lambda event: onScroll(ax,event) )
         
-        return ax
+    #     return ax
 
 
-    def plotOverview(self,**kwargs):
-        """Quick plotting of data set with interactive plotter and summed intensity.
-
-        Kwargs:
-
-            - masking (bool): If true, the current mask in self.mask is applied (default True)
-
-            - kwargs (dict): Kwargs to be used for interactive or plotTwoTheta plot
-
-        returns:
-
-            - Ax (list): List of two axis, first containing the interactive plot, second summed two theta
-
-
-        Kwargs for plotInteractiveKwargs:
+    # def plotOverview(self,**kwargs):
+    #     """Quick plotting of data set with interactive plotter and summed intensity.
+    #     Kwargs:
+    #         - masking (bool): If true, the current mask in self.mask is applied (default True)
+    #         - kwargs (dict): Kwargs to be used for interactive or plotTwoTheta plot
+    #     returns:
+    #         - Ax (list): List of two axis, first containing the interactive plot, second summed two theta
+    #     Kwargs for plotInteractiveKwargs:
         
-            - masking (bool): Use generated mask for dataset (default True)
-
-        Kwargs for plotTwoThetaKwargs:
-
-            - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.1 Deg)
+    #         - masking (bool): Use generated mask for dataset (default True)
+    #     Kwargs for plotTwoThetaKwargs:
+    #         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.1 Deg)
             
-            - applyCalibration (bool): Use normalization files (default True)
+    #         - applyCalibration (bool): Use normalization files (default True)
             
-            - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
+    #         - correctedTwoTheta (bool): Use corrected two theta for 2D data (default true)
         
-        """
+    #     """
 
-        fig,Ax = plt.subplots(2,1,figsize=(11,9),sharex=True)
+    #     fig,Ax = plt.subplots(2,1,figsize=(11,9),sharex=True)
 
-        Ax = Ax.flatten()
-
-
-        if not 'fmt' in kwargs:
-            kwargs['fmt']='_'
-
-        if not 'masking' in kwargs:
-            kwargs['masking']= True
-
-        if not 'twoThetaBins' in kwargs:
-            kwargs['twoThetaBins']= None
-
-        if not 'applyCalibration' in kwargs:
-            kwargs['applyCalibration']= True
+    #     Ax = Ax.flatten()
 
 
-        if not 'correctedTwoTheta' in kwargs:
-            kwargs['correctedTwoTheta']= True
+    #     if not 'fmt' in kwargs:
+    #         kwargs['fmt']='_'
 
-        if not 'colorbar' in kwargs:
-            kwargs['colorbar']= False
+    #     if not 'masking' in kwargs:
+    #         kwargs['masking']= True
 
-        plotInteractiveKwargs = {}
-        for key in ['masking','fmt','colorbar']:
-            plotInteractiveKwargs[key] = kwargs[key]
+    #     if not 'twoThetaBins' in kwargs:
+    #         kwargs['twoThetaBins']= None
+
+    #     if not 'applyCalibration' in kwargs:
+    #         kwargs['applyCalibration']= True
+
+
+    #     if not 'correctedTwoTheta' in kwargs:
+    #         kwargs['correctedTwoTheta']= True
+
+    #     if not 'colorbar' in kwargs:
+    #         kwargs['colorbar']= False
+
+    #     plotInteractiveKwargs = {}
+    #     for key in ['masking','fmt','colorbar']:
+    #         plotInteractiveKwargs[key] = kwargs[key]
         
-        plotTwoThetaKwargs = {}
-        for key in ['twoThetaBins','fmt','correctedTwoTheta','applyCalibration']:
-            plotTwoThetaKwargs[key] = kwargs[key]
+    #     plotTwoThetaKwargs = {}
+    #     for key in ['twoThetaBins','fmt','correctedTwoTheta','applyCalibration']:
+    #         plotTwoThetaKwargs[key] = kwargs[key]
 
-        ax2,*_= self.plotTwoTheta(ax=Ax[1],**plotTwoThetaKwargs)
-        ax = self.plotInteractive(ax = Ax[0],**plotInteractiveKwargs)
+    #     ax2,*_= self.plotTwoTheta(ax=Ax[1],**plotTwoThetaKwargs)
+    #     ax = self.plotInteractive(ax = Ax[0],**plotInteractiveKwargs)
 
-        ax.set_xlabel('')
-        ax2.set_title('Integrated Intensity')
+    #     ax.set_xlabel('')
+    #     ax2.set_title('Integrated Intensity')
 
-        fig.tight_layout()
-        return Ax
+    #     fig.tight_layout()
+    #     return Ax
 
     def Viewer3D(self,dqx,dqy,dqz,rlu=True,axis=2, raw=False,  log=False, grid = True, outputFunction=print, 
                  cmap='viridis',smart=False, steps=None, multiplicationFactor=1):
@@ -557,23 +541,14 @@ class DataSet(object):
             - dqy (float): Bin size along second axis in 1/AA
         
             - dqz (float): Bin size along third axis in 1/AA
-
         Kwargs:
-
             - rlu (bool): Plot using reciprocal lattice units (default False)
-
             - axis (int): Initial view direction for the viewer (default 2)
-
             - raw (bool): If True plot counts else plot normalized counts (default False)
-
             - log (bool): Plot intensity as logarithm of intensity (default False)
-
             - grid (bool): Plot a grid on the figure (default True)
-
             - outputFunction (function): Function called when clicking on the figure (default print)
-
             - cmap (str): Name of color map used for plot (default viridis)
-
             - multiplicationFactor (float): Multiply intensities with this factor (default 1)
         
         """
@@ -672,34 +647,20 @@ class DataSet(object):
         
     def plotCut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True,ax=None,fmt='.',**kwargs):
         """Cut and plot data from P1 to P2 in steps of stepSize [1/AA] width a cylindrical width [1/AA]
-
         Args:
-
             - P1 (list): Start position for cut in either (Qx,Qy,Qz) or (H,K,L)
-
             - P2 (list): End position for cut in either (Qx,Qy,Qz) or (H,K,L)
-
         Kwargs:
-
             - rlu (bool): If True, P1 and P2 are in HKL, otherwise in QxQyQz (default True)
-
             - stepSize (float): Size of bins along cut direction in units of [1/AA] (default 0.01)
-
             - width (float): Integration width orthogonal to cut in units of [1/AA] (default 0.02)
-
             - raw (bool): If True, do not normalize data (default False)
-
             - optimize (bool): If True, perform optimized cutting (default True)
-
             - ax (matplotlib.axes): If None, a new is created (default None)
-
             - kwargs: All other kwargs are provided to the errorbar plot of the axis
-
         Returns:
-
             - Pos,Int,Ax
             
-
         """
 
         hkl,I,err = self.cut1D(P1=P1,P2=P2,rlu=rlu,stepSize=stepSize,width=width,widthZ=widthZ,raw=raw,optimize=optimize)
@@ -713,34 +674,22 @@ class DataSet(object):
         ax.errorbar(X,I,yerr=err,**kwargs)
 
         ax.get_figure().tight_layout()
-        return hkl,I,ax
+        return hkl,I,err,ax
 
     def cut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True):
         """Cut data from P1 to P2 in steps of stepSize [1/AA] width a cylindrical width [1/AA]
-
         Args:
-
             - P1 (list): Start position for cut in either (Qx,Qy,Qz) or (H,K,L)
-
             - P2 (list): End position for cut in either (Qx,Qy,Qz) or (H,K,L)
-
         Kwargs:
-
             - rlu (bool): If True, P1 and P2 are in HKL, otherwise in QxQyQz (default True)
-
             - stepSize (float): Size of bins along cut direction in units of [1/AA] (default 0.01)
-
             - width (float): Integration width orthogonal to cut in units of [1/AA] (default 0.02)
-
             - raw (bool): If True, do not normalize data (default False)
-
             - optimize (bool): If True, perform optimized cutting (default True)
-
         Returns:
-
             - Pos,Int....
             
-
         """
         intensities = None
         for df in self:
@@ -898,11 +847,8 @@ class DataSet(object):
 
         """
         function to store sample object from a df into a binary file.
-
         kargs:
-
             - fileName (str): fileName for UB matrix file. Default is None and sample name form the ds
-
             - dataFolder (str): directory for saving UB file. Defualt is None, and in cwd
         """
 
@@ -921,9 +867,7 @@ class DataSet(object):
 
         """
         function to load UB from binary file into all dataFiles in a dataSet.
-
         args: 
-
             filePath (str): Filepath to UB matrix
             
         """
@@ -1358,13 +1302,10 @@ class DataSet(object):
 
     def alignToRef(self,coordinates,planeVector1,planeVector2,optimize=False,axisOffset=0.0):
         """
-
         Args:
             
             - coordinates (list): peak position to align for planeVector1 in Qx, Qy, Qz
-
             - planeVector1 (list): Indicies of the reflection used for alignment (Or directional vector???)
-
             - planeVector2 (list): Vector along y axis
             
             
@@ -1373,25 +1314,15 @@ class DataSet(object):
             - optimize = False (bool): Fit position of peak, default is False. NOT WORKING!
         
         This method takes coordinates of a reflection in Qz,Qy,Qz and align that peak to planeVector1. 
-
             1. find scattering normal from the plane vectors
-
             2. Find vector to rotate around from coordinates and scatteringNormal
-
             3. Find angle to rotate and rotation matrix
-
             4. Rotated peak to the scattering plane
-
             5. Find indices of reflection used for alignment
-
             6. calculate the actual position of the peak found along planeVector1 
-
             7. Find rotation matrix which is around the z-axis and has angle of -offsetA3
-
             8. sample rotation has now been found (converts between instrument  qx,qy,qz to qx along planeVector1 and qy along planeVector2)
-
             9. update sample
-
         """
 
         if optimize is True:
@@ -1466,7 +1397,6 @@ class DataSet(object):
         
         """
         Function to rotate a dataSet around the surface normal. Projection vectors are updated not change direction, e.g. stay along x and y axis
-
         rotation (float): angle to rotate dataSet around scattering plane normal
         """
 
@@ -1487,7 +1417,6 @@ class DataSet(object):
     def subtractBkgRange(self,bkgStart,bkgEnd):
         """
         function to subtract background defined by a range of the first dataFile of the dataSet
-
         bkgStart (int): start value in step for range used for background subtraction
         bkgEnd (int): end value in step for range used for background subtraction
         """
@@ -1502,7 +1431,6 @@ class DataSet(object):
         """
         Subtracts a dataSet with same a3 range from the dataSet.
          
-
         ds2 (dataset): dataSet that should be subtracted
         """
 
@@ -1528,17 +1456,14 @@ class DataSet(object):
             - Bins (list): Bins into which 2theta is to be binned (default min(2theta),max(2theta) in steps of 0.125)
             
             - outFile (str): String that will be used for outputfile. Default is automatic generated name.
-
             - outFolder (str): Path to folder data will be saved. Default is current working directory.
             
             - useMask (bool): export file with angular mask. Default is False
-
             - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
             
         - Arguments for automatic file name:
                 
             - sampleName (bool): Include sample name in filename. Default is True.
-
             - sampleTitle (bool): Include sample title in filename. Default is True.
         
             - temperature (bool): Include temperature in filename. Default is False.
@@ -1552,7 +1477,6 @@ class DataSet(object):
             - waveLength (bool): Include waveLength in filename. Default is False. 
             
         Kwargs for sumDetector:
-
             - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
                 
             - applyCalibration (bool): Use normalization files (default True)
@@ -1575,10 +1499,10 @@ class DataSet(object):
         
         """
 
-        twoTheta = np.abs(self.twoTheta)
+        twoTheta = np.asarray([[func(np.abs(df.twoTheta)) for func in [np.min,np.max]] for df in self])
         
-        anglesMin = np.min(twoTheta)
-        anglesMax = np.max(twoTheta)
+        anglesMin = np.min(twoTheta[:,0])
+        anglesMax = np.max(twoTheta[:,1])
         
         if bins is None:
             bins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
@@ -1611,8 +1535,8 @@ class DataSet(object):
         meanTemp = np.mean(temperatures)
         stdTemp = np.std(temperatures)
 
-        if np.all([x == self.sample[0].name for x in [s.name for s in self.sample[1:]]]):
-            samName = self.sample[0].name        #.decode("utf-8")
+        if np.all([x == self[0].sample.name for x in [s.name for s in self.sample[1:]]]):
+            samName = self[0].sample.name        #.decode("utf-8")
         else:
             samName ='Unknown! Combined different sample names'
         
@@ -1621,8 +1545,8 @@ class DataSet(object):
         else:
             samTitle ='Unknown! Combined different sample titles'
 
-        if np.all([np.isclose(x,self.wavelength[0]) for x in self.wavelength[1:]]):
-            wavelength = self.wavelength[0]
+        if np.all([np.isclose(df.wavelength,self[0].wavelength) for df in self[1:]]):
+            wavelength = self[0].wavelength
         else:
             wavelength ='Unknown! Combined different Wavelengths'
         
@@ -1651,16 +1575,16 @@ class DataSet(object):
         ## Generate bottom information part
         if len(self) == 1:
             year = 2022
-            fileNumbers = str(int(self.fileName[0].split('n')[-1].split('.')[0]))
+            fileNumbers = str(int(self[0].fileName.split('n')[-1].split('.')[0]))
         else:
-            year,fileNumbers = _tools.numberStringGenerator(self.fileName)
+            year,fileNumbers = _tools.numberStringGenerator([df.fileName for df in self])
         
         fileList = " Filelist='dmc:{}:{}'".format(year,fileNumbers)
         
         minmax = [np.nanmin,np.nanmax]
         
-        twoThetaStart = self.twoTheta[:,0]
-        twoTheta = [np.min(twoThetaStart),np.max(twoThetaStart)]
+        
+        twoTheta = [anglesMin,anglesMax]
         Counts = [int(func(intensity)) for func in minmax]
         numor = fileNumbers.replace('-',' ')
         Npkt = len(bins) - 1        
@@ -1679,7 +1603,7 @@ class DataSet(object):
         pMon = [df.monitor for df in self]
         sMon = [[0.0]]
         
-        timeMin, timeMax = [func(self.time) for func in minmax]
+        timeMin, timeMax = [func([df.time for df in self]) for func in minmax]
         sMonMin, sMonMax = [func(sMon) for func in minmax]
         bMonMin, bMonMax = [func(bMon) for func in minmax]
         aMon = np.mean([0.0 for df in self])
@@ -1794,10 +1718,10 @@ class DataSet(object):
             
         """
 
-        twoTheta = np.abs(self.twoTheta)
+        twoTheta = np.asarray([[func(np.abs(df.twoTheta)) for func in [np.min,np.max]] for df in self])
         
-        anglesMin = np.min(twoTheta)
-        anglesMax = np.max(twoTheta)
+        anglesMin = np.min(twoTheta[:,0])
+        anglesMax = np.max(twoTheta[:,1])
         
         if bins is None:
             bins = np.arange(anglesMin-0.5*dTheta,anglesMax+0.51*dTheta,dTheta)
@@ -1806,7 +1730,7 @@ class DataSet(object):
             self.generateMask(maxAngle=maxAngle,replace=False)
 
         bins,intensity,err,monitor = self.sumDetector(bins,applyCalibration=applyCalibration,correctedTwoTheta=correctedTwoTheta)
-        
+ 
         bins = bins + twoThetaOffset
         
         # find mean monitor
@@ -1839,8 +1763,8 @@ class DataSet(object):
         else:
             samTitle ='Unknown! Combined different sample titles'
 
-        if np.all([np.isclose(x,self.wavelength[0]) for x in self.wavelength[1:]]):
-            wavelength = self.wavelength[0]
+        if np.all([np.isclose(df,self[0].wavelength) for df in self[1:]]):
+            wavelength = self[0].wavelength
         else:
             wavelength ='Unknown! Combined different Wavelengths'
         
@@ -1858,9 +1782,9 @@ class DataSet(object):
         
         if len(self) == 1:
             year = 2022
-            fileNumbers = str(int(self.fileName[0].split('n')[-1].split('.')[0]))
+            fileNumbers = str(int(self[0].fileName.split('n')[-1].split('.')[0]))
         else:
-            year,fileNumbers = _tools.numberStringGenerator(self.fileName)
+            year,fileNumbers = _tools.numberStringGenerator([df.fileName for df in self])
         
         titleLine1 = f"# DMC at SINQ, PSI: Sample name = {samName}, title = {samTitle}, wavelength = {str(wavelength)[:5]} AA, T = {str(meanTemp)[:5]} K"
         titleLine2 = "# Filelist='dmc:{}:{}'".format(year,fileNumbers)
@@ -2064,33 +1988,27 @@ class DataSet(object):
     #     return returndata,bins
 
 
-    def cutQPlane(self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None):
+    def cutQPlane(self,points, width, sample = None, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None):
         """Perform QPlane cut where points within +-0.5*width are collapsed onto the plane and binned into xBins and yBins
-
         Args:
-
             - points (list): List of three points within the wanted plane. X is parallel to point 2 - point 1 (p1, p2, p3 = points)
-
             - width (float): Total width of QPlane in units of 1/AA or rlu depending on the rlu flag
-
         Kwargs:
             - dQx (float): Step size along x if xBins is not provided (default None)
-
             - dQy (float): Step size along y if yBins is not provided (default None)
             
             - xBins (list): Binning edges along x, overwrites dQx (default None)
-
             - yBins (list): Binning edges along y, overwrites dQy (default None)
-
             - rlu (bool): If true utilize sample UB otherwise perform no rotation (default False)
-
             - steps (int): Number of a3 step computated at once when performing operation (default len(df))
         
         An error will be thrown if neither dQx (dQy) and  xBins (yBins) are set.
-
         """
         if np.all([x is None for x in [dQx,dQy,xBins,yBins]]):
             raise AttributeError('No bins or step sizes provided')
+
+        if sample is None:
+            sample = self[0].sample
 
         if xBins is None:
             if dQx is None:
@@ -2101,17 +2019,19 @@ class DataSet(object):
                 raise AttributeError('Neither dQx or xBins are set!')
             yBins = np.arange(-5,5,dQy)
 
-        if rlu:
-            newPoints = [np.dot(self[0].sample.UB,point) for point in points]
-            for o,n in zip(points,newPoints):
-                print(' {} --> {}'.format(o,n))
+        if not points is None:
+            if rlu:
+                newPoints = [np.dot(sample.UB,point) for point in points]
+                for o,n in zip(points,newPoints):
 
-            #xBins /= np.linalg.norm(newPoints[1]-newPoints[0])
-            #yBins /= np.linalg.norm(newPoints[2]-newPoints[0])
+            else:
+                newPoints = points
+            
+            totalRotMat,translation = _tools.calculateRotationMatrixAndOffset2(newPoints)
         else:
-            newPoints = points
+            totalRotMat = np.eye(3)
+            translation = np.asarray([0.0])
         
-        totalRotMat,translation = _tools.calculateRotationMatrixAndOffset(newPoints)
         returndata = None
         for df in self:
             
@@ -2145,14 +2065,10 @@ class DataSet(object):
                 I = I.flatten()[inside]
                 dat = dat.flatten()[inside]
                 mon = mon.flatten()[inside]
+                weights = [I,mon,Norm]
                 
-                #Monitor = df.monitor[idx[0]:idx[1]].flatten()[inside]
-                
-                intensity=np.histogram2d(*q,bins=(xBins,yBins),weights=I)[0].astype(I.dtype)
-                monitorCount=np.histogram2d(*q,bins=(xBins,yBins),weights=mon)[0].astype(mon.dtype)
-                Normalization=np.histogram2d(*q,bins=(xBins,yBins),weights=Norm)[0].astype(Norm.dtype)
-                NormCount=np.histogram2d(*q,bins=(xBins,yBins))[0].astype(I.dtype)
-                
+                intensity,monitorCount,Normalization,NormCount = _tools.histogramdd(q.T,bins=(xBins,yBins),weights=weights,returnCounts=True)
+
                 if returndata is None:
                     returndata = [intensity,monitorCount,Normalization,NormCount]
                 else:
@@ -2162,11 +2078,11 @@ class DataSet(object):
         Qy =np.outer(np.ones_like(xBins),yBins)
         bins = [Qx,Qy]
 
-        return returndata,bins,translation
+        return returndata,bins,totalRotMat,translation
 
 
 
-    def plotQPlane(self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None,log=False,ax=None,rmcFile=False,**kwargs):
+    def plotQPlane(self,points, width, sample=None, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None,log=False,ax=None,rmcFile=False,**kwargs):
         #self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,log=False,ax=None,rlu=False,rmcFile=False,**kwargs
         # self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None
         # raise NotImplementedError('TODODODODODDO!!')
@@ -2178,35 +2094,26 @@ class DataSet(object):
             - QzMin (float): Lower qz limit (Default None).
             
             - QzMax (float): Upper qz limit (Default None).
-
         Kwargs:
            
             - xBinTolerance (float): bin sizes along x direction (default 0.05). If enlargen is true, this is the minimum bin size.
-
             - yBinTolerance (float): bin sizes along y direction (default 0.05). If enlargen is true, this is the minimum bin size.
             
             - log (bool): Plot intensities as the logarithm (default False).
             
             - ax (matplotlib axes): Axes in which the data is plotted (default None). If None, the function creates a new axes object.
-
             - rlu (bool): If true and axis is None, a new reciprocal lattice axis is created and used for plotting (default True).
-
             - vmin (float): Lower limit for colorbar (default min(Intensity)).
             
             - vmax (float): Upper limit for colorbar (default max(Intensity)).
-
             - colorbar (bool): If True, a colorbar is created in figure (default False)
-
             - zorder (int): If provided decides the z ordering of plot (default 10)
-
             - other: Other key word arguments are passed to the pcolormesh plotting algorithm.
             
         Returns:
             
             - dataList (list): List of all data points in format [Intensity, Monitor, Normalization, Normcount]
-
             - bins (list): List of bin edges as function of plane in format [xBins,yBins].
-
             - ax (matplotlib axes): Returns provided matplotlib axis
             
         .. note::
@@ -2229,19 +2136,36 @@ class DataSet(object):
             cmap = None
 
 
-        returndata,bins,translation = self.cutQPlane(points=points,width=width,dQx=dQx,dQy=dQy,xBins=xBins,yBins=yBins,rlu=rlu,steps=steps)
+        returndata,bins,rotationMatrix,translation = self.cutQPlane(points=points,sample=sample,width=width,dQx=dQx,dQy=dQy,xBins=xBins,yBins=yBins,rlu=rlu,steps=steps)
+
+        if sample is None:
+            sample = copy.deepcopy(self[0].sample)
 
         if ax is None:
             if rlu:
-                ax = self.createRLUAxes()
+                s = copy.deepcopy(self[0].sample)
+                p1 = points[1]-points[0]
+                p2 = points[2]-points[0]
+
+                p1Q = np.dot(s.B,p1)
+                p2Q = np.dot(s.B,p2)
+
+                p3 = _tools.LengthOrder(np.dot(np.linalg.inv(s.B),np.cross(p1Q,p2Q)))
+
+                s.P1 = p1
+                s.P2 = p2
+                s.P3 = p3
+                s.projectionVectors = np.array([s.P1,s.P2,s.P3]).T
+                s.ROT = rotationMatrix
+
+
+                ax = self.createRLUAxes(sample=s)
+                ax._step = translation
+    
             else:
                 fig,ax = plt.subplots()
                 ax.set_xlabel('Qx [1/AA]')
                 ax.set_ylabel('Qy [1/AA]')    
-
-        
-
-        ax.sample = self[0].sample       
         
         ax.intensity,ax.monitorCount,ax.Normalization,ax.NormCount, = returndata
 
@@ -2378,27 +2302,20 @@ def add(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,d
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
-
         - useMask (bool): export file with angular mask. Default is True
-
         - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
         - hourNormalization (bool): export files normalized to one hour on monitor.
-
         - onlyHR (bool): export only data with an angular mask
-
         - onlyNorm (bool): export only data normalized to one hour files
-
         - dataYear (int): year of data collection
         
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
-
         - sampleTitle (bool): Include sample title in filename. Default is True.
     
         - temperature (bool): Include temperature in filename. Default is False.
@@ -2408,13 +2325,10 @@ def add(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=None,d
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
-
         - waveLength (bool): Include waveLength in filename. Default is False. 
-
         - addTitle (str): for adding text in addition to the automatically generated file name
         
     Kwargs for sumDetector:
-
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyCalibration (bool): Use normalization files (default True)
@@ -2490,27 +2404,20 @@ def export(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=Non
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
-
         - useMask (bool): export file with angular mask. Default is True
-
         - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
         - hourNormalization (bool): export files normalized to one hour on monitor.
-
         - onlyHR (bool): export only data with an angular mask
-
         - onlyNorm (bool): export only data normalized to one hour files
-
         - dataYear (int): year of data collection
         
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
-
         - sampleTitle (bool): Include sample title in filename. Default is True.
     
         - temperature (bool): Include temperature in filename. Default is False.
@@ -2520,13 +2427,10 @@ def export(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=Non
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
-
         - waveLength (bool): Include waveLength in filename. Default is False. 
-
         - addTitle (str): for adding text in addition to the automatically generated file name
         
     Kwargs for sumDetector:
-
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyCalibration (bool): Use normalization files (default True)
@@ -2600,27 +2504,20 @@ def exportAll(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
-
         - useMask (bool): export file with angular mask. Default is True
-
         - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
         - hourNormalization (bool): export files normalized to one hour on monitor.
-
         - onlyHR (bool): export only data with an angular mask
-
         - onlyNorm (bool): export only data normalized to one hour files
-
         - dataYear (int): year of data collection
         
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
-
         - sampleTitle (bool): Include sample title in filename. Default is True.
     
         - temperature (bool): Include temperature in filename. Default is False.
@@ -2630,13 +2527,10 @@ def exportAll(*listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear=
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
-
         - waveLength (bool): Include waveLength in filename. Default is False. 
-
         - addTitle (str): for adding text in addition to the automatically generated file name
         
     Kwargs for sumDetector:
-
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyCalibration (bool): Use normalization files (default True)
@@ -2695,7 +2589,6 @@ def export_from(startFile,PSI=True,xye=False,folder=None,outFolder=None,dataYear
     """
     
     Takes a starting file number and export xye format file for all the following files in the folder.
-
     Exports PSI and xye format file for all scans. 
     
     Kwargs:
@@ -2709,27 +2602,20 @@ def export_from(startFile,PSI=True,xye=False,folder=None,outFolder=None,dataYear
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
-
         - useMask (bool): export file with angular mask. Default is True
-
         - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
         - hourNormalization (bool): export files normalized to one hour on monitor.
-
         - onlyHR (bool): export only data with an angular mask
-
         - onlyNorm (bool): export only data normalized to one hour files
-
         - dataYear (int): year of data collection
         
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
-
         - sampleTitle (bool): Include sample title in filename. Default is True.
     
         - temperature (bool): Include temperature in filename. Default is False.
@@ -2739,13 +2625,10 @@ def export_from(startFile,PSI=True,xye=False,folder=None,outFolder=None,dataYear
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
-
         - waveLength (bool): Include waveLength in filename. Default is False. 
-
         - addTitle (str): for adding text in addition to the automatically generated file name
         
     Kwargs for sumDetector:
-
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyCalibration (bool): Use normalization files (default True)
@@ -2813,7 +2696,6 @@ def export_from_to(startFile,endFile,PSI=True,xye=False,folder=None,outFolder=No
     """
     
     Takes a starting file number and a end file number, export for all scans between (including start and end)
-
     Exports PSI and xye format file for all scans. 
     
     Kwargs:
@@ -2827,27 +2709,20 @@ def export_from_to(startFile,endFile,PSI=True,xye=False,folder=None,outFolder=No
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
-
         - useMask (bool): export file with angular mask. Default is True
-
         - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
         - hourNormalization (bool): export files normalized to one hour on monitor.
-
         - onlyHR (bool): export only data with an angular mask
-
         - onlyNorm (bool): export only data normalized to one hour files
-
         - dataYear (int): year of data collection
         
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
-
         - sampleTitle (bool): Include sample title in filename. Default is True.
     
         - temperature (bool): Include temperature in filename. Default is False.
@@ -2857,13 +2732,10 @@ def export_from_to(startFile,endFile,PSI=True,xye=False,folder=None,outFolder=No
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
-
         - waveLength (bool): Include waveLength in filename. Default is False. 
-
         - addTitle (str): for adding text in addition to the automatically generated file name
         
     Kwargs for sumDetector:
-
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyCalibration (bool): Use normalization files (default True)
@@ -2929,7 +2801,6 @@ def export_list(listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear
     """
     
     Takes a list and export all elements induvidually. If a list is given inside the list, these files will be added/merged.
-
     Exports PSI and xye format file for all scans. 
     
     Kwargs:
@@ -2941,27 +2812,20 @@ def export_list(listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear
         - PSI (bool): Export PSI format. Default is True
         
         - xye (bool): Export xye format. Default is True
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
         
         - all from export_PSI_format and export_xye_format
-
         - useMask (bool): export file with angular mask. Default is True
-
         - maxAngle (float/int): Angle of angular mask. Defualt is 5 deg. 
         
         - hourNormalization (bool): export files normalized to one hour on monitor.
-
         - onlyHR (bool): export only data with an angular mask
-
         - onlyNorm (bool): export only data normalized to one hour files
-
         - dataYear (int): year of data collection
         
     - Arguments for automatic file name:
             
         - sampleName (bool): Include sample name in filename. Default is True.
-
         - sampleTitle (bool): Include sample title in filename. Default is True.
     
         - temperature (bool): Include temperature in filename. Default is False.
@@ -2971,13 +2835,10 @@ def export_list(listinput,PSI=True,xye=False,folder=None,outFolder=None,dataYear
         - electricField (bool): Include electric field in filename. Default is False.
     
         - fileNumber (bool): Include sample number in filename. Default is False.
-
         - waveLength (bool): Include waveLength in filename. Default is False. 
-
         - addTitle (str): for adding text in addition to the automatically generated file name
         
     Kwargs for sumDetector:
-
         - twoThetaBins (array): Actual bins used for binning (default [min(twoTheta)-dTheta/2,max(twoTheta)+dTheta/2] in steps of dTheta=0.125 Deg)
             
         - applyCalibration (bool): Use normalization files (default True)
@@ -3046,11 +2907,9 @@ def subtract_PSI(file1,file2,outFile=None,folder=None,outFolder=None):
         - PSI (bool): Subtract PSI format. Default is True
         
         - xye (bool): Subtract xye format. Default is True
-
         - folder (str): Path to directory for data files, default is current working directory
         
         - outFile (str): string for name of outfile (given without extension)
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory.
                 
     Example:
@@ -3150,11 +3009,9 @@ def subtract_xye(file1,file2,outFile=None,folder=None,outFolder=None):
         - PSI (bool): Subtract PSI format. Default is True
         
         - xye (bool): Subtract xye format. Default is True
-
         - folder (str): Path to directory for data files, default is current working directory
         
         - outFile (str): string for name of outfile (given without extension)
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory. 
         
     Example:
@@ -3220,11 +3077,8 @@ def subtract_xye(file1,file2,outFile=None,folder=None,outFolder=None):
 
 def subtract(file1,file2,PSI=True,xye=True,outFile=None,folder=None,outFolder=None):
     """
-
     This function takes two files and export a differnce curve with correct uncertainties. 
-
     The second file is scaled after the monitor of the first file.
-
     Kwargs:
         
         - PSI (bool): Subtract PSI format. Default is True
@@ -3234,12 +3088,10 @@ def subtract(file1,file2,PSI=True,xye=True,outFile=None,folder=None,outFolder=No
         - folder (str): Path to directory for data files, default is current working directory
         
         - outFile (str): string for name of outfile (given without extension)
-
         - outFolder (str): Path to folder data will be saved. Default is current working directory. 
         
     Example:
         >>> subtract('DMC_565.xye','DMC_573')
-
     """
 
 
@@ -3265,7 +3117,7 @@ def subtract(file1,file2,PSI=True,xye=True,outFile=None,folder=None,outFolder=No
 
 def DMCsort(filelist,sortKey):
     
-    names =  DataFile.shallowRead(filelist,[str(sortKey)])
+    names =  shallowRead(filelist,[str(sortKey)])
     
     listOfFiles = []
     listOfTitles = []

@@ -1,4 +1,6 @@
 import functools
+import sys
+sys.path.append('.')
 import numpy as np
 from difflib import SequenceMatcher
 import os.path
@@ -6,6 +8,10 @@ import cProfile, pstats, io
 from itertools import product
 import pickle
 import h5py as hdf
+import datetime, shutil
+from DMCpy.FileStructure import shallowRead, HDFTranslationAlternatives, HDFTranslation, HDFCounts
+
+import DMCpy
 
 
 MPLKwargs = ['agg_filter','alpha','animated','antialiased','aa','clip_box','clip_on','clip_path','color','c','colorbar','contains','dash_capstyle','dash_joinstyle','dashes','drawstyle','figure','fillstyle','gid','label','linestyle or ls','linewidth or lw','marker','markeredgecolor or mec','markeredgewidth or mew','markerfacecolor or mfc','markerfacecoloralt or mfcalt','markersize or ms','markevery','path_effects','picker','pickradius','rasterized','sketch_params','snap','solid_capstyle','solid_joinstyle','transform','url','visible','xdata','ydata','zorder']
@@ -224,19 +230,31 @@ def binData3D(dx,dy,dz,pos,data,norm=None,mon=None,bins=None):
 
     #pos = [np.array(x[NonNaNs]) for x in pos]
     HistBins = [bins[0][:,0,0],bins[1][0,:,0],bins[2][0,0,:]]
-    intensity =    np.histogramdd(np.array(pos).T,bins=HistBins,weights=data.flatten())[0].astype(data.dtype)
 
-    returndata = [intensity]
-    if mon is not None:
-        MonitorCount=  np.histogramdd(np.array(pos).T,bins=HistBins,weights=mon.flatten())[0].astype(mon.dtype)
-        returndata.append(MonitorCount)
-    if norm is not None:
-        Normalization= np.histogramdd(np.array(pos).T,bins=HistBins,weights=norm.flatten())[0].astype(norm.dtype)
+    if False:
+        intensity =    np.histogramdd(np.array(pos).T,bins=HistBins,weights=data.flatten())[0].astype(data.dtype)
+
+        returndata = [intensity]
+        if mon is not None:
+            MonitorCount=  np.histogramdd(np.array(pos).T,bins=HistBins,weights=mon.flatten())[0].astype(mon.dtype)
+            returndata.append(MonitorCount)
+        if norm is not None:
+            Normalization= np.histogramdd(np.array(pos).T,bins=HistBins,weights=norm.flatten())[0].astype(norm.dtype)
+            
+            returndata.append(Normalization)
+            
+        NormCount =    np.histogramdd(np.array(pos).T,bins=HistBins,weights=np.ones_like(data).flatten())[0].astype(float)
+        returndata.append(NormCount)
+
+    else:
+        weights = [data.flatten()]
+        if not mon is None:
+            weights.append(mon.flatten())
+        if not norm is None:
+            weights.append(norm.flatten())
         
-        returndata.append(Normalization)
-        
-    NormCount =    np.histogramdd(np.array(pos).T,bins=HistBins,weights=np.ones_like(data).flatten())[0].astype(float)
-    returndata.append(NormCount)
+        returndata = histogramdd(np.array(pos).T,bins=HistBins,weights=weights,returnCounts=True)
+
     return returndata,bins
 
 
@@ -765,3 +783,354 @@ def calculateRotationMatrixAndOffset(points):
     
     totalRotMat = np.dot(Rot3DInPlane,Rot3D)
     return totalRotMat,-offsetm[0]
+
+
+def calculateRotationMatrixAndOffset2(points):
+    v1, v2, v3 = points
+    Q1 = v2-v1
+    Q2 = v3-v1
+
+    # projectionVectors = np.array([[0,0,1],[1,1,0],[1,-1,0]])
+    axisVectors = np.eye(3)
+    ## Assume that Q1/HKL1 is along x-axis
+
+    Alpha1 = np.rad2deg(np.arccos(np.dot(Q1,axisVectors[0])/(np.linalg.norm(Q1))))
+
+    if np.isclose(Alpha1,0.0) or np.isclose(Alpha1,180.0): # Q1 is parallel to 1 0 0
+        Rot1 = np.array([0.0,0.0,1.0])
+    else:
+        Rot1 = np.cross(Q1,axisVectors[0])
+
+        Rot1*=1.0/np.linalg.norm(Rot1)
+    ROT1 = rotMatrix(Rot1,Alpha1)
+
+    # Rotate Q2 into Q1's frame
+    Q2Rot = np.dot(ROT1,Q2)
+    Q2Rot-= np.dot(axisVectors[0],Q2Rot)*axisVectors[0]# project out [1,0,0] as this rotation has been done by Q1
+
+    Alpha2 = np.rad2deg(np.arccos(np.dot(Q2Rot,axisVectors[1])/(np.linalg.norm(Q2Rot))))#np.rad2deg(np.arccos(Q2Rot[1]/np.linalg.norm(Q2Rot)))
+
+    if np.isclose(Alpha2,0.0) or np.isclose(Alpha2,180.0):
+        Rot2 = np.array([0.0,0.0,1.0])
+    else:
+        Rot2 = np.cross(Q2Rot,axisVectors[1])
+        Rot2*=1.0/np.linalg.norm(Rot2)
+    ROT2 = rotMatrix(Rot2,Alpha2)
+    ROT = np.dot(ROT2,ROT1)
+    offset = np.einsum('ij,...j->...i',ROT,[v1, v2, v3])[:,2]
+    if not np.all(np.isclose(offset,offset[0])):
+        raise AttributeError('Calculated plane does not have the defining points in the same distance from...')
+    
+    return ROT,offset.mean()
+
+
+def merge(dataFilesList,saveFileName,directory=None, A3Tolerance=0.05, A4Tolerance = 0.1, wavelengthTolerance = 0.01):
+    """Merge multiple single crystal data files togehter with equal sample, A4, and wavelength
+    
+    Args:
+        
+        - dataFileList(list): List of data file paths to be merged
+        
+        - saveFileName(string): Name or path to output file
+        
+    Kwargs:
+        
+        - directory (path): Saving directory. If non use saveFileName as full path (default None)
+        
+        - A3Tolerance (float): Tolerance of A3 in degrees where points are merged (default 0.05)
+        
+        - A4Tolerance (float): Tolerance of A4. If files are not within tolerance merging will fail (default 0.1)
+        
+        - wavelengthTolerance (float): Tolerance of wavelength. If files are not within tolerance merging will fail (default 0.01)
+        
+    Raises:
+        
+        - AttributeError
+        
+    Copies first provided data file into the new path and changes counts, A3, monitor, time, and summed counts as needed. That is
+    if a large tolerance in either A4 or wavelength is provided, the values for the first data file is used.
+    
+    """
+    #### INPUT
+    if directory is None:
+        directory, savefileName = os.path.split(saveFileName)
+        
+    
+    # Perform checks
+    equalParameters = ['twoThetaPosition','wavelength']
+    equalParametersTolerance = [A4Tolerance,wavelengthTolerance]
+    files = shallowRead(dataFilesList,equalParameters)
+    
+    trueValue = None
+    truthTable = []
+    for name,tol in zip(equalParameters,equalParametersTolerance):
+        trueValue = None
+        localTruthTable = []
+        for file in files:
+            if trueValue is None:
+                trueValue = file[name]
+            else:
+                test = np.isclose(trueValue,file[name],atol=tol)
+                if hasattr(test,'__len__'):
+                    test= np.all(test)
+                localTruthTable.append(test)
+            
+            
+        truthTable.append(localTruthTable)
+    
+    differentFiles = np.asarray(truthTable)
+    parameterwiceTruth = np.all(truthTable,axis=1) # If any is false, we have a problem Houston
+    
+    if np.any(np.logical_not(parameterwiceTruth)):
+        errorMessage = 'Merging of data files not possible as following parameter(s) are outside tolerance:'
+        parameterText = '\n'.join([name+'(tol: {}): '.format(tol)+str(truthtab) for name,tol,truthtab in zip(equalParameters,equalParametersTolerance,truthTable)])
+        differentFiles = 'File(s) being different from first: '+', '.join(np.asarray(dataFilesList[1:])[np.any(np.logical_not(truthTable),axis=0)])
+        raise AttributeError('\n'.join([errorMessage,parameterText,differentFiles]))
+    
+    # Copy first data file into new file as a base
+    savepath = os.path.join(directory,savefileName)
+    if not os.path.exists(directory): # If save folder does not exist, please make it
+        os.mkdir(directory)
+    
+    #originalPosition
+    shutil.copy(dataFilesList[0],savepath)
+    
+    # Find min and max of A3 as well as average across all files
+    A3files = shallowRead(dataFilesList,['A3'])
+    
+    # Check if length is 1, then it is a powder!!!
+    powderFiles = [f['file'] for f in A3files if len(f['A3'])<2 ]
+    if len(powderFiles)>0:
+        raise AttributeError('Following file(s) consist(s) of only one A3 step:\n'+'\n'.join(powderFiles))
+        
+    A3Start = []
+    A3Stop = []
+    A3Step = []
+    
+    meanDiff = lambda x: np.mean(np.diff(x)).flatten()[0]
+    
+    totalA3 = []
+    
+    for a3f in A3files:
+        a3 = a3f['A3']
+        totalA3.append(a3)
+        start,stop,step = [f(a3) for f in [np.min,np.max,meanDiff]]
+        A3Start.append(start)
+        A3Stop.append(stop)
+        A3Step.append(step)
+        #print(start,stop,step)
+    
+    A3Start = np.asarray(A3Start)
+    A3Stop = np.asarray(A3Stop)
+    A3Step = np.asarray(A3Step)
+    
+    totalA3 = np.asarray(np.concatenate(totalA3))
+    newA3 = np.unique(np.round(totalA3/A3Tolerance))*A3Tolerance
+    
+    
+    
+    def getPositionInFile(file,parameter):
+        """ Get position of specified parameter in HDF file"""
+        if not parameter in HDFTranslationAlternatives:
+                intensityPositionsInFile = [HDFTranslation[parameter]]
+        else:
+            intensityPositionsInFile = HDFTranslationAlternatives[parameter]
+            
+        if len(intensityPositionsInFile)>1: # If there are multiple possible positions
+            for pos in intensityPositionsInFile[::-1]: # Last entry is the newest
+                if not saveFile.get(pos) is None:
+                    intensityNotFound = False
+                    break
+            else:
+                intensityNotFound = True
+        else:
+            if saveFile.get(intensityPositionsInFile[0]) is None:
+                intensityNotFound = True
+                pos = intensityPositionsInFile
+                intensityPositionsInFile = list(intensityPositionsInFile)
+                
+            else:
+                intensityNotFound = False
+                pos = intensityPositionsInFile[0]
+                
+        if intensityNotFound:
+    
+            raise AttributeError('Could not find any intensity matrix in first data file. Looked at:\n'+'\n'.join(intensityPositionsInFile))
+            
+        return '/'+pos
+    
+    totalSteps = len(newA3)
+    with hdf.File(savepath,'r') as saveFile:
+        # Find positions in dataFilesList
+        countPositionInFile = '/'+HDFCounts#
+        countShape = saveFile[countPositionInFile].shape
+        monitorPositionInFile = getPositionInFile(saveFile,'monitor')
+        summedCountsPositionInFile = getPositionInFile(saveFile,'summedCounts')
+        timePositionInFile = getPositionInFile(saveFile,'time')
+    
+    
+    time = np.zeros((totalSteps),dtype=float)
+    summedCounts =  np.zeros((totalSteps),dtype=float)
+    monitor = np.zeros((totalSteps),dtype=float)
+    counts = np.zeros((totalSteps,*countShape[1:]),dtype=float)
+    
+    
+    compressionValues = []
+    for file in A3files:
+        indices = np.asarray([np.argmin(np.abs(newA3-localA3)) for localA3 in file['A3']])
+        with hdf.File(file['file'],'r') as f:
+            
+            fileMonitor = np.asarray(f.get(monitorPositionInFile))
+            fileTime = np.asarray(f.get(timePositionInFile))
+            fCounts = f.get(countPositionInFile)
+            compressionValues.append(fCounts.compression_opts)
+            fileCounts = np.asarray(fCounts)
+            
+        
+        np.add.at(monitor, indices, fileMonitor)#fileMonitor)
+        np.add.at(time, indices, fileTime)#fileMonitor)
+        np.add.at(counts, indices, fileCounts)#fileMonitor)
+        np.add.at(summedCounts, indices, np.sum(fileCounts,axis=(1,2)))#fileMonitor)
+        print('Data from {:} loaded'.format(file['file']))
+    
+    print('All data loaded, saving to {:}'.format(savepath))
+    
+    with hdf.File(savepath,'r+') as saveFile:
+        
+        # remove monitor first and replace with correct size
+        del saveFile[monitorPositionInFile]
+        del saveFile[countPositionInFile]
+        del saveFile[timePositionInFile]
+        del saveFile[summedCountsPositionInFile]
+        
+        # And of course save a3 as well... who would forget to do so?
+        A3Position = getPositionInFile(saveFile,'A3')
+        del saveFile[A3Position]
+        
+        saveFile.create_dataset(name = A3Position, data=newA3, dtype=float)
+        
+        saveFile.create_dataset(name = monitorPositionInFile, data=monitor, dtype=float)
+        saveFile.create_dataset(name = countPositionInFile, shape=counts.shape, data=counts, dtype=float,compression=6)
+        saveFile.create_dataset(name = timePositionInFile, data=time, dtype=float)
+        saveFile.create_dataset(name = summedCountsPositionInFile, data=summedCounts, dtype=float)
+        
+        process = saveFile.create_group('entry/reduction')
+        process.attrs['NX_class']=b'NXprocess'
+        proc = process.create_group('DMCpy_algorithm_merge')
+        proc.attrs['NX_class']=b'NXprocess'
+        author= proc.create_dataset('author',shape=(1,),dtype='S70',data=np.string_('DMCpy'))
+        author.attrs['NX_class']=b'NX_CHAR'
+        author= proc.create_dataset('version',shape=(1,),dtype='S70',data=np.string_(DMCpy.__version__))
+        author.attrs['NX_class']=b'NX_CHAR'
+        
+        date= proc.create_dataset('date',shape=(1,),dtype='S70',data=np.string_(datetime.datetime.now()))
+        date.attrs['NX_class']=b'NX_CHAR'
+        
+        description = proc.create_dataset('description',shape=(1,),dtype='S70',data=np.string_('Merging of equivalent data files where only A3 differs.'))
+        description.attrs['NX_class']=b'NX_CHAR'
+        
+        
+        rawData = [os.path.split(df)[-1] for df in dataFilesList]
+        proc.create_dataset('rawdata',shape=(len(dataFilesList),),data=np.asarray(rawData,dtype='S'))
+        
+        print('Data merged and saved in {:}'.format(savepath))
+
+
+def histogramdd(sample, bins, weights, returnCounts = False):
+    """
+    Restricted version of numpys multidimensional histogram function. 
+
+    Args:
+
+        - sample (n x m array): Position in m-dimensional space
+
+        - bins (m list): List of bins
+
+        - weights (list): List of weights where each entry has the length n
+
+    Kwargs:
+
+        - returnCounts (bool): if True return also number of entries in each bin (default False)
+
+    """
+
+    try:
+        # Sample is an ND-array.
+        N, D = sample.shape
+    except (AttributeError, ValueError):
+        # Sample is a sequence of 1D arrays.
+        sample = np.atleast_2d(sample).T
+        N, D = sample.shape
+
+
+    try:
+        M = len(bins)
+        if M != D:
+            raise ValueError(
+                'The dimension of bins must be equal to the dimension of the '
+                ' sample x.')
+    except TypeError:
+        # bins is an integer
+        bins = D*[bins]
+
+
+    nbin = np.empty(D, int)
+    edges = D*[None]
+    for i in range(D):
+        edges[i] = np.asarray(bins[i])
+        nbin[i] = len(edges[i])+1
+    
+
+    # Compute the bin number each sample falls into.
+    Ncount = tuple(
+        # avoid np.digitize to work around gh-11022
+        np.searchsorted(edges[i], sample[:, i], side='right')
+        for i in range(D)
+    )
+
+    # Using digitize, values that fall on an edge are put in the right bin.
+    # For the rightmost bin, we want values equal to the right edge to be
+    # counted in the last bin, and not as an outlier.
+    for i in range(D):
+        # Find which points are on the rightmost edge.
+        on_edge = (sample[:, i] == edges[i][-1])
+        # Shift these points one bin to the left.
+        Ncount[i][on_edge] -= 1
+
+    # Compute the sample indices in the flattened histogram matrix.
+    # This raises an error if the array is too large.
+    xy = np.ravel_multi_index(Ncount, nbin)
+
+    # Compute the number of repetitions in xy and assign it to the
+    # flattened histmat.
+
+    histograms = []
+    for w in weights:
+        hist = np.bincount(xy, w, minlength=nbin.prod())
+
+        # Shape into a proper matrix
+        hist = hist.reshape(nbin)
+
+        # This preserves the (bad) behavior observed in gh-7845, for now.
+        hist = hist.astype(w.dtype)#, casting='safe')
+
+        # Remove outliers (indices 0 and -1 for each dimension).
+        core = D*(slice(1, -1),)
+        hist = hist[core]
+        histograms.append(hist)
+
+    if returnCounts:
+        hist = np.bincount(xy, minlength=nbin.prod())
+
+        # Shape into a proper matrix
+        hist = hist.reshape(nbin)
+
+        # This preserves the (bad) behavior observed in gh-7845, for now.
+        hist = hist.astype(int)#, casting='safe')
+
+        # Remove outliers (indices 0 and -1 for each dimension).
+        core = D*(slice(1, -1),)
+        hist = hist[core]
+        histograms.append(hist)
+
+    return histograms
