@@ -709,8 +709,10 @@ class DataSet(object):
                         for data,newData in zip(returndata,localReturndata):
                             data+=newData
                     
-        intensities = np.divide(returndata[0],returndata[1])
-        errors = np.divide(np.sqrt(returndata[0]),returndata[1])
+        with warnings.catch_warnings() as w:
+            warnings.simplefilter("ignore")
+            intensities = np.divide(returndata[0],returndata[1])
+            errors = np.divide(np.sqrt(returndata[0]),returndata[1])
         NaNs = returndata[-1]==0
         intensities[NaNs]=np.nan
         errors[NaNs]=np.nan
