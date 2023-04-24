@@ -1973,146 +1973,33 @@ class DataSet(object):
             else:
                 raise AttributeError('Not all DataFiles do not contain',key)
 
-    # def cutQPlane(self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,rlu=False):
-    #     """Cutting tool to bin intensities in the Q plane between provided Qz values.
-            
-            
-    #     Args: 
-            
-    #         - QzMin (float): Lower qz limit (Default None).
-            
-    #         - QzMax (float): Upper qz limit (Default None).
-
-    #     Kwargs:
-           
-    #         - xBinTolerance (float): bin sizes along x direction (default 0.03). If enlargen is true, this is the minimum bin size.
-
-    #         - yBinTolerance (float): bin sizes along y direction (default 0.03). If enlargen is true, this is the minimum bin size.
-
-    #         - rlu (bool): If true and axis is None, a new reciprocal lattice axis is created and used for plotting (default True).
-            
-    #     Returns:
-            
-    #         - dataList (list): List of all data points in format [Intensity, Monitor, Normalization, Normcount]
-
-    #         - bins (list): List of bin edges as function of plane in format [xBins,yBins].
-            
-    #     """
-            
-
-    #     if QzMax is None or QzMin is None:
-    #         raise AttributeError('Either minimal/maximal energy or the energy bins is to be given.')
-        
-            
-        
-    #     maximas = []
-    #     minimas = []
-    #     print('Generating Grid')
-    #     for df in self:
-    #         for idx in _tools.arange(0,len(df),steps):
-    #             print(df.fileName,'from',idx[0],'to',idx[-1])
-    #             q = df.q[idx[0]:idx[1]].copy().reshape(3,-1) # extract only a subset of the positions
-    #             if rlu:
-                    
-    #                 pos = np.einsum('ij,jk',df.sample.ROT,q)
-    #                 pos = pos[:,np.logical_and(pos[2]>QzMin,pos[2]<=QzMax)]
-    #             else:
-    #                 pos = q[:,np.logical_and(q[2]>QzMin,q[2]<=QzMax)]
-                
-    #             maximas.append(np.max(pos[:2],axis=1))
-    #             minimas.append(np.min(pos[:2],axis=1))
-        
-    #     maximas = np.array(maximas)
-    #     minimas = np.array(minimas)
-
-    #     maximas = np.max(maximas,axis=0)
-    #     minimas = np.min(minimas,axis=0)
-        
-    #     xmin,ymin = minimas
-    #     xmax,ymax = maximas
-        
-        
-
-    #     xBins = np.arange(xmin,xmax+0.999*xBinTolerance,xBinTolerance) # Add tolerance as to ensure full coverage of parameter
-    #     yBins = np.arange(ymin,ymax+0.999*yBinTolerance,yBinTolerance) # Add tolerance as to ensure full coverage of parameter
-        
-
-    #     print('\nPerforming Binning of Data')
-    #     returndata = None
-    #     for df in self:
-            
-    #         if steps is None:
-    #             steps = len(df)
-            
-    #         stepsTaken = 0
-
-                
-    #         for idx in _tools.arange(0,len(df),steps):
-    #             q = df.q[idx[0]:idx[1]]
-    #             #if raw:
-    #             #    dat = df.countsSliced(slice(idx[0],idx[1]))
-    #             #else:
-    #             dat = df.intensitySliced(slice(idx[0],idx[1]))
-                    
-
-    #             mon = df.monitor[idx[0]:idx[1]]
-    #             mon=np.repeat(np.repeat(mon[:,np.newaxis],dat.shape[1],axis=1)[:,:,np.newaxis],dat.shape[2],axis=-1)
-                
-    #             print(df.fileName,'from',idx[0],'to',idx[-1])
-    #             stepsTaken+=steps
-    #             I = df.counts[idx[0]:idx[1]]
-    #             Q = df.q[idx[0]:idx[1]] # TODO: update to !
-    #             Norm = df.normalization#[idx[0]:idx[1]]
-    #             Norm = np.repeat(Norm[np.newaxis],len(I),axis=0)
-    #             Monitor = df.monitor[idx[0]:idx[1]]
-    #             sample = df.sample
-                
-    #             if rlu == True: # Rotate positions with taslib.misalignment to line up with RLU
-    #                 Q = np.einsum('ij,j...->i...',sample.UBInv,Q)
-                
-    #             qz_inside = np.logical_and(Q[2]>QzMin,Q[2]<=QzMax)
-                
-    #             X = Q[0][qz_inside]
-    #             Y = Q[1][qz_inside]
-                
-    #             intensity=np.histogram2d(X,Y,bins=(xBins,yBins),weights=I[qz_inside])[0].astype(I.dtype)
-    #             monitorCount=np.histogram2d(X,Y,bins=(xBins,yBins),weights=np.repeat(np.repeat(Monitor[:,np.newaxis],I.shape[1],axis=1)[:,:,np.newaxis],I.shape[2],axis=2)[qz_inside])[0].astype(Monitor.dtype)
-    #             Normalization=np.histogram2d(X,Y,bins=(xBins,yBins),weights=Norm[qz_inside])[0].astype(Norm.dtype)
-    #             NormCount=np.histogram2d(X,Y,bins=(xBins,yBins))[0].astype(I.dtype)
-                
-                
-    #             if returndata is None:
-    #                 returndata = [intensity,monitorCount,Normalization,NormCount]
-    #             else:
-    #                 returndata = [rd+x for rd,x in zip(returndata,[intensity,monitorCount,Normalization,NormCount])]
 
 
-    #     intensity,monitorCount,Normalization,NormCount = returndata
-        
-        
-
-    #     Qx =np.outer(xBins,np.ones_like(yBins))
-    #     Qy =np.outer(np.ones_like(xBins),yBins)
-    #     bins = [Qx,Qy]
-
-    #     return returndata,bins
-
-
-    def cutQPlane(self,points, width, sample = None, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None):
+    def cutQPlane(self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None, sample = None):
         """Perform QPlane cut where points within +-0.5*width are collapsed onto the plane and binned into xBins and yBins
         Args:
             - points (list): List of three points within the wanted plane. X is parallel to point 2 - point 1 (p1, p2, p3 = points)
+
             - width (float): Total width of QPlane in units of 1/AA or rlu depending on the rlu flag
+        
         Kwargs:
+        
             - dQx (float): Step size along x if xBins is not provided (default None)
+            
             - dQy (float): Step size along y if yBins is not provided (default None)
             
             - xBins (list): Binning edges along x, overwrites dQx (default None)
+            
             - yBins (list): Binning edges along y, overwrites dQy (default None)
+            
             - rlu (bool): If true utilize sample UB otherwise perform no rotation (default False)
+            
             - steps (int): Number of a3 step computated at once when performing operation (default len(df))
+
+            - sample (Sample): Use specified sample for RLU axis if RLU = True (default None = self.sample[0])
         
-        An error will be thrown if neither dQx (dQy) and  xBins (yBins) are set.
+        If dQx and dQy is set an automatic binning size is performed, however an error will be thrown if neither dQx (dQy) and  xBins (yBins) are set.
+
         """
         if np.all([x is None for x in [dQx,dQy,xBins,yBins]]):
             raise AttributeError('No bins or step sizes provided')
@@ -2123,11 +2010,20 @@ class DataSet(object):
         if xBins is None:
             if dQx is None:
                 raise AttributeError('Neither dQx or xBins are set!')
-            xBins = np.arange(-5,5,dQx)
         if yBins is None:
             if dQy is None:
                 raise AttributeError('Neither dQx or xBins are set!')
-            yBins = np.arange(-5,5,dQy)
+
+        
+        if yBins is None and xBins is None:
+            bins = None # Automatic binning
+            autoBins = True
+        else: # One of the bins is set
+            autoBins = False
+            if yBins is None:
+                yBins = np.arange(-5,5,dQy)
+            else:
+                xBins = np.arange(-5,5,dQx)
 
         if not points is None:
             if rlu:
@@ -2157,13 +2053,55 @@ class DataSet(object):
                 # Check that the points are in the plane and take only the local x and y coordinates
                 inside = np.abs(q[2]-translation)<width*0.5
                 q = q[:2,inside]
+                print(df.fileName,'from',idx[0],'to',idx[-1])
+                if q.shape[1] == 0:
+                    continue
+                if autoBins:
+                    
+                    xMin,xMax = q[0].min(), q[0].max()
+                    yMin,yMax = q[1].min(), q[1].max()
+                    if bins is None: # initial calculation of bins
+                        xBins = np.arange(xMin-0.51*dQx,xMax+0.51*dQx,dQx)
+                        yBins = np.arange(yMin-0.51*dQy,yMax+0.51*dQy,dQy)
+                        bins = (xBins,yBins)
+                    else:
+                        
+                        if xMin < xBins[0] or xMax > xBins[-1]:
+                            lowExtensionX = np.max([int(np.ceil((bins[0][0]-xMin)/dQx)),0])
+                            highExtensionX = np.max([int(np.ceil((xMax-bins[0][-1])/dQx+0.1)),0])
+
+                            xBins = np.arange(bins[0][0]-lowExtensionX*dQx,bins[0][-1]+highExtensionX*dQx+0.4*dQx,dQx)
+                            bins = (xBins,bins[1])
+                        else:
+                            lowExtensionX = highExtensionX = 0
+                        if yMin < yBins[0] or yMax > yBins[-1]:
+                            lowExtensionY = np.max([int(np.ceil((bins[1][0]-yMin)/dQy)),0])
+                            highExtensionY = np.max([int(np.ceil((yMax-bins[1][-1])/dQy+0.1)),0])
+
+                            yBins = np.arange(bins[1][0]-lowExtensionY*dQy,bins[1][-1]+highExtensionY*dQy+0.4*dQy,dQy)
+                            bins = (bins[0],yBins)
+                        else:
+                            lowExtensionY = highExtensionY = 0    
+                            
+                            # if any extension is nonzero, rescale
+                        if np.any(np.asarray([lowExtensionX,lowExtensionY,highExtensionX,highExtensionY])!=0):
+                            dat = []
+                            for mat in returndata:
+
+                                tempMat = np.zeros((len(bins[0])-1,len(bins[1])-1),dtype=mat.dtype)
+                                tempMat[lowExtensionX:lowExtensionX+mat.shape[0],lowExtensionY:lowExtensionY+mat.shape[1]] = mat
+                                mat = tempMat
+                                dat.append(mat)
+                            returndata = dat
+                            
+                            
                 
                 dat = df.intensitySliced(slice(idx[0],idx[1]))
                     
                 mon = df.monitor[idx[0]:idx[1]]
                 mon=np.repeat(np.repeat(mon[:,np.newaxis],dat.shape[1],axis=1)[:,:,np.newaxis],dat.shape[2],axis=-1)
                 
-                print(df.fileName,'from',idx[0],'to',idx[-1])
+                
                 stepsTaken+=steps
 
                 I = df.counts[idx[0]:idx[1]]
