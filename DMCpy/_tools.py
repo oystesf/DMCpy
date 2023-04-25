@@ -451,7 +451,7 @@ def overWritingFunctionDecorator(overWritingFunction):
 
 @KwargChecker()
 def vectorAngle(V1,V2):
-    """calculate angle between V1 and V2.
+    """calculate angle in radians between V1 and V2.
     
     Args:
     
