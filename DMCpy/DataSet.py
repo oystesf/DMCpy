@@ -6,7 +6,7 @@ import pandas as pd
 import os, copy
 import json, os, time
 from DMCpy import DataFile, _tools, Viewer3D, RLUAxes, TasUBlibDEG
-from DMCpy.FileStructure import shallowRead
+from DMCpy.FileStructure import shallowRead, HDFCountsBG, HDFTranslation
 import warnings
 import DMCpy
 
@@ -1467,19 +1467,48 @@ class DataSet(object):
             sample.peakUsedForAlignment = peakUsedForAlignment 
 
     def alignToRefs(self,q1,q2,HKL1,HKL2):
-                
+        """Generate UB matrix from two Q-points with corresponding HKL values
+        
+        Args:
+
+            - q1 (array): Position of peak 1 in 1/AA
+
+            - q2 (array): Position of peak 2 in 1/AA
+
+            - HKL1 (array): Position of peak 1 in RLU
+
+            - HKL2 (array): Position of peak 2 in RLU
+
+        """
         
         E = np.power(self[0].Ki/TasUBlibDEG.factorsqrtEK,2.0)
         
-        A31,A41 = np.asarray(TasUBlibDEG.calcTasQAngles(np.eye(3),np.array([0.0,0.0,-1.0]),ss=1,A3Off = 0.0,qe=[*q1,E,E]))[:2]#[[-1,1]]
+        # Find rotation that brings q1 and q2 into the scattering plane (qz=0)
+        planeNormal1 = np.array([0.0,0.0,1.0])
+        planeNormal2 = np.cross(q1,q2)
+        planeNormal2*= 1/(np.linalg.norm(planeNormal2))
+        rotVector = np.cross(planeNormal2,planeNormal1)
+        rotVector*=1.0/np.linalg.norm(rotVector)
+        rotAngle = _tools.vectorAngle(planeNormal1, planeNormal2)
+        if np.isclose(np.mod(rotAngle,np.pi),0):
+            rotMatrix = np.eye(3)
+        else:
+            rotMatrix = _tools.rotMatrix(rotVector, rotAngle,deg=False)
 
-        A32,A42 = np.asarray(TasUBlibDEG.calcTasQAngles(np.eye(3),np.array([0.0,0.0,-1.0]),ss=1,A3Off = 0.0,qe=[*q2,E,E]))[:2]#[[-1,1]]
-        
+        q1Rotated,q2Rotated = [np.dot(rotMatrix,q) for q in [q1,q2]]
+
+        A31,A41 = np.asarray(TasUBlibDEG.calcTasQAngles(np.eye(3),np.array([0.0,0.0,-1.0]),ss=1,A3Off = 0.0,qe=[*q1Rotated,E,E]))[:2]#[[-1,1]]
+
+        A32,A42 = np.asarray(TasUBlibDEG.calcTasQAngles(np.eye(3),np.array([0.0,0.0,-1.0]),ss=1,A3Off = 0.0,qe=[*q2Rotated,E,E]))[:2]#[[-1,1]]
+
         # H K L A3 A4 sgu sgl Ei Ef
         R1 = [*HKL1, A31, A41, 0.0, 0.0, E, E]
         R2 = [*HKL2, A32, A42, 0.0, 0.0, E, E]
         newUB = TasUBlibDEG.calcTasUBFromTwoReflections(self[0].sample.fullCell, R1, R2)
         
+        # Counter-rotate UB with the rotation matrix from above
+        newUB = np.dot(rotMatrix.T,newUB)
+
         projectionVector1,projectionVector2,projectionVector3 = np.eye(3)
             
         pV1q = np.dot(newUB,projectionVector1)
@@ -1497,7 +1526,6 @@ class DataSet(object):
             s.ROT = rot
         
             s.projectionVectors = np.array([s.P1,s.P2,s.P3]).T
-            
 
 
 
@@ -1524,16 +1552,44 @@ class DataSet(object):
             sample.UB = np.dot(sample.ROT.T,np.dot(sample.projectionB,np.linalg.inv(sample.projectionVectors)))
 
 
-    def subtractBkgRange(self,bkgStart,bkgEnd):
-        """
-        function to subtract background defined by a range of the first dataFile of the dataSet
-        bkgStart (int): start value in step for range used for background subtraction
-        bkgEnd (int): end value in step for range used for background subtraction
+    def subtractBkgRange(self,bkgStart,bkgEnd,saveToFile=True):
+        """Function generate background as defined by a range of the first dataFile of the dataSet
+
+        Args:
+            
+            - bkgStart (int): start value in step for range used for background subtraction
+
+            - bkgEnd (int): end value in step for range used for background subtraction
+
+        Kwargs:
+
+            - saveToFile (bool): If True, save background to data file, else save in RAM (default True)
         """
         meanBG = self[0].counts[bkgStart:bkgEnd].mean(axis=0)/self[0].monitor[bkgStart:bkgEnd].mean(axis=0)
         for fg in self:
-            counts = fg.counts-meanBG.reshape(1,128,1152)*np.ones((fg.counts.shape[0],1,1))*fg.monitor[0]  # or should it be multiplied with the correct monitor of the fg for all frames??? Is fg.counts divided per monitor?
-            fg._counts = counts.astype(int)
+            newBG = meanBG.reshape(128,1152)*fg.monitor[0]
+            if saveToFile:
+                filePath = os.path.join(fg.folder,fg.fileName)
+                with hdf.File(filePath,mode='a') as f:
+                    if not f.get(HDFCountsBG) is None:
+                        warnings.warn('Overwriting background in data file...')
+                        del f[HDFCountsBG]
+                    if not f.get(HDFTranslation['backgroundType']) is None:
+                        del f[HDFTranslation['backgroundType']]
+                    folder = '/'.join(HDFCountsBG.split('/')[:-1])
+                    name = HDFCountsBG.split('/')[-1]
+                    f[folder].create_dataset(name,data=newBG,compression=6)
+
+                    folderType = '/'.join(HDFTranslation['backgroundType'].split('/')[:-1])
+                    nameType = HDFTranslation['backgroundType'].split('/')[-1]
+                    f[folderType].create_dataset(nameType,data=np.string_(['powder']))
+            else:
+                fg._background = newBG
+
+            fg.hasBackground = True
+            fg.backgroundType = 'powder'
+            # or should it be multiplied with the correct monitor of the fg for all frames??? Is fg.counts divided per monitor?
+            #fg._counts = counts.astype(int)
             # fg._monitor = fg.monitor[0].reshape(1,128,1152)*np.ones((fg.counts.shape[0],1,1)) # should be included to get same monitor for all a3, which we should ???
         
 
@@ -2055,6 +2111,7 @@ class DataSet(object):
                 q = q[:2,inside]
                 print(df.fileName,'from',idx[0],'to',idx[-1])
                 if q.shape[1] == 0:
+                    print('Empty slices. Continuing...')
                     continue
                 if autoBins:
                     

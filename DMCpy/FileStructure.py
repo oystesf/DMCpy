@@ -1,10 +1,11 @@
 import numpy as np
 from collections import defaultdict
-import warnings
+import warnings, os
 import h5py as hdf
 
 
 HDFCounts = 'entry/DMC/detector/data'
+HDFCountsBG = 'entry/data/background'
 ## Dictionary for holding hdf position of attributes. HDFTranslation['a3'] gives hdf position of 'a3'
 HDFTranslation = {'sample':'/entry/sample',
                   'sampleName':'/entry/sample/name',
@@ -12,6 +13,8 @@ HDFTranslation = {'sample':'/entry/sample',
                   'monitor1':'entry/monitor/monitor1',
                   'unitCell':'/entry/sample/unit_cell',
                   #'counts':'entry/DMC/detector/data',
+                  #'background':'entry/DMC/detector/background',
+                  'backgroundType':'entry/data/backgroundType',
                   'summedCounts': 'entry/DMC/detector/summed_counts',
                   'monochromatorCurvature':'entry/DMC/monochromator/curvature',
                   'monochromatorVerticalCurvature':'entry/DMC/monochromator/curvature_vertical',
@@ -81,6 +84,8 @@ HDFTranslationDefault = {'twoThetaPosition':np.array([0.0]),
                          'absoluteTime': np.array([0.0]),
                          'protonBeam': np.array([0.0]),
                          'se_r': np.array([0.0]),
+
+                         'backgroundType': 'None'
                          
                          
 
@@ -109,6 +114,7 @@ HDFTranslationFunctions['address'] = [['__getitem__',[0]],['decode',['utf8']]]
 HDFTranslationFunctions['affiliation'] = [['__getitem__',[0]],['decode',['utf8']]]
 HDFTranslationFunctions['scanCommand'] = [['__getitem__',[0]],['decode',['utf8']]]
 HDFTranslationFunctions['title'] = [['__getitem__',[0]],['decode',['utf8']]]
+HDFTranslationFunctions['backgroundType'] = [['__getitem__',[0]],['decode',['utf8']]]
 
 
 

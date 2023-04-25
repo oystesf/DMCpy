@@ -14,7 +14,7 @@ import warnings
 import copy
 from DMCpy._tools import KwargChecker, MPLKwargs, roundPower
 from DMCpy import Sample
-from DMCpy.FileStructure import HDFCounts, HDFTranslation, HDFTranslationAlternatives, HDFTranslationDefault, HDFTranslationFunctions
+from DMCpy.FileStructure import HDFCounts, HDFCountsBG, HDFTranslation, HDFTranslationAlternatives, HDFTranslationDefault, HDFTranslationFunctions
 from DMCpy.FileStructure import HDFInstrumentTranslation, HDFInstrumentTranslationFunctions, extraAttributes, possibleAttributes 
 from DMCpy.FileStructure import HDFTypes, HDFUnits, shallowRead
 
@@ -167,7 +167,7 @@ def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,**kwargs):
     else:
         df = DataFile(fileLocation,unitCell=unitCell)
 
-    
+
     repeats = df.countShape[1]
     # Insert standard values if not present in kwargs
     if not 'radius' in kwargs:
@@ -205,6 +205,7 @@ class DataFile(object):
         self.fileType = 'DataFile'
         self._twoThetaOffset = 0.0
         self._counts = None
+        self._background = None
 
         if not file is None: 
             if isinstance(file,DataFile): # Copy everything from provided file
@@ -238,6 +239,7 @@ class DataFile(object):
 
             self.sample = Sample.Sample(sample=f.get(HDFTranslation['sample']))
             self.countShape = f.get(HDFCounts).shape
+            self.hasBackground = not f.get(HDFCountsBG) is None
             # load standard things using the shallow read
             instr = getInstrument(f)
 
@@ -460,7 +462,7 @@ class DataFile(object):
 
         # check if counts attribute is available
 
-        if not hasattr(self,'counts'):
+        if len(self.countShape) <1:#not hasattr(self,'counts'):
             raise RuntimeError('DataFile does not contain any counts. Look for self.counts but found nothing.')
 
         if maskingFunction is None:
@@ -722,17 +724,49 @@ class DataFile(object):
     @property
     def counts(self):
         if self._counts is None:
+            if self.hasBackground:
+                bg = self.background
+            else:
+                bg = 0
             with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
-                return np.array(f.get(HDFCounts)).reshape(self.countShape)
+                return (np.array(f.get(HDFCounts))).reshape(self.countShape)-bg
         else:
             return self._counts.reshape(self.countShape)
     
     def countsSliced(self,sl):
         if self._counts is None:
+            if self.hasBackground:
+                bg = self.background[sl]
+            else:
+                bg = 0
             with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
-                return np.array(f.get(HDFCounts)[sl])
+                return np.array(f.get(HDFCounts)[sl])-bg
         else:
             return self._counts[sl]
+        
+    @property
+    def background(self):
+        if self._background is None:
+            with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
+                if self.backgroundType == 'powder':
+                    bg = np.repeat(np.array(f.get(HDFCountsBG))[np.newaxis],repeats=self.countShape[0],axis=0)
+                else:
+                    bg = np.array(f.get(HDFCountsBG)).reshape(self.countShape)
+                return bg
+        else:
+            return self._background.reshape(self.countShape)
+    
+    def backgroundSliced(self,sl):
+        if self._background is None:
+            with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
+                if self.backgroundType == 'powder':
+                    bg = np.repeat(np.array(f.get(HDFCountsBG))[np.newaxis],repeats=len(sl),axis=0)
+                else:
+                    bg = np.array(f.get(HDFCountsBG)[sl])
+                return bg
+        else:
+            return self._background[sl]
+    
             
 
     @property
