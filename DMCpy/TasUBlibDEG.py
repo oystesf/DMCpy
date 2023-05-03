@@ -135,12 +135,12 @@ def calcTasQAngles(UB,planeNormal,ss,A3Off,qe):
     
     cos2t =(ki**2 + kf**2 - q**2) / (2. * np.abs(ki) * np.abs(kf))
     
-    A4 = ss*arccosd(cos2t)
+    A4 = arccosd(cos2t)
     theta = calcTheta(ki, kf, A4)
     A3 = om + ss*theta + A3Off
     A3 = np.mod(A3 + ss*180.0,360.0) - ss*180.0
     
-    return A3,A4,sgu,sgl,A3+np.sign(A4)*ss*theta
+    return -A3,-A4,sgu,sgl
     
 
 def calcTasMisalignment(UB,planeNormal,qe):
@@ -290,5 +290,6 @@ def converterToA3A4(Qx,Qy,Qz, Ei,Ef,A3Off=0.0,A4Sign=1): # pragma: no cover
     
     A4 = ss*arccosd(cos2t)
     theta = calcTheta(ki, kf, A4)
+
     A3 = -om + np.sign(A4Sign)*ss*theta + A3Off
     return A3,np.sign(A4Sign)*A4
