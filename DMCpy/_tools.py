@@ -451,7 +451,7 @@ def overWritingFunctionDecorator(overWritingFunction):
 
 @KwargChecker()
 def vectorAngle(V1,V2):
-    """calculate angle between V1 and V2.
+    """calculate angle in radians between V1 and V2.
     
     Args:
     
@@ -1137,3 +1137,15 @@ def histogramdd(sample, bins, weights, returnCounts = False):
         histograms.append(hist)
 
     return histograms
+
+def findOrthogonalBasis(v1,v2,v3,B):
+    """Calculate an orthogonal basis from projection vectors and B matrix"""
+    p1 = LengthOrder(v1)
+    p2 = v2
+    p1Q = np.dot(B,p1)
+    p2Q = np.dot(B,p2)
+    
+    p2 = LengthOrder(np.dot(np.linalg.inv(B),np.cross(np.cross(p1Q,p2Q),p1Q)))
+    p2Q = np.dot(B,p2)
+    p3 = LengthOrder(np.dot(np.linalg.inv(B),np.cross(p1Q,p2Q)))      
+    return np.asarray([p1,p2,p3])
