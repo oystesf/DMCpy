@@ -213,14 +213,11 @@ class DataFile(object):
                 self.updateProperty(file.__dict__)
 
             elif os.path.exists(file): # load file from disk
-                self.loadFile(file)
+                self.loadFile(file,unitCell=unitCell)
 
 
             else:
                 raise FileNotFoundError('Provided file path "{}" not found.'.format(file))
-            
-            if not unitCell is None:
-                self.sample.unitCell =unitCell
 
     @KwargChecker()
     def loadFile(self,filePath,unitCell=None):
@@ -275,6 +272,8 @@ class DataFile(object):
                 setattr(self,parameter,value)
                 
         self.countShape = (1,*self.countShape) # Standard shape
+        if not unitCell is None:
+            self.sample.unitCell = unitCell
     
     def initializeQ(self):
         if len(self.twoTheta.shape) == 2:
