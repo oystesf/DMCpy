@@ -807,6 +807,21 @@ class DataFile(object):
             return np.rad2deg(np.arctan2(self.q[None][2],np.linalg.norm(self.q[None][:2],axis=0)))
         else:
             return np.rad2deg(np.arctan2(self.qLocal[2],np.linalg.norm(self.qLocal[:2],axis=0)))
+        
+    def setProjectionVectors(self,p1,p2,p3=None):
+        """Set or update the projection vectors used for the View3D
+        
+        Args:
+
+            - p1 (list): New primary projection, in HKL
+
+            - p2 (list): New secondary projection, in HKL
+
+        Kwargs:
+
+            - p3 (list): New tertiary projection, in HKL. If None, orthogonal to p1 and p2 (default None)
+        """
+        self.sample.setProjectionVectors(p1=p1,p2=p2,p3=p3)
 
 
 class SingleCrystalDataFile(DataFile):

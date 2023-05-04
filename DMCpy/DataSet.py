@@ -556,89 +556,35 @@ class DataSet(object):
         if rlu:
             
             QxQySample = copy.deepcopy(self.sample[0])
-            p1,p2,p3 = _tools.findOrthogonalBasis(*QxQySample.projectionVectors, QxQySample.B)
-
-            points = [[0.0,0.0,0.0],p1,p2]
-            rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
-            
-            QxQySample.P1 = p1
-            QxQySample.P2 = p2
-            QxQySample.P3 = p3
-            QxQySample.projectionVectors = np.array([QxQySample.P1,QxQySample.P2,QxQySample.P3]).T
-            QxQySample.UB = np.dot(QxQySample.UB,rot.T)
-
-            rluAxesQxQy = self.createRLUAxes(sample=QxQySample)#**kwargs)
-
-            #h=kkk
-
-            figure = rluAxesQxQy.get_figure()
-            figure.delaxes(rluAxesQxQy)
-
-            ### ----------- ###
             QxQzSample = copy.deepcopy(self.sample[0])
-
-
-
-            p1,p2,p3 = _tools.findOrthogonalBasis(*QxQzSample.projectionVectors, QxQzSample.B)[[0,2,1]]
-
-
-            QxQzSample.P1 = p1
-            QxQzSample.P2 = p2
-            QxQzSample.P3 = p3
-            QxQzSample.projectionVectors = np.array([QxQzSample.P1,QxQzSample.P2,QxQzSample.P3]).T
-            #s.ROT = rotationMatrix
-
-
-            points = [[0.0,0.0,0.0],p1,p2]
-            rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
-
-
-            QxQzSample.P1 = p1
-            QxQzSample.P2 = p2
-            QxQzSample.P3 = p3
-            QxQzSample.projectionVectors = np.array([QxQzSample.P1,QxQzSample.P2,QxQzSample.P3]).T
-            
-
-            R = _tools.rotMatrix(np.asarray([1.0,0.0,0.0]),np.asarray(-90))
-
-
-            QxQzSample.ROT = np.dot(R,QxQzSample.ROT)
-
-
-            #self.createRLUAxes(sample=QxQzSample)
-
-            rluAxesQxQz = self.createRLUAxes(figure=figure,sample=QxQzSample)
-            figure.delaxes(rluAxesQxQz)
-
-            ### ----------- ###
             QyQzSample = copy.deepcopy(self.sample[0])
+            
+            samples = [QxQySample,QxQzSample,QyQzSample]
+            projections = [[0,1,2],
+                           [2,0,1],
+                           [1,2,0]]
+            
+            axes = []
+            figure = None
+            for sample,proj in zip(samples,projections):
+                p1,p2,p3 = _tools.findOrthogonalBasis(*sample.projectionVectors.T, sample.B)[proj]
+                points = [np.dot(self.sample[0].UB,p) for p in [[0.0,0.0,0.0],p1,p2]]
 
-            p1,p2,p3 = _tools.findOrthogonalBasis(*QyQzSample.projectionVectors, QxQzSample.B)[[1,2,0]]
+                rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
+                
+                sample.P1 = p1
+                sample.P2 = p2
+                sample.P3 = p3
+                sample.projectionVectors = np.array([sample.P1,sample.P2,sample.P3]).T
+                sample.ROT = rot
 
+                ax = self.createRLUAxes(figure=figure,sample=sample)#**kwargs)
+                axes.append(ax)
+                
+                figure = ax.get_figure()
+                figure.delaxes(ax)
 
-            QyQzSample.P1 = p1
-            QyQzSample.P2 = p2
-            QyQzSample.P3 = p3
-            QyQzSample.projectionVectors = np.array([QyQzSample.P1,QyQzSample.P2,QyQzSample.P3]).T
-
-            points = [[0.0,0.0,0.0],p1,p2]
-            rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
-
-
-            R = _tools.rotMatrix(np.asarray([0.0,0.0,1.0]),np.asarray(-90))
-            R2 = _tools.rotMatrix(np.asarray([1.0,0.0,0.0]),np.asarray(-90))
-
-
-            QyQzSample.ROT = np.dot(np.dot(R2,R),QyQzSample.ROT)
-            #QyQzSample.UB = np.dot(QyQzSample.UB,rot.T)
-
-
-            #rluAxesQyQz = self.createRLUAxes(sample=QyQzSample)
-
-
-            rluAxesQyQz = self.createRLUAxes(figure=figure,sample=QyQzSample)
-            figure.delaxes(rluAxesQyQz)
-            axes = [rluAxesQyQz,rluAxesQxQz,rluAxesQxQy]
+            axes = np.asarray(axes,dtype=object)[[2,1,0]]#[rluAxesQyQz,rluAxesQxQz,rluAxesQxQy]
 
 
         else:
@@ -2380,7 +2326,21 @@ class DataSet(object):
 
         ax.data = [ax.intensity,ax.monitorCount,ax.Normalization,ax.NormCount]
         return ax,returndata,bins
+    def setProjectionVectors(self,p1,p2,p3=None):
+        """Set or update the projection vectors used for the View3D
+        
+        Args:
 
+            - p1 (list): New primary projection, in HKL
+
+            - p2 (list): New secondary projection, in HKL
+
+        Kwargs:
+
+            - p3 (list): New tertiary projection, in HKL. If None, orthogonal to p1 and p2 (default None)
+        """
+        for sample in self.sample:
+            sample.setProjectionVectors(p1=p1,p2=p2,p3=p3)
 
             
     
