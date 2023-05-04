@@ -3,6 +3,7 @@ import numpy as np
 import pickle as pickle
 import matplotlib.pyplot as plt
 import pandas as pd
+import shutil
 import os, copy
 import json, os, time
 from DMCpy import DataFile, _tools, Viewer3D, RLUAxes, TasUBlibDEG
@@ -1539,15 +1540,46 @@ class DataSet(object):
             # fg._monitor = fg.monitor[0].reshape(1,128,1152)*np.ones((fg.counts.shape[0],1,1)) # should be included to get same monitor for all a3, which we should ???
         
 
-    def subtractDS(self,ds2):
+    def directSubtractDS(self,dsBG,saveToFile=True,saveToNewFile=False):
         """
         Subtracts a dataSet with same a3 range from the dataSet.
          
         ds2 (dataset): dataSet that should be subtracted
         """
 
-        for fg,bg in zip(self,ds2):
-            fg._counts = fg.counts-bg.counts
+        # for fg,bg in zip(self,ds2):
+        #     fg._counts = fg.counts-bg.counts
+        
+        for I,(fg,bg) in enumerate(zip(self,dsBG)):
+            newBG = bg.counts
+            if saveToFile:
+                filePath = os.path.join(fg.folder,fg.fileName)
+                if saveToNewFile:
+                    newNameParams = os.path.splitext(saveToNewFile)
+                    newName = newNameParams[0]+'_'+str(I)+newNameParams[-1]
+                    newFile = os.path.join(fg.folder,newName)
+                    shutil.copyfile(filePath, newFile)
+                    filePath = newFile
+                    fg.fileName = newName
+
+                with hdf.File(filePath,mode='a') as f:
+                    if not f.get(HDFCountsBG) is None:
+                        warnings.warn('Overwriting background in data file...')
+                        del f[HDFCountsBG]
+                    if not f.get(HDFTranslation['backgroundType']) is None:
+                        del f[HDFTranslation['backgroundType']]
+                    folder = '/'.join(HDFCountsBG.split('/')[:-1])
+                    name = HDFCountsBG.split('/')[-1]
+                    f[folder].create_dataset(name,data=newBG,compression=6)
+
+                    folderType = '/'.join(HDFTranslation['backgroundType'].split('/')[:-1])
+                    nameType = HDFTranslation['backgroundType'].split('/')[-1]
+                    f[folderType].create_dataset(nameType,data=np.string_(['singleCrystal']))
+            else:
+                fg._background = newBG
+
+            fg.hasBackground = True
+            fg.backgroundType = 'singleCrystal'
                   
 
 
