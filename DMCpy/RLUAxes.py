@@ -311,7 +311,7 @@ def createRLUAxes(self,sample=None, figure=None,ids=[1, 1, 1],basex=None,basey=N
     ax.set_axis = lambda v1,v2,*args: set_axis(ax,v1,v2,*args)
 
     def beautifyLabel(vec):
-        Vec = [x.astype(int) if np.isclose(x.astype(float)-x.astype(int),0.0) else x.astype(float) for x in vec]
+        Vec = [x.astype(int) if np.isclose(x.astype(float)-x.astype(int),0.0,atol=1e-4) else x.astype(float) for x in vec]
         return '{} [RLU]'.format(', '.join([str(x) for x in Vec]))
 
 
