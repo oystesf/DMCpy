@@ -9,22 +9,20 @@ def Tester():
     import os
     
     # Give file number and folder the file is stored in.
-    scanNumbers = '8540' 
+    scanNumbers = '12153-12154' 
     folder = 'data/SC'
     year = 2022
-        
-    # Create complete filepath
-    file = os.path.join(os.getcwd(),_tools.fileListGenerator(scanNumbers,folder,year=year)[0]) 
+  
+    filePath = _tools.fileListGenerator(scanNumbers,folder,year=year) 
 
-    # Load data file with corrected twoTheta
-    df = DataFile.loadDataFile(file)
-    
-    # Use above data file in data set. Must be inserted as a list
-    ds = DataSet.DataSet([df])
-    
-    #ds.autoAlignScatteringPlane(scatteringNormal=np.array([0,0,1],dtype=float))
+    # # # load dataFiles
+    dataFiles = [DataFile.loadDataFile(dFP) for dFP in filePath]
+            
+    # load data files and make data set
+    ds = DataSet.DataSet(dataFiles)
 
-    Viewer = ds.Viewer3D(0.03,0.03,0.03,rlu=False)
+    # plot the data with 3D Viewer
+    Viewer = ds.Viewer3D(0.01,0.01,0.01,rlu=False)
     
     # Set the color bar limits to 0 and 0.001
     Viewer.set_clim(0,0.001)
@@ -105,8 +103,8 @@ introText = 'In a single crystal experiment, the first step is to gain an overvi
 +'+-----------------+------------------------------------------------------+ \n'\
 
 
-outroText = 'The above code takes the data from the A3 scan file dmc2021n008540 '\
-+'and generates the Viewer 3D utilizing a voxel size of 0.03 x 0.03 x 0.03 A:math:`^{-3}`. '\
+outroText = 'The above code takes the data from a A3 scan '\
++'and generates the Viewer 3D utilizing a voxel size of 0.01 x 0.01 x 0.01 A:math:`^{-3}`. '\
 +'By default, the viewer starts out in projection 2, i.e. with Qz being the axis stepped through. When handling the '\
 +'data directly it is more convenient to utilize the keyboard shortcuts but in a scripting interface these are not '\
 +'available. Instead one can utilize the *.setPlane* and *.changeAxis* methods. In addition, the color scale has been tweaked '\

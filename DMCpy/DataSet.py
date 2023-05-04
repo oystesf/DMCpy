@@ -2165,7 +2165,7 @@ class DataSet(object):
             autoBins = False
             if yBins is None:
                 yBins = np.arange(-5,5,dQy)
-            else:
+            elif xBins is None:
                 xBins = np.arange(-5,5,dQx)
 
         if not points is None:
@@ -2236,9 +2236,7 @@ class DataSet(object):
                                 tempMat[lowExtensionX:lowExtensionX+mat.shape[0],lowExtensionY:lowExtensionY+mat.shape[1]] = mat
                                 mat = tempMat
                                 dat.append(mat)
-                            returndata = dat
-                            
-                            
+                            returndata = dat          
                 
                 dat = df.intensitySliced(slice(idx[0],idx[1]))
                     

@@ -39,7 +39,7 @@ The Viewer 3D is an interactive plotting function which allows a look through th
    import os
    
    # Give file number and folder the file is stored in.
-   scanNumbers = '8540' 
+   scanNumbers = '12153-12154' 
    folder = 'data/SC'
    year = 2022
       
@@ -52,7 +52,30 @@ The Viewer 3D is an interactive plotting function which allows a look through th
    # Use above data file in data set. Must be inserted as a list
    ds = DataSet.DataSet([df])
    
-   #ds.autoAlignScatteringPlane(scatteringNormal=np.array([0,0,1],dtype=float))
+   
+   
+   filePath = _tools.fileListGenerator(scanNumbers,folder,year=2022)
+   
+   # edit files to contain lattice parameteres
+   unitCell = np.array([ 7.218 , 7.218 , 18.183 ,90.0,90.0,120.0])
+   _tools.giveUnitCellToHDF(filePath,unitCell)
+   
+   
+   # # # load dataFiles
+   dataFiles = [DataFile.loadDataFile(dFP) for dFP in filePath]
+         
+   
+   # load data files and make data set
+   ds = DataSet.DataSet(dataFiles)
+   
+   
+   
+   
+   
+   
+   
+   
+   
    
    Viewer = ds.Viewer3D(0.03,0.03,0.03,rlu=False)
    
