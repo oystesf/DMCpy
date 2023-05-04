@@ -3,6 +3,7 @@ import numpy as np
 import pickle as pickle
 import matplotlib.pyplot as plt
 import pandas as pd
+import shutil
 import os, copy
 import json, os, time
 from DMCpy import DataFile, _tools, Viewer3D, RLUAxes, TasUBlibDEG
@@ -556,89 +557,35 @@ class DataSet(object):
         if rlu:
             
             QxQySample = copy.deepcopy(self.sample[0])
-            p1,p2,p3 = _tools.findOrthogonalBasis(*QxQySample.projectionVectors, QxQySample.B)
-
-            points = [[0.0,0.0,0.0],p1,p2]
-            rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
-            
-            QxQySample.P1 = p1
-            QxQySample.P2 = p2
-            QxQySample.P3 = p3
-            QxQySample.projectionVectors = np.array([QxQySample.P1,QxQySample.P2,QxQySample.P3]).T
-            QxQySample.UB = np.dot(QxQySample.UB,rot.T)
-
-            rluAxesQxQy = self.createRLUAxes(sample=QxQySample)#**kwargs)
-
-            #h=kkk
-
-            figure = rluAxesQxQy.get_figure()
-            figure.delaxes(rluAxesQxQy)
-
-            ### ----------- ###
             QxQzSample = copy.deepcopy(self.sample[0])
-
-
-
-            p1,p2,p3 = _tools.findOrthogonalBasis(*QxQzSample.projectionVectors, QxQzSample.B)[[0,2,1]]
-
-
-            QxQzSample.P1 = p1
-            QxQzSample.P2 = p2
-            QxQzSample.P3 = p3
-            QxQzSample.projectionVectors = np.array([QxQzSample.P1,QxQzSample.P2,QxQzSample.P3]).T
-            #s.ROT = rotationMatrix
-
-
-            points = [[0.0,0.0,0.0],p1,p2]
-            rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
-
-
-            QxQzSample.P1 = p1
-            QxQzSample.P2 = p2
-            QxQzSample.P3 = p3
-            QxQzSample.projectionVectors = np.array([QxQzSample.P1,QxQzSample.P2,QxQzSample.P3]).T
-            
-
-            R = _tools.rotMatrix(np.asarray([1.0,0.0,0.0]),np.asarray(-90))
-
-
-            QxQzSample.ROT = np.dot(R,QxQzSample.ROT)
-
-
-            #self.createRLUAxes(sample=QxQzSample)
-
-            rluAxesQxQz = self.createRLUAxes(figure=figure,sample=QxQzSample)
-            figure.delaxes(rluAxesQxQz)
-
-            ### ----------- ###
             QyQzSample = copy.deepcopy(self.sample[0])
+            
+            samples = [QxQySample,QxQzSample,QyQzSample]
+            projections = [[0,1,2],
+                           [2,0,1],
+                           [1,2,0]]
+            
+            axes = []
+            figure = None
+            for sample,proj in zip(samples,projections):
+                p1,p2,p3 = _tools.findOrthogonalBasis(*sample.projectionVectors.T, sample.B)[proj]
+                points = [np.dot(self.sample[0].UB,p) for p in [[0.0,0.0,0.0],p1,p2]]
 
-            p1,p2,p3 = _tools.findOrthogonalBasis(*QyQzSample.projectionVectors, QxQzSample.B)[[1,2,0]]
+                rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
+                
+                sample.P1 = p1
+                sample.P2 = p2
+                sample.P3 = p3
+                sample.projectionVectors = np.array([sample.P1,sample.P2,sample.P3]).T
+                sample.ROT = rot
 
+                ax = self.createRLUAxes(figure=figure,sample=sample)#**kwargs)
+                axes.append(ax)
+                
+                figure = ax.get_figure()
+                figure.delaxes(ax)
 
-            QyQzSample.P1 = p1
-            QyQzSample.P2 = p2
-            QyQzSample.P3 = p3
-            QyQzSample.projectionVectors = np.array([QyQzSample.P1,QyQzSample.P2,QyQzSample.P3]).T
-
-            points = [[0.0,0.0,0.0],p1,p2]
-            rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
-
-
-            R = _tools.rotMatrix(np.asarray([0.0,0.0,1.0]),np.asarray(-90))
-            R2 = _tools.rotMatrix(np.asarray([1.0,0.0,0.0]),np.asarray(-90))
-
-
-            QyQzSample.ROT = np.dot(np.dot(R2,R),QyQzSample.ROT)
-            #QyQzSample.UB = np.dot(QyQzSample.UB,rot.T)
-
-
-            #rluAxesQyQz = self.createRLUAxes(sample=QyQzSample)
-
-
-            rluAxesQyQz = self.createRLUAxes(figure=figure,sample=QyQzSample)
-            figure.delaxes(rluAxesQyQz)
-            axes = [rluAxesQyQz,rluAxesQxQz,rluAxesQxQy]
+            axes = np.asarray(axes,dtype=object)[[2,1,0]]#[rluAxesQyQz,rluAxesQxQz,rluAxesQxQy]
 
 
         else:
@@ -1638,7 +1585,7 @@ class DataSet(object):
             sample.UB = np.dot(sample.ROT.T,np.dot(sample.projectionB,np.linalg.inv(sample.projectionVectors)))
 
 
-    def subtractBkgRange(self,bkgStart,bkgEnd,saveToFile=True):
+    def subtractBkgRange(self,bkgStart,bkgEnd,saveToFile=True, saveToNewFile = False):
         """Function generate background as defined by a range of the first dataFile of the dataSet
 
         Args:
@@ -1650,12 +1597,23 @@ class DataSet(object):
         Kwargs:
 
             - saveToFile (bool): If True, save background to data file, else save in RAM (default True)
+
+            - saveToNewFile (string) If provided, and saveToFile is True, save a new file with the background subtraction (default False)
+
         """
         meanBG = self[0].counts[bkgStart:bkgEnd].mean(axis=0)/self[0].monitor[bkgStart:bkgEnd].mean(axis=0)
         for fg in self:
             newBG = meanBG.reshape(128,1152)*fg.monitor[0]
             if saveToFile:
                 filePath = os.path.join(fg.folder,fg.fileName)
+                if saveToNewFile:
+                    newNameParams = os.path.splitext(saveToNewFile)
+                    newName = newNameParams[0]+'_'+str(I)+newNameParams[-1]
+                    newFile = os.path.join(fg.folder,newName)
+                    shutil.copyfile(filePath, newFile)
+                    filePath = newFile
+                    fg.fileName = newName
+
                 with hdf.File(filePath,mode='a') as f:
                     if not f.get(HDFCountsBG) is None:
                         warnings.warn('Overwriting background in data file...')
@@ -1679,15 +1637,54 @@ class DataSet(object):
             # fg._monitor = fg.monitor[0].reshape(1,128,1152)*np.ones((fg.counts.shape[0],1,1)) # should be included to get same monitor for all a3, which we should ???
         
 
-    def subtractDS(self,ds2):
-        """
-        Subtracts a dataSet with same a3 range from the dataSet.
-         
-        ds2 (dataset): dataSet that should be subtracted
+    def directSubtractDS(self,dsBG,saveToFile=True,saveToNewFile=False):
+        """Subtracts a different dataSet one to one from the dataSet.
+
+        Args:
+
+            - dsBG (DataSet): dataSet that should be subtracted
+
+        Kwargs:
+
+            - saveToFile (bool): If True, save background to data file, else save in RAM (default True)
+
+            - saveToNewFile (string) If provided, and saveToFile is True, save a new file with the background subtraction (default False)
+            
         """
 
-        for fg,bg in zip(self,ds2):
-            fg._counts = fg.counts-bg.counts
+        # for fg,bg in zip(self,ds2):
+        #     fg._counts = fg.counts-bg.counts
+        
+        for I,(fg,bg) in enumerate(zip(self,dsBG)):
+            newBG = bg.counts
+            if saveToFile:
+                filePath = os.path.join(fg.folder,fg.fileName)
+                if saveToNewFile:
+                    newNameParams = os.path.splitext(saveToNewFile)
+                    newName = newNameParams[0]+'_'+str(I)+newNameParams[-1]
+                    newFile = os.path.join(fg.folder,newName)
+                    shutil.copyfile(filePath, newFile)
+                    filePath = newFile
+                    fg.fileName = newName
+
+                with hdf.File(filePath,mode='a') as f:
+                    if not f.get(HDFCountsBG) is None:
+                        warnings.warn('Overwriting background in data file...')
+                        del f[HDFCountsBG]
+                    if not f.get(HDFTranslation['backgroundType']) is None:
+                        del f[HDFTranslation['backgroundType']]
+                    folder = '/'.join(HDFCountsBG.split('/')[:-1])
+                    name = HDFCountsBG.split('/')[-1]
+                    f[folder].create_dataset(name,data=newBG,compression=6)
+
+                    folderType = '/'.join(HDFTranslation['backgroundType'].split('/')[:-1])
+                    nameType = HDFTranslation['backgroundType'].split('/')[-1]
+                    f[folderType].create_dataset(nameType,data=np.string_(['singleCrystal']))
+            else:
+                fg._background = newBG
+
+            fg.hasBackground = True
+            fg.backgroundType = 'singleCrystal'
                   
 
 
@@ -2465,7 +2462,21 @@ class DataSet(object):
 
         ax.data = [ax.intensity,ax.monitorCount,ax.Normalization,ax.NormCount]
         return ax,returndata,bins
+    def setProjectionVectors(self,p1,p2,p3=None):
+        """Set or update the projection vectors used for the View3D
+        
+        Args:
 
+            - p1 (list): New primary projection, in HKL
+
+            - p2 (list): New secondary projection, in HKL
+
+        Kwargs:
+
+            - p3 (list): New tertiary projection, in HKL. If None, orthogonal to p1 and p2 (default None)
+        """
+        for sample in self.sample:
+            sample.setProjectionVectors(p1=p1,p2=p2,p3=p3)
 
             
     

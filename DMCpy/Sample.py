@@ -319,3 +319,30 @@ class Sample(object):
         #projection = self.inv_tr(*QxQyQz)
         projection = np.dot(np.linalg.inv(self.projectionVectors),np.array([H,K,L]))
         return projection
+    
+    def setProjectionVectors(self,p1,p2,p3=None):
+        """Set or update the projection vectors used for the View3D
+        
+        Args:
+
+            - p1 (list): New primary projection, in HKL
+
+            - p2 (list): New secondary projection, in HKL
+
+        Kwargs:
+
+            - p3 (list): New tertiary projection, in HKL. If None, orthogonal to p1 and p2 (default None)
+        """
+        if not hasattr(self,'UB'):
+            raise AttributeError('No UB matrix present in sample.')
+        if p3 is None:
+            p3 = _tools.LengthOrder(np.dot(np.linalg.inv(self.B),np.cross(np.dot(self.B,p1),np.dot(self.B,p2))))
+        
+        self.P1=np.array(p1)
+        self.P2=np.array(p2)
+        self.P3=np.array(p3)
+        self.projectionVectors = np.array([self.P1,self.P2,self.P3]).T
+
+        points = [np.dot(self.UB,v) for v in np.asarray([[0.0,0,0.0],p1,p2])]
+        rot,tr = _tools.calculateRotationMatrixAndOffset2(points)
+        self.ROT = rot
