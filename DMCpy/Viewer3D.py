@@ -314,7 +314,8 @@ class Viewer3D(object):
     def stringValue(self):
         unit = self.units[self.axis]
         val = self.calculateValue() # value in |1/AA|
-        val*=np.linalg.norm(self.ax.sample.inv_tr(0,0,1)) # Convert to
+        if hasattr(self.ax,'sample'):
+            val*=np.linalg.norm(self.ax.sample.inv_tr(0,0,1)) # Convert to
         return str(np.round(val,2))+unit
     
     def setProjection(self,value):
