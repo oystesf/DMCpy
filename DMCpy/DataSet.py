@@ -1585,7 +1585,7 @@ class DataSet(object):
             sample.UB = np.dot(sample.ROT.T,np.dot(sample.projectionB,np.linalg.inv(sample.projectionVectors)))
 
 
-    def subtractBkgRange(self,bkgStart,bkgEnd,saveToFile=True, saveToNewFile = False):
+    def subtractBkgRange(self,bkgStart,bkgEnd,saveToFile=False, saveToNewFile = False):
         """Function generate background as defined by a range of the first dataFile of the dataSet
 
         Args:
@@ -1596,13 +1596,13 @@ class DataSet(object):
 
         Kwargs:
 
-            - saveToFile (bool): If True, save background to data file, else save in RAM (default True)
+            - saveToFile (bool): If True, save background to data file, else save in RAM (default False)
 
             - saveToNewFile (string) If provided, and saveToFile is True, save a new file with the background subtraction (default False)
 
         """
         meanBG = self[0].counts[bkgStart:bkgEnd].mean(axis=0)/self[0].monitor[bkgStart:bkgEnd].mean(axis=0)
-        for fg in self:
+        for I,fg in enumerate(self):
             newBG = meanBG.reshape(128,1152)*fg.monitor[0]
             if saveToFile:
                 filePath = os.path.join(fg.folder,fg.fileName)
@@ -1637,7 +1637,7 @@ class DataSet(object):
             # fg._monitor = fg.monitor[0].reshape(1,128,1152)*np.ones((fg.counts.shape[0],1,1)) # should be included to get same monitor for all a3, which we should ???
         
 
-    def directSubtractDS(self,dsBG,saveToFile=True,saveToNewFile=False):
+    def directSubtractDS(self,dsBG,saveToFile=False,saveToNewFile=False):
         """Subtracts a different dataSet one to one from the dataSet.
 
         Args:
@@ -1646,7 +1646,7 @@ class DataSet(object):
 
         Kwargs:
 
-            - saveToFile (bool): If True, save background to data file, else save in RAM (default True)
+            - saveToFile (bool): If True, save background to data file, else save in RAM (default False)
 
             - saveToNewFile (string) If provided, and saveToFile is True, save a new file with the background subtraction (default False)
             
