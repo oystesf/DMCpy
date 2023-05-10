@@ -3,10 +3,11 @@ import numpy as np
 import pickle as pickle
 import matplotlib.pyplot as plt
 import pandas as pd
+import shutil
 import os, copy
 import json, os, time
 from DMCpy import DataFile, _tools, Viewer3D, RLUAxes, TasUBlibDEG
-from DMCpy.FileStructure import shallowRead
+from DMCpy.FileStructure import shallowRead, HDFCountsBG, HDFTranslation
 import warnings
 import DMCpy
 
@@ -556,89 +557,35 @@ class DataSet(object):
         if rlu:
             
             QxQySample = copy.deepcopy(self.sample[0])
-            p1,p2,p3 = _tools.findOrthogonalBasis(*QxQySample.projectionVectors, QxQySample.B)
-
-            points = [[0.0,0.0,0.0],p1,p2]
-            rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
-            
-            QxQySample.P1 = p1
-            QxQySample.P2 = p2
-            QxQySample.P3 = p3
-            QxQySample.projectionVectors = np.array([QxQySample.P1,QxQySample.P2,QxQySample.P3]).T
-            QxQySample.UB = np.dot(QxQySample.UB,rot.T)
-
-            rluAxesQxQy = self.createRLUAxes(sample=QxQySample)#**kwargs)
-
-            #h=kkk
-
-            figure = rluAxesQxQy.get_figure()
-            figure.delaxes(rluAxesQxQy)
-
-            ### ----------- ###
             QxQzSample = copy.deepcopy(self.sample[0])
-
-
-
-            p1,p2,p3 = _tools.findOrthogonalBasis(*QxQzSample.projectionVectors, QxQzSample.B)[[0,2,1]]
-
-
-            QxQzSample.P1 = p1
-            QxQzSample.P2 = p2
-            QxQzSample.P3 = p3
-            QxQzSample.projectionVectors = np.array([QxQzSample.P1,QxQzSample.P2,QxQzSample.P3]).T
-            #s.ROT = rotationMatrix
-
-
-            points = [[0.0,0.0,0.0],p1,p2]
-            rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
-
-
-            QxQzSample.P1 = p1
-            QxQzSample.P2 = p2
-            QxQzSample.P3 = p3
-            QxQzSample.projectionVectors = np.array([QxQzSample.P1,QxQzSample.P2,QxQzSample.P3]).T
-            
-
-            R = _tools.rotMatrix(np.asarray([1.0,0.0,0.0]),np.asarray(-90))
-
-
-            QxQzSample.ROT = np.dot(R,QxQzSample.ROT)
-
-
-            #self.createRLUAxes(sample=QxQzSample)
-
-            rluAxesQxQz = self.createRLUAxes(figure=figure,sample=QxQzSample)
-            figure.delaxes(rluAxesQxQz)
-
-            ### ----------- ###
             QyQzSample = copy.deepcopy(self.sample[0])
+            
+            samples = [QxQySample,QxQzSample,QyQzSample]
+            projections = [[0,1,2],
+                           [2,0,1],
+                           [1,2,0]]
+            
+            axes = []
+            figure = None
+            for sample,proj in zip(samples,projections):
+                p1,p2,p3 = _tools.findOrthogonalBasis(*sample.projectionVectors.T, sample.B)[proj]
+                points = [np.dot(self.sample[0].UB,p) for p in [[0.0,0.0,0.0],p1,p2]]
 
-            p1,p2,p3 = _tools.findOrthogonalBasis(*QyQzSample.projectionVectors, QxQzSample.B)[[1,2,0]]
+                rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
+                
+                sample.P1 = p1
+                sample.P2 = p2
+                sample.P3 = p3
+                sample.projectionVectors = np.array([sample.P1,sample.P2,sample.P3]).T
+                sample.ROT = rot
 
+                ax = self.createRLUAxes(figure=figure,sample=sample)#**kwargs)
+                axes.append(ax)
+                
+                figure = ax.get_figure()
+                figure.delaxes(ax)
 
-            QyQzSample.P1 = p1
-            QyQzSample.P2 = p2
-            QyQzSample.P3 = p3
-            QyQzSample.projectionVectors = np.array([QyQzSample.P1,QyQzSample.P2,QyQzSample.P3]).T
-
-            points = [[0.0,0.0,0.0],p1,p2]
-            rot,trans = _tools.calculateRotationMatrixAndOffset2(points)
-
-
-            R = _tools.rotMatrix(np.asarray([0.0,0.0,1.0]),np.asarray(-90))
-            R2 = _tools.rotMatrix(np.asarray([1.0,0.0,0.0]),np.asarray(-90))
-
-
-            QyQzSample.ROT = np.dot(np.dot(R2,R),QyQzSample.ROT)
-            #QyQzSample.UB = np.dot(QyQzSample.UB,rot.T)
-
-
-            #rluAxesQyQz = self.createRLUAxes(sample=QyQzSample)
-
-
-            rluAxesQyQz = self.createRLUAxes(figure=figure,sample=QyQzSample)
-            figure.delaxes(rluAxesQyQz)
-            axes = [rluAxesQyQz,rluAxesQxQz,rluAxesQxQy]
+            axes = np.asarray(axes,dtype=object)[[2,1,0]]#[rluAxesQyQz,rluAxesQxQz,rluAxesQxQy]
 
 
         else:
@@ -709,8 +656,10 @@ class DataSet(object):
                         for data,newData in zip(returndata,localReturndata):
                             data+=newData
                     
-        intensities = np.divide(returndata[0],returndata[1])
-        errors = np.divide(np.sqrt(returndata[0]),returndata[1])
+        with warnings.catch_warnings() as w:
+            warnings.simplefilter("ignore")
+            intensities = np.divide(returndata[0],returndata[1])
+            errors = np.divide(np.sqrt(returndata[0]),returndata[1])
         NaNs = returndata[-1]==0
         intensities[NaNs]=np.nan
         errors[NaNs]=np.nan
@@ -1465,19 +1414,48 @@ class DataSet(object):
             sample.peakUsedForAlignment = peakUsedForAlignment 
 
     def alignToRefs(self,q1,q2,HKL1,HKL2):
-                
+        """Generate UB matrix from two Q-points with corresponding HKL values
+        
+        Args:
+
+            - q1 (array): Position of peak 1 in 1/AA
+
+            - q2 (array): Position of peak 2 in 1/AA
+
+            - HKL1 (array): Position of peak 1 in RLU
+
+            - HKL2 (array): Position of peak 2 in RLU
+
+        """
         
         E = np.power(self[0].Ki/TasUBlibDEG.factorsqrtEK,2.0)
         
-        A31,A41 = np.asarray(TasUBlibDEG.calcTasQAngles(np.eye(3),np.array([0.0,0.0,-1.0]),ss=1,A3Off = 0.0,qe=[*q1,E,E]))[:2]#[[-1,1]]
+        # Find rotation that brings q1 and q2 into the scattering plane (qz=0)
+        planeNormal1 = np.array([0.0,0.0,1.0])
+        planeNormal2 = np.cross(q1,q2)
+        planeNormal2*= 1/(np.linalg.norm(planeNormal2))
+        rotVector = np.cross(planeNormal2,planeNormal1)
+        rotVector*=1.0/np.linalg.norm(rotVector)
+        rotAngle = _tools.vectorAngle(planeNormal1, planeNormal2)
+        if np.isclose(np.mod(rotAngle,np.pi),0):
+            rotMatrix = np.eye(3)
+        else:
+            rotMatrix = _tools.rotMatrix(rotVector, rotAngle,deg=False)
 
-        A32,A42 = np.asarray(TasUBlibDEG.calcTasQAngles(np.eye(3),np.array([0.0,0.0,-1.0]),ss=1,A3Off = 0.0,qe=[*q2,E,E]))[:2]#[[-1,1]]
-        
+        q1Rotated,q2Rotated = [np.dot(rotMatrix,q) for q in [q1,q2]]
+
+        A31,A41 = np.asarray(TasUBlibDEG.calcTasQAngles(np.eye(3),np.array([0.0,0.0,-1.0]),ss=1,A3Off = 0.0,qe=[*q1Rotated,E,E]))[:2]#[[-1,1]]
+
+        A32,A42 = np.asarray(TasUBlibDEG.calcTasQAngles(np.eye(3),np.array([0.0,0.0,-1.0]),ss=1,A3Off = 0.0,qe=[*q2Rotated,E,E]))[:2]#[[-1,1]]
+
         # H K L A3 A4 sgu sgl Ei Ef
         R1 = [*HKL1, A31, A41, 0.0, 0.0, E, E]
         R2 = [*HKL2, A32, A42, 0.0, 0.0, E, E]
         newUB = TasUBlibDEG.calcTasUBFromTwoReflections(self[0].sample.fullCell, R1, R2)
         
+        # Counter-rotate UB with the rotation matrix from above
+        newUB = np.dot(rotMatrix.T,newUB)
+
         projectionVector1,projectionVector2,projectionVector3 = np.eye(3)
             
         pV1q = np.dot(newUB,projectionVector1)
@@ -1495,7 +1473,92 @@ class DataSet(object):
             s.ROT = rot
         
             s.projectionVectors = np.array([s.P1,s.P2,s.P3]).T
+
+
+    def peakSearch(self,threshold=30,dx=0.04,dy=0.04,dz=0.08,distanceThreshold=0.15):
+        """ Search for peaks in data set
+          
+        Kwargs:
             
+            - threshold (float): Thresholding for intensities within the 3D binned data used in peak search (default 30)
+            
+            - dx (float): size of 3D binning along Qx (default 0.04)
+            
+            - dy (float): size of 3D binning along Qy (default 0.04)
+            
+            - dz (float): size of 3D binning along Qz (default 0.08)
+            
+            - distanceThreshold (float): Distance in 1/AA where peaks are clustered together (default 0.15)
+          
+            
+        This methods is an attempt to automatically align the scattering plane of all data files
+        within the DataSet. The algorithm works as follows for each data file individually :
+            
+            1) Perform a 3D binning of data in to equi-sized bins with size (dx,dy,dz)
+            
+            2) "Peaks" are defined as all positions having intensities>threshold
+        
+            3) These peaks are clustered together if closer than 0.02 1/AA and centre of gravity
+               using intensity is applied to find common centre.
+               
+            4) Above step is repeated with custom distanceThreshold
+        
+            
+        
+        
+        """
+        peakPositions = []
+        peakWeights = []
+        for df in self:
+            
+            # 1) 
+            Intensities,bins = _tools.binData3D(dx,dy,dz,df.q[None].reshape(3,-1),df.intensity)
+            with warnings.catch_warnings() as w:
+                warnings.simplefilter("ignore")
+                Intensities = np.divide(Intensities[0],Intensities[1])
+            
+            
+            # 2)
+            possiblePeaks = Intensities>threshold
+            
+            ints = Intensities[possiblePeaks]
+            
+            centerPoints = [b[:-1,:-1,:-1]+0.5*dB for b,dB in zip(bins,[dx,dy,dz])]
+            
+            positions = np.array([b[possiblePeaks] for b in centerPoints]).T
+            
+            
+            
+            # 3) assuming worse resolution out of plane
+            distanceFunctionLocal = lambda a,b: _tools.distance(a,b,dx=1.0,dy=1.0,dz=0.5)
+            peaksInitial = _tools.clusterPoints(positions,ints,distanceThreshold=0.02,distanceFunction=distanceFunctionLocal,fileName=df.fileName) 
+            
+            if len(peaksInitial) == 0:
+                continue
+            peakPositions.append(list(p.position for p in peaksInitial))
+            peakWeights.append(list(p.weight for p in peaksInitial))
+            print('{:} peaks found in '.format(len(ints)),df.fileName)
+            
+
+        peakPositions = np.concatenate(peakPositions)
+        peakWeights = np.concatenate(peakWeights)
+        # 4) 
+        self.peaks = _tools.clusterPoints(peakPositions,peakWeights,distanceThreshold=distanceThreshold,distanceFunction=distanceFunctionLocal,fileName=df.fileName)
+        
+        
+        foundPeakPositions = np.array([p.position for p in self.peaks])
+
+        lenghtInQ = np.array([np.linalg.norm(vec) for vec in foundPeakPositions])
+
+        posIn2Theta = np.array([ 2 * np.rad2deg(np.arcsin( q * self[0].wavelength / (4 * np.pi) ))  for q in lenghtInQ])
+        
+        foundPeakDic = {}
+
+        for peak in np.arange(len(posIn2Theta)):
+            foundPeakDic[str(peak)] = {'foundPeakPositions' : foundPeakPositions[peak] , 'lenghtInQ' : lenghtInQ[peak] , 'posIn2Theta' : posIn2Theta[peak] }
+
+        return foundPeakPositions, lenghtInQ, posIn2Theta, foundPeakDic
+
 
 
 
@@ -1522,28 +1585,106 @@ class DataSet(object):
             sample.UB = np.dot(sample.ROT.T,np.dot(sample.projectionB,np.linalg.inv(sample.projectionVectors)))
 
 
-    def subtractBkgRange(self,bkgStart,bkgEnd):
-        """
-        function to subtract background defined by a range of the first dataFile of the dataSet
-        bkgStart (int): start value in step for range used for background subtraction
-        bkgEnd (int): end value in step for range used for background subtraction
+    def subtractBkgRange(self,bkgStart,bkgEnd,saveToFile=False, saveToNewFile = False):
+        """Function generate background as defined by a range of the first dataFile of the dataSet
+
+        Args:
+            
+            - bkgStart (int): start value in step for range used for background subtraction
+
+            - bkgEnd (int): end value in step for range used for background subtraction
+
+        Kwargs:
+
+            - saveToFile (bool): If True, save background to data file, else save in RAM (default False)
+
+            - saveToNewFile (string) If provided, and saveToFile is True, save a new file with the background subtraction (default False)
+
         """
         meanBG = self[0].counts[bkgStart:bkgEnd].mean(axis=0)/self[0].monitor[bkgStart:bkgEnd].mean(axis=0)
-        for fg in self:
-            counts = fg.counts-meanBG.reshape(1,128,1152)*np.ones((fg.counts.shape[0],1,1))*fg.monitor[0]  # or should it be multiplied with the correct monitor of the fg for all frames??? Is fg.counts divided per monitor?
-            fg._counts = counts.astype(int)
+        for I,fg in enumerate(self):
+            newBG = meanBG.reshape(128,1152)*fg.monitor[0]
+            if saveToFile:
+                filePath = os.path.join(fg.folder,fg.fileName)
+                if saveToNewFile:
+                    newNameParams = os.path.splitext(saveToNewFile)
+                    newName = newNameParams[0]+'_'+str(I)+newNameParams[-1]
+                    newFile = os.path.join(fg.folder,newName)
+                    shutil.copyfile(filePath, newFile)
+                    filePath = newFile
+                    fg.fileName = newName
+
+                with hdf.File(filePath,mode='a') as f:
+                    if not f.get(HDFCountsBG) is None:
+                        warnings.warn('Overwriting background in data file...')
+                        del f[HDFCountsBG]
+                    if not f.get(HDFTranslation['backgroundType']) is None:
+                        del f[HDFTranslation['backgroundType']]
+                    folder = '/'.join(HDFCountsBG.split('/')[:-1])
+                    name = HDFCountsBG.split('/')[-1]
+                    f[folder].create_dataset(name,data=newBG,compression=6)
+
+                    folderType = '/'.join(HDFTranslation['backgroundType'].split('/')[:-1])
+                    nameType = HDFTranslation['backgroundType'].split('/')[-1]
+                    f[folderType].create_dataset(nameType,data=np.string_(['powder']))
+            else:
+                fg._background = newBG
+
+            fg.hasBackground = True
+            fg.backgroundType = 'powder'
+            # or should it be multiplied with the correct monitor of the fg for all frames??? Is fg.counts divided per monitor?
+            #fg._counts = counts.astype(int)
             # fg._monitor = fg.monitor[0].reshape(1,128,1152)*np.ones((fg.counts.shape[0],1,1)) # should be included to get same monitor for all a3, which we should ???
         
 
-    def subtractDS(self,ds2):
-        """
-        Subtracts a dataSet with same a3 range from the dataSet.
-         
-        ds2 (dataset): dataSet that should be subtracted
+    def directSubtractDS(self,dsBG,saveToFile=False,saveToNewFile=False):
+        """Subtracts a different dataSet one to one from the dataSet.
+
+        Args:
+
+            - dsBG (DataSet): dataSet that should be subtracted
+
+        Kwargs:
+
+            - saveToFile (bool): If True, save background to data file, else save in RAM (default False)
+
+            - saveToNewFile (string) If provided, and saveToFile is True, save a new file with the background subtraction (default False)
+            
         """
 
-        for fg,bg in zip(self,ds2):
-            fg._counts = fg.counts-bg.counts
+        # for fg,bg in zip(self,ds2):
+        #     fg._counts = fg.counts-bg.counts
+        
+        for I,(fg,bg) in enumerate(zip(self,dsBG)):
+            newBG = bg.counts
+            if saveToFile:
+                filePath = os.path.join(fg.folder,fg.fileName)
+                if saveToNewFile:
+                    newNameParams = os.path.splitext(saveToNewFile)
+                    newName = newNameParams[0]+'_'+str(I)+newNameParams[-1]
+                    newFile = os.path.join(fg.folder,newName)
+                    shutil.copyfile(filePath, newFile)
+                    filePath = newFile
+                    fg.fileName = newName
+
+                with hdf.File(filePath,mode='a') as f:
+                    if not f.get(HDFCountsBG) is None:
+                        warnings.warn('Overwriting background in data file...')
+                        del f[HDFCountsBG]
+                    if not f.get(HDFTranslation['backgroundType']) is None:
+                        del f[HDFTranslation['backgroundType']]
+                    folder = '/'.join(HDFCountsBG.split('/')[:-1])
+                    name = HDFCountsBG.split('/')[-1]
+                    f[folder].create_dataset(name,data=newBG,compression=6)
+
+                    folderType = '/'.join(HDFTranslation['backgroundType'].split('/')[:-1])
+                    nameType = HDFTranslation['backgroundType'].split('/')[-1]
+                    f[folderType].create_dataset(nameType,data=np.string_(['singleCrystal']))
+            else:
+                fg._background = newBG
+
+            fg.hasBackground = True
+            fg.backgroundType = 'singleCrystal'
                   
 
 
@@ -1861,20 +2002,21 @@ class DataSet(object):
         Centres=0.5*(bins[1:]+bins[:-1])
         saveData = np.array([Centres,intensity,err])
         
-        if np.all([x == self.sample[0].name for x in [s.name for s in self.sample[1:]]]):
-            samName = self.sample[0].name        #.decode("utf-8")
+        if np.all([x == self[0].sample.name for x in [s.name for s in self.sample[1:]]]):
+            samName = self[0].sample.name        #.decode("utf-8")
         else:
             samName ='Unknown! Combined different sample names'
-
+        
         if np.all([x == self[0].title for x in [s.title for s in self[1:]]]):
             samTitle = self[0].title        #.decode("utf-8")
         else:
             samTitle ='Unknown! Combined different sample titles'
 
-        if np.all([np.isclose(df,self[0].wavelength) for df in self[1:]]):
+        if np.all([np.isclose(df.wavelength,self[0].wavelength) for df in self[1:]]):
             wavelength = self[0].wavelength
         else:
             wavelength ='Unknown! Combined different Wavelengths'
+            
         
         temperatures = np.array([df.temperature for df in self])
         meanTemp = np.mean(temperatures)
@@ -1971,146 +2113,33 @@ class DataSet(object):
             else:
                 raise AttributeError('Not all DataFiles do not contain',key)
 
-    # def cutQPlane(self,QzMin,QzMax,xBinTolerance=0.03,yBinTolerance=0.03,steps=None,rlu=False):
-    #     """Cutting tool to bin intensities in the Q plane between provided Qz values.
-            
-            
-    #     Args: 
-            
-    #         - QzMin (float): Lower qz limit (Default None).
-            
-    #         - QzMax (float): Upper qz limit (Default None).
-
-    #     Kwargs:
-           
-    #         - xBinTolerance (float): bin sizes along x direction (default 0.03). If enlargen is true, this is the minimum bin size.
-
-    #         - yBinTolerance (float): bin sizes along y direction (default 0.03). If enlargen is true, this is the minimum bin size.
-
-    #         - rlu (bool): If true and axis is None, a new reciprocal lattice axis is created and used for plotting (default True).
-            
-    #     Returns:
-            
-    #         - dataList (list): List of all data points in format [Intensity, Monitor, Normalization, Normcount]
-
-    #         - bins (list): List of bin edges as function of plane in format [xBins,yBins].
-            
-    #     """
-            
-
-    #     if QzMax is None or QzMin is None:
-    #         raise AttributeError('Either minimal/maximal energy or the energy bins is to be given.')
-        
-            
-        
-    #     maximas = []
-    #     minimas = []
-    #     print('Generating Grid')
-    #     for df in self:
-    #         for idx in _tools.arange(0,len(df),steps):
-    #             print(df.fileName,'from',idx[0],'to',idx[-1])
-    #             q = df.q[idx[0]:idx[1]].copy().reshape(3,-1) # extract only a subset of the positions
-    #             if rlu:
-                    
-    #                 pos = np.einsum('ij,jk',df.sample.ROT,q)
-    #                 pos = pos[:,np.logical_and(pos[2]>QzMin,pos[2]<=QzMax)]
-    #             else:
-    #                 pos = q[:,np.logical_and(q[2]>QzMin,q[2]<=QzMax)]
-                
-    #             maximas.append(np.max(pos[:2],axis=1))
-    #             minimas.append(np.min(pos[:2],axis=1))
-        
-    #     maximas = np.array(maximas)
-    #     minimas = np.array(minimas)
-
-    #     maximas = np.max(maximas,axis=0)
-    #     minimas = np.min(minimas,axis=0)
-        
-    #     xmin,ymin = minimas
-    #     xmax,ymax = maximas
-        
-        
-
-    #     xBins = np.arange(xmin,xmax+0.999*xBinTolerance,xBinTolerance) # Add tolerance as to ensure full coverage of parameter
-    #     yBins = np.arange(ymin,ymax+0.999*yBinTolerance,yBinTolerance) # Add tolerance as to ensure full coverage of parameter
-        
-
-    #     print('\nPerforming Binning of Data')
-    #     returndata = None
-    #     for df in self:
-            
-    #         if steps is None:
-    #             steps = len(df)
-            
-    #         stepsTaken = 0
-
-                
-    #         for idx in _tools.arange(0,len(df),steps):
-    #             q = df.q[idx[0]:idx[1]]
-    #             #if raw:
-    #             #    dat = df.countsSliced(slice(idx[0],idx[1]))
-    #             #else:
-    #             dat = df.intensitySliced(slice(idx[0],idx[1]))
-                    
-
-    #             mon = df.monitor[idx[0]:idx[1]]
-    #             mon=np.repeat(np.repeat(mon[:,np.newaxis],dat.shape[1],axis=1)[:,:,np.newaxis],dat.shape[2],axis=-1)
-                
-    #             print(df.fileName,'from',idx[0],'to',idx[-1])
-    #             stepsTaken+=steps
-    #             I = df.counts[idx[0]:idx[1]]
-    #             Q = df.q[idx[0]:idx[1]] # TODO: update to !
-    #             Norm = df.normalization#[idx[0]:idx[1]]
-    #             Norm = np.repeat(Norm[np.newaxis],len(I),axis=0)
-    #             Monitor = df.monitor[idx[0]:idx[1]]
-    #             sample = df.sample
-                
-    #             if rlu == True: # Rotate positions with taslib.misalignment to line up with RLU
-    #                 Q = np.einsum('ij,j...->i...',sample.UBInv,Q)
-                
-    #             qz_inside = np.logical_and(Q[2]>QzMin,Q[2]<=QzMax)
-                
-    #             X = Q[0][qz_inside]
-    #             Y = Q[1][qz_inside]
-                
-    #             intensity=np.histogram2d(X,Y,bins=(xBins,yBins),weights=I[qz_inside])[0].astype(I.dtype)
-    #             monitorCount=np.histogram2d(X,Y,bins=(xBins,yBins),weights=np.repeat(np.repeat(Monitor[:,np.newaxis],I.shape[1],axis=1)[:,:,np.newaxis],I.shape[2],axis=2)[qz_inside])[0].astype(Monitor.dtype)
-    #             Normalization=np.histogram2d(X,Y,bins=(xBins,yBins),weights=Norm[qz_inside])[0].astype(Norm.dtype)
-    #             NormCount=np.histogram2d(X,Y,bins=(xBins,yBins))[0].astype(I.dtype)
-                
-                
-    #             if returndata is None:
-    #                 returndata = [intensity,monitorCount,Normalization,NormCount]
-    #             else:
-    #                 returndata = [rd+x for rd,x in zip(returndata,[intensity,monitorCount,Normalization,NormCount])]
 
 
-    #     intensity,monitorCount,Normalization,NormCount = returndata
-        
-        
-
-    #     Qx =np.outer(xBins,np.ones_like(yBins))
-    #     Qy =np.outer(np.ones_like(xBins),yBins)
-    #     bins = [Qx,Qy]
-
-    #     return returndata,bins
-
-
-    def cutQPlane(self,points, width, sample = None, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None):
+    def cutQPlane(self,points, width, dQx = None, dQy = None, xBins =None, yBins =None, rlu=False, steps=None, sample = None):
         """Perform QPlane cut where points within +-0.5*width are collapsed onto the plane and binned into xBins and yBins
         Args:
             - points (list): List of three points within the wanted plane. X is parallel to point 2 - point 1 (p1, p2, p3 = points)
+
             - width (float): Total width of QPlane in units of 1/AA or rlu depending on the rlu flag
+        
         Kwargs:
+        
             - dQx (float): Step size along x if xBins is not provided (default None)
+            
             - dQy (float): Step size along y if yBins is not provided (default None)
             
             - xBins (list): Binning edges along x, overwrites dQx (default None)
+            
             - yBins (list): Binning edges along y, overwrites dQy (default None)
+            
             - rlu (bool): If true utilize sample UB otherwise perform no rotation (default False)
+            
             - steps (int): Number of a3 step computated at once when performing operation (default len(df))
+
+            - sample (Sample): Use specified sample for RLU axis if RLU = True (default None = self.sample[0])
         
-        An error will be thrown if neither dQx (dQy) and  xBins (yBins) are set.
+        If dQx and dQy is set an automatic binning size is performed, however an error will be thrown if neither dQx (dQy) and  xBins (yBins) are set.
+
         """
         if np.all([x is None for x in [dQx,dQy,xBins,yBins]]):
             raise AttributeError('No bins or step sizes provided')
@@ -2121,11 +2150,20 @@ class DataSet(object):
         if xBins is None:
             if dQx is None:
                 raise AttributeError('Neither dQx or xBins are set!')
-            xBins = np.arange(-5,5,dQx)
         if yBins is None:
             if dQy is None:
                 raise AttributeError('Neither dQx or xBins are set!')
-            yBins = np.arange(-5,5,dQy)
+
+        
+        if yBins is None and xBins is None:
+            bins = None # Automatic binning
+            autoBins = True
+        else: # One of the bins is set
+            autoBins = False
+            if yBins is None:
+                yBins = np.arange(-5,5,dQy)
+            elif xBins is None:
+                xBins = np.arange(-5,5,dQx)
 
         if not points is None:
             if rlu:
@@ -2155,13 +2193,54 @@ class DataSet(object):
                 # Check that the points are in the plane and take only the local x and y coordinates
                 inside = np.abs(q[2]-translation)<width*0.5
                 q = q[:2,inside]
+                print(df.fileName,'from',idx[0],'to',idx[-1])
+                if q.shape[1] == 0:
+                    print('Empty slices. Continuing...')
+                    continue
+                if autoBins:
+                    
+                    xMin,xMax = q[0].min(), q[0].max()
+                    yMin,yMax = q[1].min(), q[1].max()
+                    if bins is None: # initial calculation of bins
+                        xBins = np.arange(xMin-0.51*dQx,xMax+0.51*dQx,dQx)
+                        yBins = np.arange(yMin-0.51*dQy,yMax+0.51*dQy,dQy)
+                        bins = (xBins,yBins)
+                    else:
+                        
+                        if xMin < xBins[0] or xMax > xBins[-1]:
+                            lowExtensionX = np.max([int(np.ceil((bins[0][0]-xMin)/dQx)),0])
+                            highExtensionX = np.max([int(np.ceil((xMax-bins[0][-1])/dQx+0.1)),0])
+
+                            xBins = np.arange(bins[0][0]-lowExtensionX*dQx,bins[0][-1]+highExtensionX*dQx+0.4*dQx,dQx)
+                            bins = (xBins,bins[1])
+                        else:
+                            lowExtensionX = highExtensionX = 0
+                        if yMin < yBins[0] or yMax > yBins[-1]:
+                            lowExtensionY = np.max([int(np.ceil((bins[1][0]-yMin)/dQy)),0])
+                            highExtensionY = np.max([int(np.ceil((yMax-bins[1][-1])/dQy+0.1)),0])
+
+                            yBins = np.arange(bins[1][0]-lowExtensionY*dQy,bins[1][-1]+highExtensionY*dQy+0.4*dQy,dQy)
+                            bins = (bins[0],yBins)
+                        else:
+                            lowExtensionY = highExtensionY = 0    
+                            
+                            # if any extension is nonzero, rescale
+                        if np.any(np.asarray([lowExtensionX,lowExtensionY,highExtensionX,highExtensionY])!=0):
+                            dat = []
+                            for mat in returndata:
+
+                                tempMat = np.zeros((len(bins[0])-1,len(bins[1])-1),dtype=mat.dtype)
+                                tempMat[lowExtensionX:lowExtensionX+mat.shape[0],lowExtensionY:lowExtensionY+mat.shape[1]] = mat
+                                mat = tempMat
+                                dat.append(mat)
+                            returndata = dat          
                 
                 dat = df.intensitySliced(slice(idx[0],idx[1]))
                     
                 mon = df.monitor[idx[0]:idx[1]]
                 mon=np.repeat(np.repeat(mon[:,np.newaxis],dat.shape[1],axis=1)[:,:,np.newaxis],dat.shape[2],axis=-1)
                 
-                print(df.fileName,'from',idx[0],'to',idx[-1])
+                
                 stepsTaken+=steps
 
                 I = df.counts[idx[0]:idx[1]]
@@ -2383,7 +2462,21 @@ class DataSet(object):
 
         ax.data = [ax.intensity,ax.monitorCount,ax.Normalization,ax.NormCount]
         return ax,returndata,bins
+    def setProjectionVectors(self,p1,p2,p3=None):
+        """Set or update the projection vectors used for the View3D
+        
+        Args:
 
+            - p1 (list): New primary projection, in HKL
+
+            - p2 (list): New secondary projection, in HKL
+
+        Kwargs:
+
+            - p3 (list): New tertiary projection, in HKL. If None, orthogonal to p1 and p2 (default None)
+        """
+        for sample in self.sample:
+            sample.setProjectionVectors(p1=p1,p2=p2,p3=p3)
 
             
     

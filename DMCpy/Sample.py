@@ -58,13 +58,6 @@ class Sample(object):
             self.planeNormal = np.cross(self.plane_vector1[:3],self.plane_vector2[:3])
             self.UB = self.B
             
-            # cell = TasUBlib.calcCell(self.unitCell)
-
-            # self.orientationMatrix = TasUBlib.calcTasUBFromTwoReflections(cell, r1, r2)
-            # #self.orientationMatrix = TasUBlib.calcTasUBFromTwoReflections(self.cell,self.plane_vector1,self.plane_vector2)
-            # self.projectionVector1,self.projectionVector2 = calcProjectionVectors(self.plane_vector1.astype(float),self.plane_vector2.astype(float))#,self.planeNormal.astype(float))
-            # self.initialize()
-            # self.calculateProjections()
         else:
             print(sample)
             print(a,b,c,alpha,beta,gamma)
@@ -185,15 +178,6 @@ class Sample(object):
     def UBInv(self):
         return np.linalg.inv(self.UB)
 
-    # @property
-    # def convertinv(self):
-    #     return np.linalg.inv(self.convert)
-
-    # @property
-    # def projectionAngle(self):
-    #     p1 = np.dot(self.convertHKL,self.projectionVectors[0])
-    #     p2 = np.dot(self.convertHKL,self.projectionVectors[1])
-    #     return np.rad2deg(_tools.vectorAngle(p1,p2))
 
     def updateCell(self):
         self.fullCell = TasUBlibDEG.calcCell(self.unitCell)
@@ -220,7 +204,7 @@ class Sample(object):
 
         self.projectionVectors = np.array([self.P1,self.P2,self.P3]).T
 
-        # projectionVectors = np.array([[0,0,1],[1,1,0],[1,-1,0]])
+        
         axisVectors = np.eye(3)
         ## Assume that Q1/HKL1 is along x-axis
 
@@ -246,19 +230,16 @@ class Sample(object):
         # Rotates into the scattering plane
         self.UB = np.dot(self.ROT.T,np.dot(self.projectionB,np.linalg.inv(self.projectionVectors)))#np.linalg.inv(np.dot(Binverse,self.ROT))
 
-        # p23 = np.array([[1,0,0],[0,1,0]]) 
-        # self.convert = np.dot(p23,np.einsum('ij,jk->ik',self.UB,self.projectionVectors[:,:2])) # Convert from projX,projY,projZ to Qx, Qy, Qz
-        # self.convertHKL = np.dot(p23,self.UB) # Convert from HKL to Qx, Qy
         
-    def tr(self,proj0,proj1,proj2=None,projection=2):
+    def tr(self,proj0,proj1,proj2=None):
         """Convert from projX, projY coordinate to Qx',QY' coordinate."""
         if proj2 is None:
             p0, p1 = np.asarray(proj0), np.asarray(proj1)
             P = np.array([p0,p1])
 
-            projections = np.delete(self.projectionVectors,projection,axis=1)
+            projections = np.delete(self.projectionVectors,2,axis=1)
             
-            pm = np.delete(np.eye(3),projection,axis=0)
+            pm = np.delete(np.eye(3),2,axis=0)
             
             convert = np.dot(pm,np.dot(self.ROT,np.dot(self.UB,projections)))
         else:
@@ -267,24 +248,23 @@ class Sample(object):
             P = np.array([p0,p1,p2])
 
             # permutation order of the projection vectors
-            order = np.array([[1,2,0],[0,2,1],[0,1,2]])
+            order = np.array([0,1,2])
 
-            projections = self.projectionVectors[:,order[projection]]#np.delete(self.projectionVectors,projection,axis=1)
-            #projections = np.concatenate([projections,np.array([self.projectionVectors[:,projection]]).reshape(3,1)],axis=1)
+            projections = self.projectionVectors[:,order]#
             
             convert = np.dot(self.ROT,np.dot(self.UB,projections))
         return np.einsum('ij,j...->i...',convert,P)
 
 
-    def inv_tr(self,qx,qy, qz = None,projection=2):
+    def inv_tr(self,qx,qy, qz = None):
         """Convert from projX, projY coordinate to Qx',QY' coordinate."""
         if qz is None:
 
             p0, p1 = np.asarray(qx), np.asarray(qy)
             P = np.array([p0,p1])
-            projections = np.delete(self.projectionVectors,projection,axis=1)
+            projections = np.delete(self.projectionVectors,2,axis=1)
             
-            pm = np.delete(np.eye(3),projection,axis=0)
+            pm = np.delete(np.eye(3),2,axis=0)
 
             convert = np.linalg.inv(np.dot(pm,np.dot(self.ROT,np.dot(self.UB,projections))))
         else:
@@ -292,10 +272,9 @@ class Sample(object):
             P = np.array([p0,p1,p2])
 
             # permutation order of the projection vectors
-            order = np.array([[1,2,0],[0,2,1],[0,1,2]])
+            order = np.array([0,1,2])
 
-            projections = self.projectionVectors[:,order[projection]]#np.delete(self.projectionVectors,projection,axis=1)
-            #projections = np.concatenate([projections,np.array([self.projectionVectors[:,projection]]).reshape(3,1)],axis=1)
+            projections = self.projectionVectors[:,order]
             
             convert = np.linalg.inv(np.dot(self.ROT,np.dot(self.UB,projections)))
         
@@ -303,22 +282,23 @@ class Sample(object):
         return np.einsum('ij,j...->i...',convert,P)
 
 
-    def projectionAngle(self,projection=2):
-        V1 = self.tr(1,0,projection=projection)
-        V2 = self.tr(0,1,projection=projection)
+    def projectionAngle(self):
+        V1 = self.tr(1,0)
+        V2 = self.tr(0,1)
         return _tools.vectorAngle(V1, V2)
 
-    def format_coord(self,x,y,z=None,projection=2):
+    def format_coord(self,x,y,z=None):
         """Format coordinates from Qx'Qy' in rotated frame into HKL."""
-        order = np.array([[1,2,0],[0,2,1],[0,1,2]])
+        order = np.array([0,1,2])
         if z is None:
-            proj0,proj1 = self.inv_tr(x,y,projection=projection)
-            projections = np.delete(self.projectionVectors,projection,axis=1)
+            proj0,proj1 = self.inv_tr(x,y)
+            projections = np.delete(self.projectionVectors,2,axis=1)
             rlu = proj0*projections[:,0]+proj1*projections[:,1]
         else:
-            proj0,proj1,proj2 = self.inv_tr(x,y,z,projection=projection)
-            projections = self.projectionVectors[:,order[projection]]
+            proj0,proj1,proj2=self.inv_tr(*np.asarray([x,y,z])[order])
             
+            
+            projections = self.projectionVectors
             rlu = proj0*projections[:,0]+proj1*projections[:,1]+proj2*projections[:,2]
         return "h = {0:.3f}, k = {1:.3f}, l = {2:.3f}".format(rlu[0],rlu[1],rlu[2])
 
@@ -339,3 +319,30 @@ class Sample(object):
         #projection = self.inv_tr(*QxQyQz)
         projection = np.dot(np.linalg.inv(self.projectionVectors),np.array([H,K,L]))
         return projection
+    
+    def setProjectionVectors(self,p1,p2,p3=None):
+        """Set or update the projection vectors used for the View3D
+        
+        Args:
+
+            - p1 (list): New primary projection, in HKL
+
+            - p2 (list): New secondary projection, in HKL
+
+        Kwargs:
+
+            - p3 (list): New tertiary projection, in HKL. If None, orthogonal to p1 and p2 (default None)
+        """
+        if not hasattr(self,'UB'):
+            raise AttributeError('No UB matrix present in sample.')
+        if p3 is None:
+            p3 = _tools.LengthOrder(np.dot(np.linalg.inv(self.B),np.cross(np.dot(self.B,p1),np.dot(self.B,p2))))
+        
+        self.P1=np.array(p1)
+        self.P2=np.array(p2)
+        self.P3=np.array(p3)
+        self.projectionVectors = np.array([self.P1,self.P2,self.P3]).T
+
+        points = [np.dot(self.UB,v) for v in np.asarray([[0.0,0,0.0],p1,p2])]
+        rot,tr = _tools.calculateRotationMatrixAndOffset2(points)
+        self.ROT = rot

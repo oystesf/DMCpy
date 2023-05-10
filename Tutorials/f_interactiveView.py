@@ -9,7 +9,7 @@ def Tester():
     import os
 
     # Give file number and folder the file is stored in.
-    scanNumbers = '8540' 
+    scanNumbers = '12153'
     folder = 'data/SC'
     year = 2022
         

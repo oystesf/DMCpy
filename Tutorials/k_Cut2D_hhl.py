@@ -1,0 +1,124 @@
+import sys
+#sys.path.append(r'C:\Software\DMCpy\DMCpy')
+from Tutorial_Class import Tutorial
+import os
+
+def Tester():
+    import matplotlib.pyplot as plt
+    from DMCpy import DataSet,DataFile,_tools
+    import numpy as np
+    import os, copy
+    
+    # Give file number and folder the file is stored in.
+    scanNumbers = '12153-12154' 
+    folder = 'data/SC'
+    year = 2022
+  
+    filePath = _tools.fileListGenerator(scanNumbers,folder,year=year) 
+
+    # # # load dataFiles
+    dataFiles = [DataFile.loadDataFile(dFP) for dFP in filePath]
+            
+    # load data files and make data set
+    ds = DataSet.DataSet(dataFiles)
+
+    # Define Q coordinates and HKL for the coordinates. 
+    q2 = [-1.2240,-1.6901,-0.0175]
+    q1 = [-1.4275,1.0299,-0.0055]
+    HKL2 = [0,0,6]
+    HKL1 = [1,1,0]
+    
+    # this function uses two coordinates in Q space and align them to corrdinates in HKL space
+    ds.alignToRefs(q1=q1,q2=q2,HKL1=HKL1,HKL2=HKL2)
+
+    # define 2D cut width orthogonal to cut plane
+    width = 0.5
+    
+    # these points define the plane that will be cut
+    points = np.array([[0.0,0.0,0.0],
+          [1.0,1.0,0.0],
+          [0.0,0.0,1.0]])
+    
+    kwargs = {
+       'dQx' : 0.01,
+       'dQy' : 0.01,
+       'steps' : 151,
+       'rlu' : True,
+       'rmcFile' : True,
+       'colorbar' : True,
+       }
+    
+    ax,returndata,bins = ds.plotQPlane(points=points,width=width,**kwargs)
+    
+    ax.set_clim(0,0.0001)
+
+    planeFigName = 'docs/Tutorials/2Dcut_hk0'
+    plt.savefig(planeFigName+'.png',format='png', dpi=300)
+    
+    # save csv and txt file with data
+    if False:    
+        kwargs = {
+        'rmcFileName' : planeFigName+'.txt'
+        }
+        
+        ax.to_csv(planeFigName+'.csv',**kwargs)    
+
+
+    # cut 2D plane orhtogonal to scattering plane and off-centered    
+    width = 0.5
+    
+    points = np.array([[1.333,1.333,0.0],
+          [1.333,1.333,1.0],
+          [2.333,0.333,0.0]])
+    
+    kwargs = {
+       'dQx' : 0.01,
+       'dQy' : 0.01,
+       'steps' : 151,
+       'rlu' : True,
+       'rmcFile' : True,
+       'colorbar' : True,
+       }
+    
+    ax,returndata,bins = ds.plotQPlane(points=points,width=width,**kwargs)
+    
+    ax.set_clim(0,0.0001)
+    ax.set_xticks_number(9)
+    ax.set_yticks_number(3)
+    
+    planeFigName = 'docs/Tutorials/2Dcut_hk0_side'
+    plt.savefig(planeFigName+'.png',format='png', dpi=300)
+    
+    kwargs = {
+       'rmcFileName' : planeFigName+'.txt'
+       }
+    
+    ax.to_csv(planeFigName+'.csv',**kwargs)   
+   
+     
+    
+title = 'Cut2D hhl'
+
+introText = 'After inspecting the scattering plane, we want to perform cuts along certain directions.'\
++' In this tutorial, we demonstrate the cut2D function. Cuts can be made given by hkl or Qx, Qy, Qz.'\
++' The width of the cut orthogonal to the plane can be adjusted by the keywords width and width.'\
++' The grid the cut is projected on is given by the xBins and yBins keywords.'\
+
+
+outroText = 'The above code takes the data from the A3 scan file dmc2021n000590, align and plot the scattering plane.'\
++'\n\nFigure of the 2D plane in RLU. \n'\
++'\n.. figure:: 2Dcut_hk0.png \n  :width: 50%\n  :align: center\n\n '\
++'\n\nFigure of the 2D plane in RLU. \n'\
++'\n.. figure:: 2Dcut_hk0_side.png \n  :width: 50%\n  :align: center\n\n '\
+
+introText = title+'\n'+'^'*len(title)+'\n'+introText
+
+
+    
+Example = Tutorial('Cut2D_hhl',introText,outroText,Tester,fileLocation = os.path.join(os.getcwd(),r'docs/Tutorials'))
+
+def test_Cut2D_hhl():
+    Example.test()
+
+if __name__ == '__main__':
+    Example.generateTutorial()
