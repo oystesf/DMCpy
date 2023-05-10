@@ -27,51 +27,34 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
    # load UB matrix
    ds.loadSample(r'data/SC/UB.bin')
    
-   # define 2D cut
+   # define 2D cut width orthogonal to cut plane
    width = 0.5
+   step = 0.01
    
    points = np.array([[0.0,0.0,0.0],
          [0.0,0.0,1.0],
          [1.0,1.0,0.0]])
       
-   s = copy.deepcopy(ds.sample[0]) 
-   
-   projectionVector1 = points[1]-points[0]
-   projectionVector2 = points[2]-points[0]
-   projectionVector3 = np.array([-1.0,1.0,0.0])
-   
-   newPoints = [np.dot(np.dot(ds.sample[0].ROT,s.UB),point) for point in points]
-   
-   totalRotMat, translation = _tools.calculateRotationMatrixAndOffset2(newPoints)
-   
-   s.UB= np.dot(totalRotMat,s.UB)
-   
-   ax = ds.createRLUAxes(sample = s)
-   
-   ax._step = np.dot(points[0],projectionVector3)*1
-   
-   xMult = 1.42 #1.41549208
-   yMult = np.linalg.norm(ds[0].sample.calculateHKLToQxQyQz(1,1,0))          
-      
-   step = 0.02
+   xstart = -np.linalg.norm(ds[0].sample.calculateHKLToQxQyQz(0,0,0))
+   xend = np.linalg.norm(ds[0].sample.calculateHKLToQxQyQz(2*1.5,-1*1.5,0))
+   ystart = -np.linalg.norm(ds[0].sample.calculateHKLToQxQyQz(0,0,0.5))
+   yend = np.linalg.norm(ds[0].sample.calculateHKLToQxQyQz(0,0,0.5))
    
    kwargs = {
-      'xBins' : np.arange(-1.0,3.0,step/xMult)*xMult,
-      'yBins' : np.arange(-0.0,3.0,step/yMult)*yMult,
+      'xBins' : np.arange(xstart,xend,step),
+      'yBins' : np.arange(ystart,yend,step),
       'steps' : 151,
       'rlu' : True,
       'rmcFile' : True,
-      'colorbar' : True,             
+      'colorbar' : True,
       }
    
-   ax,returndata,bins = ds.plotQPlane(points=points,width=width,ax=ax,**kwargs) 
+   ax,returndata,bins = ds.plotQPlane(points=points,width=width,**kwargs)
    
-   ax.grid(True,zorder=20)
-   ax.set_xticks_base(1)
-   ax.set_yticks_base(1)
-    
-   ax.set_clim(0,0.001)
-   
+   ax.set_clim(0,0.0001)
+   ax.set_xticks_base(0.25)
+   ax.set_yticks_base(0.25)
+     
    planeFigName = 'docs/Tutorials/2Dcut'
    plt.savefig('figure0.png',format='png')
    
@@ -82,9 +65,9 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
    ax.to_csv(planeFigName+'.csv',**kwargs)
    
 
-The above code takes the data from the A3 scan file dmc2021n000590, align and plot the scattering plane.Then three cuts along different directions are performed.
+The above code takes the data from the A3 scan file dmc2021n000590, align and plot the scattering plane.
 
-First data overview with Qz slightly positive and Qx and Qy in the plane
+Figure of the 2D plane in RLU. 
 
 .. figure:: 2Dcut.png 
   :width: 50%

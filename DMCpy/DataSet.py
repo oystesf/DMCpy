@@ -1475,6 +1475,92 @@ class DataSet(object):
             s.projectionVectors = np.array([s.P1,s.P2,s.P3]).T
 
 
+    def peakSearch(self,threshold=30,dx=0.04,dy=0.04,dz=0.08,distanceThreshold=0.15):
+        """ Search for peaks in data set
+          
+        Kwargs:
+            
+            - threshold (float): Thresholding for intensities within the 3D binned data used in peak search (default 30)
+            
+            - dx (float): size of 3D binning along Qx (default 0.04)
+            
+            - dy (float): size of 3D binning along Qy (default 0.04)
+            
+            - dz (float): size of 3D binning along Qz (default 0.08)
+            
+            - distanceThreshold (float): Distance in 1/AA where peaks are clustered together (default 0.15)
+          
+            
+        This methods is an attempt to automatically align the scattering plane of all data files
+        within the DataSet. The algorithm works as follows for each data file individually :
+            
+            1) Perform a 3D binning of data in to equi-sized bins with size (dx,dy,dz)
+            
+            2) "Peaks" are defined as all positions having intensities>threshold
+        
+            3) These peaks are clustered together if closer than 0.02 1/AA and centre of gravity
+               using intensity is applied to find common centre.
+               
+            4) Above step is repeated with custom distanceThreshold
+        
+            
+        
+        
+        """
+        peakPositions = []
+        peakWeights = []
+        for df in self:
+            
+            # 1) 
+            Intensities,bins = _tools.binData3D(dx,dy,dz,df.q[None].reshape(3,-1),df.intensity)
+            with warnings.catch_warnings() as w:
+                warnings.simplefilter("ignore")
+                Intensities = np.divide(Intensities[0],Intensities[1])
+            
+            
+            # 2)
+            possiblePeaks = Intensities>threshold
+            
+            ints = Intensities[possiblePeaks]
+            
+            centerPoints = [b[:-1,:-1,:-1]+0.5*dB for b,dB in zip(bins,[dx,dy,dz])]
+            
+            positions = np.array([b[possiblePeaks] for b in centerPoints]).T
+            
+            
+            
+            # 3) assuming worse resolution out of plane
+            distanceFunctionLocal = lambda a,b: _tools.distance(a,b,dx=1.0,dy=1.0,dz=0.5)
+            peaksInitial = _tools.clusterPoints(positions,ints,distanceThreshold=0.02,distanceFunction=distanceFunctionLocal,fileName=df.fileName) 
+            
+            if len(peaksInitial) == 0:
+                continue
+            peakPositions.append(list(p.position for p in peaksInitial))
+            peakWeights.append(list(p.weight for p in peaksInitial))
+            print('{:} peaks found in '.format(len(ints)),df.fileName)
+            
+
+        peakPositions = np.concatenate(peakPositions)
+        peakWeights = np.concatenate(peakWeights)
+        # 4) 
+        self.peaks = _tools.clusterPoints(peakPositions,peakWeights,distanceThreshold=distanceThreshold,distanceFunction=distanceFunctionLocal,fileName=df.fileName)
+        
+        
+        foundPeakPositions = np.array([p.position for p in self.peaks])
+
+        lenghtInQ = np.array([np.linalg.norm(vec) for vec in foundPeakPositions])
+
+        posIn2Theta = np.array([ 2 * np.rad2deg(np.arcsin( q * self[0].wavelength / (4 * np.pi) ))  for q in lenghtInQ])
+        
+        foundPeakDic = {}
+
+        for peak in np.arange(len(posIn2Theta)):
+            foundPeakDic[str(peak)] = {'foundPeakPositions' : foundPeakPositions[peak] , 'lenghtInQ' : lenghtInQ[peak] , 'posIn2Theta' : posIn2Theta[peak] }
+
+        return foundPeakPositions, lenghtInQ, posIn2Theta, foundPeakDic
+
+
+
 
 
 
@@ -1499,7 +1585,7 @@ class DataSet(object):
             sample.UB = np.dot(sample.ROT.T,np.dot(sample.projectionB,np.linalg.inv(sample.projectionVectors)))
 
 
-    def subtractBkgRange(self,bkgStart,bkgEnd,saveToFile=True, saveToNewFile = False):
+    def subtractBkgRange(self,bkgStart,bkgEnd,saveToFile=False, saveToNewFile = False):
         """Function generate background as defined by a range of the first dataFile of the dataSet
 
         Args:
@@ -1510,13 +1596,13 @@ class DataSet(object):
 
         Kwargs:
 
-            - saveToFile (bool): If True, save background to data file, else save in RAM (default True)
+            - saveToFile (bool): If True, save background to data file, else save in RAM (default False)
 
             - saveToNewFile (string) If provided, and saveToFile is True, save a new file with the background subtraction (default False)
 
         """
         meanBG = self[0].counts[bkgStart:bkgEnd].mean(axis=0)/self[0].monitor[bkgStart:bkgEnd].mean(axis=0)
-        for fg in self:
+        for I,fg in enumerate(self):
             newBG = meanBG.reshape(128,1152)*fg.monitor[0]
             if saveToFile:
                 filePath = os.path.join(fg.folder,fg.fileName)
@@ -1551,7 +1637,7 @@ class DataSet(object):
             # fg._monitor = fg.monitor[0].reshape(1,128,1152)*np.ones((fg.counts.shape[0],1,1)) # should be included to get same monitor for all a3, which we should ???
         
 
-    def directSubtractDS(self,dsBG,saveToFile=True,saveToNewFile=False):
+    def directSubtractDS(self,dsBG,saveToFile=False,saveToNewFile=False):
         """Subtracts a different dataSet one to one from the dataSet.
 
         Args:
@@ -1560,7 +1646,7 @@ class DataSet(object):
 
         Kwargs:
 
-            - saveToFile (bool): If True, save background to data file, else save in RAM (default True)
+            - saveToFile (bool): If True, save background to data file, else save in RAM (default False)
 
             - saveToNewFile (string) If provided, and saveToFile is True, save a new file with the background subtraction (default False)
             
@@ -1916,20 +2002,21 @@ class DataSet(object):
         Centres=0.5*(bins[1:]+bins[:-1])
         saveData = np.array([Centres,intensity,err])
         
-        if np.all([x == self.sample[0].name for x in [s.name for s in self.sample[1:]]]):
-            samName = self.sample[0].name        #.decode("utf-8")
+        if np.all([x == self[0].sample.name for x in [s.name for s in self.sample[1:]]]):
+            samName = self[0].sample.name        #.decode("utf-8")
         else:
             samName ='Unknown! Combined different sample names'
-
+        
         if np.all([x == self[0].title for x in [s.title for s in self[1:]]]):
             samTitle = self[0].title        #.decode("utf-8")
         else:
             samTitle ='Unknown! Combined different sample titles'
 
-        if np.all([np.isclose(df,self[0].wavelength) for df in self[1:]]):
+        if np.all([np.isclose(df.wavelength,self[0].wavelength) for df in self[1:]]):
             wavelength = self[0].wavelength
         else:
             wavelength ='Unknown! Combined different Wavelengths'
+            
         
         temperatures = np.array([df.temperature for df in self])
         meanTemp = np.mean(temperatures)
@@ -2075,7 +2162,7 @@ class DataSet(object):
             autoBins = False
             if yBins is None:
                 yBins = np.arange(-5,5,dQy)
-            else:
+            elif xBins is None:
                 xBins = np.arange(-5,5,dQx)
 
         if not points is None:
@@ -2146,9 +2233,7 @@ class DataSet(object):
                                 tempMat[lowExtensionX:lowExtensionX+mat.shape[0],lowExtensionY:lowExtensionY+mat.shape[1]] = mat
                                 mat = tempMat
                                 dat.append(mat)
-                            returndata = dat
-                            
-                            
+                            returndata = dat          
                 
                 dat = df.intensitySliced(slice(idx[0],idx[1]))
                     
