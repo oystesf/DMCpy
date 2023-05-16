@@ -1,6 +1,6 @@
 Cut1D
 ^^^^^
-After inspecting the scattering plane, we want to perform cuts along certain directions. In this tutorial, we demonstrate the cut1D function. Cuts can be made given by hkl or Qx, Qy, Qz. The width of the cut can be adjusted by the keywords width and widthZ. Note that this function is not intended for obtaining integrated intensities of Bragg peaks.
+After inspecting the scattering plane, we want to perform cuts along certain directions. In this tutorial, we demonstrate the cut1D function. Cuts can be made given by hkl or Qx, Qy, Qz. The width of the cut can be adjusted by the keywords width and widthZ. The unit of width and widthZ is AA-1.
 
 .. code-block:: python
    :linenos:
@@ -11,15 +11,16 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
    import os
    
    # Give file number and folder the file is stored in.
-   scanNumbers = '12153-12154' 
+   scanNumbers = '12105-12106' 
    folder = 'data/SC'
    year = 2022
-   path = os.path.join(os.getcwd(),folder)  
   
    filePath = _tools.fileListGenerator(scanNumbers,folder,year=year) 
    
+   unitCell = np.array([ 7.218, 7.218, 18.183, 90.0, 90.0, 120.0])
+   
    # # # load dataFiles
-   dataFiles = [DataFile.loadDataFile(dFP) for dFP in filePath]
+   dataFiles = [DataFile.loadDataFile(dFP,unitCell = unitCell) for dFP in filePath]
          
    # load data files and make data set
    ds = DataSet.DataSet(dataFiles)
@@ -37,8 +38,8 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
    # cut1D takes start and end point as lists.
    
    kwargs = {
-             'width' : 0.2,
-             'widthZ' : 0.2,
+             'width' : 0.1,
+             'widthZ' : 0.5,
              'stepSize' : 0.005,
              'rlu' : True,
              'optimize' : False,
@@ -52,16 +53,18 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
              'mfc' : 'white',
              }
    
-   positionVector,I,err,ax = ds.plotCut1D([0.333,0.333,-0.5],[0.333,0.333,0.5],**kwargs)
+   positionVector,I,err,ax = ds.plotCut1D([1.333,1.333,-0.5],[1.333,1.333,0.5],**kwargs)
    fig = ax.get_figure()
    fig.savefig('figure0.png',format='png')
    
    #export of cut to text file
-   saveData = np.column_stack([positionVector[0],positionVector[1],positionVector[2],I,err])
-   np.savetxt(os.path.join(path,'cut.txt'),saveData,header='h,k,l,I,err',delimiter=',')
+   if False:
+      path = os.path.join(os.getcwd(),folder)  
+      saveData = np.column_stack([positionVector[0],positionVector[1],positionVector[2],I,err])
+      np.savetxt(os.path.join(path,'cut.txt'),saveData,header='h,k,l,I,err',delimiter=',')
    
 
-The above code takes the data from a A3 scan, and align it by the alignToRefs function.Then one cuts across the 1/3,1/3,l direction. The example also demonstrate how kwargs can be given to the functions to adjust the apperance of the figure. 
+The above code takes the data from a A3 scan, and align it by the alignToRefs function.Then one cuts across the 4/3,4/3,l direction. The example also demonstrate how kwargs can be given to the functions to adjust the apperance of the figure. 
 
 The cut is diplayed below 
 

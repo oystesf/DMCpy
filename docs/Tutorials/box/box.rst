@@ -5,7 +5,7 @@ This tutorial demonstrate a primitive method for integrating Bragg peaks from si
 .. code-block:: python
    :linenos:
 
-   from DMCpy import DataSet,DataFile,_tools
+   from DMCpy import DataFile,_tools
    import numpy as np
    import os
    from scipy.optimize import curve_fit

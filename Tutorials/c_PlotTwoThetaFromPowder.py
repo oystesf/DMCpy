@@ -1,4 +1,4 @@
-import sys
+#import sys
 # sys.path.append(r'C:\Users\lass_j\Documents\Software\DMCpy')
 from Tutorial_Class import Tutorial
 import os
@@ -6,7 +6,7 @@ import os
 def Tester():
     from DMCpy import DataSet,DataFile, _tools
     import matplotlib.pyplot as plt 
-    import numpy as np
+    
     # To plot powder data we give the file number, or list of filenumbers as a string and the folder of the raw data
     scanNumbers = '1285'
     folder = 'data'

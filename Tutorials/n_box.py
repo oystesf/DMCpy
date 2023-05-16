@@ -1,10 +1,10 @@
-import sys, os
+import  os
 # sys.path.append(r'C:\Users\lass_j\Documents\Software\DMCpy')
 from Tutorial_Class import Tutorial
 
 
 def Tester():
-    from DMCpy import DataSet,DataFile,_tools
+    from DMCpy import DataFile,_tools
     import numpy as np
     import os
     from scipy.optimize import curve_fit
