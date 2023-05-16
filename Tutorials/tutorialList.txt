@@ -7,6 +7,7 @@ C:\Software\DMCpy\DMCpy\docs/Tutorials/InteractiveViewer\InteractiveViewer.rst
 C:\Software\DMCpy\DMCpy\docs/Tutorials/View3D\Viewer3D.rst
 C:\Software\DMCpy\DMCpy\docs/Tutorials/View3D\Alignment.rst
 C:\Software\DMCpy\DMCpy\docs/Tutorials/View3D\Viewer3D_align.rst
+C:\Software\DMCpy\DMCpy\docs/Tutorials/View3D\Viewer3D_align_projectionVectors.rst
 C:\Software\DMCpy\DMCpy\docs/Tutorials\Cut2D_hk0.rst
 C:\Software\DMCpy\DMCpy\docs/Tutorials\Cut2D_hhl.rst
 C:\Software\DMCpy\DMCpy\docs/Tutorials\Cut1D.rst

@@ -24,7 +24,6 @@ autoAlignScatteringPlane has the following method which is useful when many peak
 
    from DMCpy import DataSet,DataFile,_tools
    import numpy as np
-   import os
    
    # Give file number and folder the file is stored in.
    scanNumbers = '12153-12154' 
@@ -32,15 +31,16 @@ autoAlignScatteringPlane has the following method which is useful when many peak
    year = 2022
   
    filePath = _tools.fileListGenerator(scanNumbers,folder,year=year) 
+      
+   # we can add the unit cell to the data files or directly to DMCpy when we load the data
+   unitCell = np.array([ 7.218, 7.218, 18.183, 90.0, 90.0, 120.0])
    
-   # edit files to contain lattice parameteres
-   # this is needed if they are not in the file by default    
+   # Alternative to add unit cell to files   
    if False:
-      unitCell = np.array([ 7.218 , 7.218 , 18.183 ,90.0,90.0,120.0])
       _tools.giveUnitCellToHDF(filePath,unitCell)
- 
-   # # # load dataFiles
-   dataFiles = [DataFile.loadDataFile(dFP) for dFP in filePath]
+   
+   # # # load dataFiles with unit cell
+   dataFiles = [DataFile.loadDataFile(dFP,unitCell = unitCell) for dFP in filePath]
          
    # load data files and make data set
    ds = DataSet.DataSet(dataFiles)

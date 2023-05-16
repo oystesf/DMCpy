@@ -6,7 +6,6 @@ It can be very useful to subtract two data sets from each other, e.g. to look fo
    :linenos:
 
    from DMCpy import DataSet,DataFile,_tools
-   import numpy as np
    import os
    
    # Give file number and folder the file is stored in.
@@ -38,7 +37,8 @@ It can be very useful to subtract two data sets from each other, e.g. to look fo
       dataFiles_sub = DataFile.loadDataFile(filePath_sub)
       ds_sub = DataSet.DataSet(dataFiles_sub)
       
-      ds.subtractDS(ds_sub)
+      # we can choose if we write the subtracted data into the original data file or if we make a new file.
+      ds.directSubtractDS(ds_sub,saveToFile=False,saveToNewFile='subtractedFile.hdf')
    
    # run the Interactive Viewer
    IA2 = df.InteractiveViewer()
@@ -51,6 +51,7 @@ It can be very useful to subtract two data sets from each other, e.g. to look fo
    Viewer.set_clim(0,0.001)
    zSteps = Viewer.Z.shape[-1]
    Viewer.setPlane(int(zSteps/2)-1)
+   Viewer.ax.axis('equal')
    
    fig = Viewer.ax.get_figure()
    fig.savefig('figure2.png',format='png')   
