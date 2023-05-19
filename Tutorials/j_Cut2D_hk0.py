@@ -1,4 +1,4 @@
-import sys
+#import sys
 #sys.path.append(r'C:\Software\DMCpy\DMCpy')
 from Tutorial_Class import Tutorial
 import os
@@ -7,7 +7,6 @@ def Tester():
     import matplotlib.pyplot as plt
     from DMCpy import DataSet,DataFile,_tools
     import numpy as np
-    import os
     
     # Give file number and folder the file is stored in.
     scanNumbers = '12153-12154' 
@@ -16,8 +15,10 @@ def Tester():
   
     filePath = _tools.fileListGenerator(scanNumbers,folder,year=year) 
 
+    unitCell = np.array([ 7.218, 7.218, 18.183, 90.0, 90.0, 120.0])
+
     # # # load dataFiles
-    dataFiles = [DataFile.loadDataFile(dFP) for dFP in filePath]
+    dataFiles = [DataFile.loadDataFile(dFP,unitCell = unitCell) for dFP in filePath]
             
     # load data files and make data set
     ds = DataSet.DataSet(dataFiles)
@@ -101,12 +102,14 @@ def Tester():
 title = 'Cut2D hk0'
 
 introText = 'After inspecting the scattering plane, we want to perform cuts along certain directions.'\
-+' In this tutorial, we demonstrate the cut2D function. Cuts can be made given by hkl or Qx, Qy, Qz.'\
-+' The width of the cut orthogonal to the plane can be adjusted by the keywords width and width.'\
-+' The grid the cut is projected on is given by the xBins and yBins keywords.'\
++' In this tutorial, we demonstrate the cut2D function. Cuts can be made given by hkl or Qx, Qy, Qz, by using rlu=True/False.'\
++' The width of the cut orthogonal to the plane can be adjusted by the keywords width.'\
++' The grid the cut is projected on is given by the xBins and yBins keywords or dQx and dQy. '\
++' The binning is allways given in Q-space, also when you do a cut in HKL-space. '\
++' The unit of width and binning is AA-1.'\
 
 
-outroText = 'The above code takes the data from the A3 scan file dmc2021n000590, align and plot the scattering plane.'\
+outroText = 'The above code takes the data from the A3 scan files dmc2022n012153-dmc2022n012154, align and plot the scattering plane.'\
 +'\n\nFigure of the 2D plane in RLU. \n'\
 +'\n.. figure:: 2Dcut_hk0.png \n  :width: 50%\n  :align: center\n\n '\
 +'\n\nFigure of the 2D plane in RLU. \n'\

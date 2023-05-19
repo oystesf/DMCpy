@@ -1,6 +1,6 @@
 Viewer 3D
 ^^^^^^^^^
-In a single crystal experiment, the first step is to gain an overview of the system. This is most often done by performing an A3 scan with the sample in a specific phase. Due to the 2D detector of DMC, such an A3 scan produces a 3D set of measured data points. In the frame of reference of the instrument, the majority of the covered volume is in the Qx-Qy plane, i.e. with Qz close to zero. A single A3 slices corresponds to a curved line in th Qx-Qy  together with a symmetrically curved line in Qz. This sheet is then rotated around the origin with each A3 step.
+In a single crystal experiment, the first step is to gain an overview of the system. This is most often done by performing an A3 scan with the sample in a specific scattering plane. Due to the 2D detector of DMC, such an A3 scan produces a 3D set of measured data points. In the frame of reference of the instrument, the majority of the covered volume is in the Qx-Qy plane, i.e. with Qz close to zero. A single A3 slices corresponds to a curved line in th Qx-Qy  together with a symmetrically curved line in Qz. This sheet is then rotated around the origin with each A3 step. Without an UB matrix, we can first look at the data in Q-space. This is done by having rlu=False.
 
 Interactivity
 -------------
@@ -35,52 +35,28 @@ The Viewer 3D is an interactive plotting function which allows a look through th
    :linenos:
 
    from DMCpy import DataSet,DataFile,_tools
-   import numpy as np
-   import os
    
    # Give file number and folder the file is stored in.
    scanNumbers = '12153-12154' 
    folder = 'data/SC'
    year = 2022
-      
-   # Create complete filepath
-   file = os.path.join(os.getcwd(),_tools.fileListGenerator(scanNumbers,folder,year=year)[0]) 
-   
-   # Load data file with corrected twoTheta
-   df = DataFile.loadDataFile(file)
-   
-   # Use above data file in data set. Must be inserted as a list
-   ds = DataSet.DataSet([df])
-   
-   
-   
-   filePath = _tools.fileListGenerator(scanNumbers,folder,year=2022)
-   
-   # edit files to contain lattice parameteres
-   unitCell = np.array([ 7.218 , 7.218 , 18.183 ,90.0,90.0,120.0])
-   _tools.giveUnitCellToHDF(filePath,unitCell)
-   
+  
+   filePath = _tools.fileListGenerator(scanNumbers,folder,year=year) 
    
    # # # load dataFiles
    dataFiles = [DataFile.loadDataFile(dFP) for dFP in filePath]
          
-   
    # load data files and make data set
    ds = DataSet.DataSet(dataFiles)
    
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   Viewer = ds.Viewer3D(0.03,0.03,0.03,rlu=False)
+   # plot the data with 3D Viewer
+   Viewer = ds.Viewer3D(0.01,0.01,0.01,rlu=False)
    
    # Set the color bar limits to 0 and 0.001
    Viewer.set_clim(0,0.001)
+   
+   # set axes to be equal
+   Viewer.ax.axis('equal')
    
    # Find the number of steps and set viewer to middel value
    # This can also be done interactively in the viewer by pressing up or down,
@@ -111,13 +87,13 @@ The Viewer 3D is an interactive plotting function which allows a look through th
    fig3 = Viewer.ax.get_figure()
    fig3.savefig('figure2.png',format='png')
    
-   # data from 3D Viewer can be saved as a mat file. The generated files are large.
+   # data from 3D Viewer can be saved as a mat file. The generated files are large, in the order of several GB.
    if False:
       savedata = {'data':V.Data, 'bins':V.bins}
       savemat("matlab_matrix.mat", savedata)         
    
 
-The above code takes the data from the A3 scan file dmc2021n008540 and generates the Viewer 3D utilizing a voxel size of 0.03 x 0.03 x 0.03 A:math:`^{-3}`. By default, the viewer starts out in projection 2, i.e. with Qz being the axis stepped through. When handling the data directly it is more convenient to utilize the keyboard shortcuts but in a scripting interface these are not available. Instead one can utilize the *.setPlane* and *.changeAxis* methods. In addition, the color scale has been tweaked such that weaker peaks are visible. It is possible to slightly tweak the color scale directly in the Viewer 3D by using the sliders to the right of the color bar. Notice: When saving the figure these slides are rendered invisible. The end results are shown below:
+The above code takes the data from a A3 scan and generates the Viewer 3D utilizing a voxel size of 0.01 x 0.01 x 0.01 A:math:`^{-3}`. By default, the viewer starts out in projection 2, i.e. with Qz being the axis stepped through. When handling the data directly it is more convenient to utilize the keyboard shortcuts but in a scripting interface these are not available. Instead one can utilize the *.setPlane* and *.changeAxis* methods. In addition, the color scale has been tweaked such that weaker peaks are visible. It is possible to slightly tweak the color scale directly in the Viewer 3D by using the sliders to the right of the color bar. Notice: When saving the figure these slides are rendered invisible. The end results are shown below:
 
 First data overview with Qz slightly positive and Qx and Qy in the plane
 

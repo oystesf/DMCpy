@@ -555,7 +555,7 @@ class DataFile(object):
             else:
                 colorbar = False
             
-            ax._pcolormesh = ax.pcolormesh(self.twoTheta,self.pixelPosition[2],np.sum(intensity,axis=0),shading='auto')
+            ax._pcolormesh = ax.pcolormesh(np.abs(self.twoTheta),self.pixelPosition[2],np.sum(intensity,axis=0),shading='auto')
 
             if colorbar:
                 ax._col = fig.colorbar(ax._pcolormesh)

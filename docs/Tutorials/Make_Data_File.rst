@@ -6,7 +6,6 @@ In this tutorial we demonstrate how to make DataFiles and DataSets in DMCpy. You
    :linenos:
 
    from DMCpy import DataFile,DataSet, _tools
-   import numpy as np
    
    # Create a DataFile and DataSet for 565
    file = r'data\dmc2021n000565.hdf'

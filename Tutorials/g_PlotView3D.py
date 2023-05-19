@@ -1,12 +1,10 @@
-import sys, os
+import  os
 # sys.path.append(r'C:\Users\lass_j\Documents\Software\DMCpy')
 from Tutorial_Class import Tutorial
 
 
 def Tester():
     from DMCpy import DataSet,DataFile,_tools
-    import numpy as np
-    import os
     
     # Give file number and folder the file is stored in.
     scanNumbers = '12153-12154' 
@@ -26,6 +24,9 @@ def Tester():
     
     # Set the color bar limits to 0 and 0.001
     Viewer.set_clim(0,0.001)
+
+    # set axes to be equal
+    Viewer.ax.axis('equal')
     
     # Find the number of steps and set viewer to middel value
     # This can also be done interactively in the viewer by pressing up or down,
@@ -56,7 +57,7 @@ def Tester():
     fig3 = Viewer.ax.get_figure()
     fig3.savefig(r'docs/Tutorials/View3D/CenterQx.png',format='png',dpi=300)
 
-    # data from 3D Viewer can be saved as a mat file. The generated files are large.
+    # data from 3D Viewer can be saved as a mat file. The generated files are large, in the order of several GB.
     if False:
         savedata = {'data':V.Data, 'bins':V.bins}
         savemat("matlab_matrix.mat", savedata)         
@@ -69,10 +70,11 @@ def Tester():
 title = 'Viewer 3D'
 
 introText = 'In a single crystal experiment, the first step is to gain an overview of the system. This is most often done '\
-+'by performing an A3 scan with the sample in a specific phase. Due to the 2D detector of DMC, such an A3 scan produces '\
++'by performing an A3 scan with the sample in a specific scattering plane. Due to the 2D detector of DMC, such an A3 scan produces '\
 +'a 3D set of measured data points. In the frame of reference of the instrument, the majority of the covered volume is '\
 +'in the Qx-Qy plane, i.e. with Qz close to zero. A single A3 slices corresponds to a curved line in th Qx-Qy '\
 +' together with a symmetrically curved line in Qz. This sheet is then rotated around the origin with each A3 step.'\
++' Without an UB matrix, we can first look at the data in Q-space. This is done by having rlu=False.'\
 +'\n\n'\
 +'Interactivity\n'+'-'*len('Interactivity')+'\n'\
 +'The Viewer 3D is an interactive plotting function which allows a look through the data in steps along the three major axes. '\

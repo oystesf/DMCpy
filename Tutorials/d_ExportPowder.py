@@ -1,4 +1,4 @@
-import sys
+#import sys
 # sys.path.append(r'C:\Users\lass_j\Documents\Software\DMCpy')
 from Tutorial_Class import Tutorial
 import os
