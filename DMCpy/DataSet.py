@@ -2190,8 +2190,9 @@ class DataSet(object):
                 
                 q = np.einsum('ij,jk->ik',totalRotMatDF,df.q[idx[0]:idx[1]].reshape(3,-1),optimize='greedy')
 
+                mask = df.mask[idx]
                 # Check that the points are in the plane and take only the local x and y coordinates
-                inside = np.abs(q[2]-translation)<width*0.5
+                inside = np.logical_or(np.abs(q[2]-translation)<width*0.5,mask)
                 q = q[:2,inside]
                 print(df.fileName,'from',idx[0],'to',idx[-1])
                 if q.shape[1] == 0:
