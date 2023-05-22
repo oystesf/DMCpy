@@ -7,7 +7,7 @@ class InteractiveViewer(object):
     """Interactive viewer for 2D detector and 1D scan variable"""
     def __init__(self,data,twoTheta,pixelPosition,scanValues=None,scanParameter=None,
                  scanValueFormat=None,scanValueUnit=None,colorbar=False,outputFunction=print,
-                 mainTitle='Single Step',vmin=None,vmax=None,
+                 mainTitle='Single Step',vmin=None,vmax=None, positive2Theta=True,
                  dataLabel = 'Intensity',axis_1_label='Sum over z',axis_2_label='Sum over 2Theta',
                  xlabel='2Theta [deg]',ylabel='z [cm]',cmap='viridis'):
         """
@@ -91,7 +91,10 @@ class InteractiveViewer(object):
         self.twoTheta = twoTheta
         self.twoThetaStep = np.mean(np.diff(twoTheta[0,:]))
         
-        self.twoThetaExtended = np.arange(self.twoTheta[0,0]-self.twoThetaStep*0.5,self.twoTheta[0,-1]+self.twoThetaStep*0.6,self.twoThetaStep)
+        if positive2Theta:
+            self.twoThetaExtended = np.abs(np.arange(self.twoTheta[0,0]-self.twoThetaStep*0.5,self.twoTheta[0,-1]+self.twoThetaStep*0.6,self.twoThetaStep))
+        else:
+            self.twoThetaExtended = np.arange(self.twoTheta[0,0]-self.twoThetaStep*0.5,self.twoTheta[0,-1]+self.twoThetaStep*0.6,self.twoThetaStep)
         
         # Repeat for pixel position
         self.pixelPosition = pixelPosition[2]

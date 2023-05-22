@@ -205,7 +205,7 @@ def axisChanged(axis,forceUpdate=False,direction='both'):
 
 
 
-def createRLUAxes(self,sample=None, figure=None,ids=[1, 1, 1],basex=None,basey=None,projection=2,step=0):
+def createRLUAxes(self,sample=None, figure=None,ids=[1, 1, 1],basex=None,basey=None,step=0):
     """Create a reciprocal lattice plot for a given DataSet object.
     
     Args:
@@ -221,8 +221,6 @@ def createRLUAxes(self,sample=None, figure=None,ids=[1, 1, 1],basex=None,basey=N
         - basex (float): Ticks are positioned at multiples of this value along x (default None)
 
         - basey (float): Ticks are positioned at multiples of this value along y (default None)
-
-        - projection (int): Projection direction (default 2)
 
         - step (float): Projection along out-of-plane projection vector (default 0)
 
@@ -259,9 +257,9 @@ def createRLUAxes(self,sample=None, figure=None,ids=[1, 1, 1],basex=None,basey=N
 
     if  not basex is None or not basey is None: # Either basex or basey is provided (or both)
         if basex is None:
-            basex = calculateTicks(1.0,lambda: sample.projectionAngle(projection=projection),round=False)
+            basex = calculateTicks(1.0,lambda: sample.projectionAngle(),round=False)
         elif basey is None:
-            basey = basex/calculateTicks(1.0,lambda: sample.projectionAngle(projection=projection),round=False)
+            basey = basex/calculateTicks(1.0,lambda: sample.projectionAngle(),round=False)
 
         grid_locator1 = MultipleLocator(base=basex)
         grid_locator2 = MultipleLocator(base=basey)
@@ -272,7 +270,7 @@ def createRLUAxes(self,sample=None, figure=None,ids=[1, 1, 1],basex=None,basey=N
         grid_locator1 = MultipleLocator(base=basex)
         grid_locator2 = MultipleLocator(base=basey)
         
-    grid_helper = GridHelperCurveLinear((lambda x,y: sample.tr(x,y,projection=projection), lambda x,y: sample.inv_tr(x,y,projection=projection))
+    grid_helper = GridHelperCurveLinear((lambda x,y: sample.tr(x,y), lambda x,y: sample.inv_tr(x,y))
                                         ,grid_locator1=grid_locator1,grid_locator2=grid_locator2)
 
     ax = SubplotHost(fig, *ids, grid_helper=grid_helper)
@@ -301,23 +299,23 @@ def createRLUAxes(self,sample=None, figure=None,ids=[1, 1, 1],basex=None,basey=N
     ax.set_aspect(1.)
     ax.grid(True, zorder=0)
 
-    if not np.isclose(ax.sample.projectionAngle(projection=projection),np.pi/2.0,atol=0.001):
+    if not np.isclose(ax.sample.projectionAngle(),np.pi/2.0,atol=0.001):
         ax.axis["top"].major_ticklabels.set_visible(True)
         ax.axis["right"].major_ticklabels.set_visible(True)
 
-    def advancedFormat_coord(ax,x,y,projection):
+    def advancedFormat_coord(ax,x,y):
         z = np.ones_like(x)*ax._step
-        return ax.sample.format_coord(x,y,z,projection=projection)
+        return ax.sample.format_coord(x,y,z)
 
-    ax.format_coord = lambda x,y: advancedFormat_coord(ax,x,y,projection=projection)
+    ax.format_coord = lambda x,y: advancedFormat_coord(ax,x,y)
     ax.set_axis = lambda v1,v2,*args: set_axis(ax,v1,v2,*args)
 
     def beautifyLabel(vec):
-        Vec = [x.astype(int) if np.isclose(x.astype(float)-x.astype(int),0.0) else x.astype(float) for x in vec]
+        Vec = [x.astype(int) if np.isclose(x.astype(float)-x.astype(int),0.0,atol=1e-4) else x.astype(float) for x in vec]
         return '{} [RLU]'.format(', '.join([str(x) for x in Vec]))
 
 
-    projectionMat = np.delete(ax.sample.projectionVectors,projection,axis=1)
+    projectionMat = np.delete(ax.sample.projectionVectors,2,axis=1)
     
     ax.set_xlabel(beautifyLabel(projectionMat[:,0]))
     ax.set_ylabel(beautifyLabel(projectionMat[:,1]))

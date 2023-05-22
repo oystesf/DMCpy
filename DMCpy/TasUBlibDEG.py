@@ -290,6 +290,6 @@ def converterToA3A4(Qx,Qy,Qz, Ei,Ef,A3Off=0.0,A4Sign=1): # pragma: no cover
     
     A4 = ss*arccosd(cos2t)
     theta = calcTheta(ki, kf, A4)
-    print(f"{om = }\n{theta = }\n")
+
     A3 = -om + np.sign(A4Sign)*ss*theta + A3Off
     return A3,np.sign(A4Sign)*A4

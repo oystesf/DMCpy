@@ -1,4 +1,4 @@
-import sys
+#import sys
 # sys.path.append(r'C:\Users\lass_j\Documents\Software\DMCpy')
 from Tutorial_Class import Tutorial
 import os
@@ -19,8 +19,6 @@ def Tester():
     
     #Plot detector with defualt mask
     ax = df.plotDetector()
-    ax.invert_xaxis()
-
     cmax = 0.01
     ax._pcolormesh.set_clim(0,cmax)
     
@@ -33,7 +31,6 @@ def Tester():
     df.generateMask(lambda x: DataFile.maskFunction(x,maxAngle=180.0),replace=True)
 
     ax2 = df.plotDetector()
-    ax2.invert_xaxis()
     ax2._pcolormesh.set_clim(0,cmax)
     
     fig2 = ax2.get_figure()
@@ -45,7 +42,6 @@ def Tester():
     df.generateMask(lambda x: DataFile.maskFunction(x,maxAngle=5.0),replace=True)
 
     ax3 = df.plotDetector()
-    ax3.invert_xaxis()
     ax3._pcolormesh.set_clim(0,cmax)
     
     fig3 = ax3.get_figure()
@@ -57,7 +53,6 @@ def Tester():
     df.generateMask(lambda x: DataFile.maskFunction(x,maxAngle=10.0),replace=True)
 
     ax4 = df.plotDetector()
-    ax4.invert_xaxis()
     ax4._pcolormesh.set_clim(0,cmax)
     
     fig4 = ax4.get_figure()
@@ -72,7 +67,6 @@ def Tester():
     df.mask[0,:,50:60] = True
 
     ax5 = df.plotDetector()
-    ax5.invert_xaxis()
     ax5._pcolormesh.set_clim(0,cmax)
     
     fig5 = ax5.get_figure()

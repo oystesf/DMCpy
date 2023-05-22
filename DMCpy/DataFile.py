@@ -14,7 +14,7 @@ import warnings
 import copy
 from DMCpy._tools import KwargChecker, MPLKwargs, roundPower
 from DMCpy import Sample
-from DMCpy.FileStructure import HDFCounts, HDFTranslation, HDFTranslationAlternatives, HDFTranslationDefault, HDFTranslationFunctions
+from DMCpy.FileStructure import HDFCounts, HDFCountsBG, HDFTranslation, HDFTranslationAlternatives, HDFTranslationDefault, HDFTranslationFunctions
 from DMCpy.FileStructure import HDFInstrumentTranslation, HDFInstrumentTranslationFunctions, extraAttributes, possibleAttributes 
 from DMCpy.FileStructure import HDFTypes, HDFUnits, shallowRead
 
@@ -167,7 +167,7 @@ def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,**kwargs):
     else:
         df = DataFile(fileLocation,unitCell=unitCell)
 
-    
+
     repeats = df.countShape[1]
     # Insert standard values if not present in kwargs
     if not 'radius' in kwargs:
@@ -190,8 +190,8 @@ def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,**kwargs):
     
     df.initializeQ()
     df.loadNormalization()
-
-    year,month,date = [int(x) for x in df.startTime.split(' ')[0].split('-')]
+    
+    year,month,date = [int(x) for x in df.startTime.replace('T',' ').split(' ')[0].split('-')]
     if year == 2022:
         df.mask[0,-2,:] = True
 
@@ -205,6 +205,7 @@ class DataFile(object):
         self.fileType = 'DataFile'
         self._twoThetaOffset = 0.0
         self._counts = None
+        self._background = None
 
         if not file is None: 
             if isinstance(file,DataFile): # Copy everything from provided file
@@ -212,14 +213,11 @@ class DataFile(object):
                 self.updateProperty(file.__dict__)
 
             elif os.path.exists(file): # load file from disk
-                self.loadFile(file)
+                self.loadFile(file,unitCell=unitCell)
 
 
             else:
                 raise FileNotFoundError('Provided file path "{}" not found.'.format(file))
-            
-            if not unitCell is None:
-                self.sample.unitCell =unitCell
 
     @KwargChecker()
     def loadFile(self,filePath,unitCell=None):
@@ -238,6 +236,7 @@ class DataFile(object):
 
             self.sample = Sample.Sample(sample=f.get(HDFTranslation['sample']))
             self.countShape = f.get(HDFCounts).shape
+            self.hasBackground = not f.get(HDFCountsBG) is None
             # load standard things using the shallow read
             instr = getInstrument(f)
 
@@ -273,6 +272,8 @@ class DataFile(object):
                 setattr(self,parameter,value)
                 
         self.countShape = (1,*self.countShape) # Standard shape
+        if not unitCell is None:
+            self.sample.unitCell = unitCell
     
     def initializeQ(self):
         if len(self.twoTheta.shape) == 2:
@@ -460,7 +461,7 @@ class DataFile(object):
 
         # check if counts attribute is available
 
-        if not hasattr(self,'counts'):
+        if len(self.countShape) <1:#not hasattr(self,'counts'):
             raise RuntimeError('DataFile does not contain any counts. Look for self.counts but found nothing.')
 
         if maskingFunction is None:
@@ -554,7 +555,7 @@ class DataFile(object):
             else:
                 colorbar = False
             
-            ax._pcolormesh = ax.pcolormesh(self.twoTheta,self.pixelPosition[2],np.sum(intensity,axis=0),shading='auto')
+            ax._pcolormesh = ax.pcolormesh(np.abs(self.twoTheta),self.pixelPosition[2],np.sum(intensity,axis=0),shading='auto')
 
             if colorbar:
                 ax._col = fig.colorbar(ax._pcolormesh)
@@ -722,17 +723,49 @@ class DataFile(object):
     @property
     def counts(self):
         if self._counts is None:
+            if self.hasBackground:
+                bg = self.background
+            else:
+                bg = 0
             with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
-                return np.array(f.get(HDFCounts)).reshape(self.countShape)
+                return (np.array(f.get(HDFCounts))).reshape(self.countShape)-bg
         else:
             return self._counts.reshape(self.countShape)
     
     def countsSliced(self,sl):
         if self._counts is None:
+            if self.hasBackground:
+                bg = self.background[sl]
+            else:
+                bg = 0
             with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
-                return np.array(f.get(HDFCounts)[sl])
+                return np.array(f.get(HDFCounts)[sl])-bg
         else:
             return self._counts[sl]
+        
+    @property
+    def background(self):
+        if self._background is None:
+            with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
+                if self.backgroundType == 'powder':
+                    bg = np.repeat(np.array(f.get(HDFCountsBG))[np.newaxis],repeats=self.countShape[0],axis=0)
+                else:
+                    bg = np.array(f.get(HDFCountsBG)).reshape(self.countShape)
+                return bg
+        else:
+            return self._background.reshape(self.countShape)
+    
+    def backgroundSliced(self,sl):
+        if self._background is None:
+            with hdf.File(os.path.join(self.folder,self.fileName),mode='r') as f:
+                if self.backgroundType == 'powder':
+                    bg = np.repeat(np.array(f.get(HDFCountsBG))[np.newaxis],repeats=len(sl),axis=0)
+                else:
+                    bg = np.array(f.get(HDFCountsBG)[sl])
+                return bg
+        else:
+            return self._background[sl]
+    
             
 
     @property
@@ -773,6 +806,21 @@ class DataFile(object):
             return np.rad2deg(np.arctan2(self.q[None][2],np.linalg.norm(self.q[None][:2],axis=0)))
         else:
             return np.rad2deg(np.arctan2(self.qLocal[2],np.linalg.norm(self.qLocal[:2],axis=0)))
+        
+    def setProjectionVectors(self,p1,p2,p3=None):
+        """Set or update the projection vectors used for the View3D
+        
+        Args:
+
+            - p1 (list): New primary projection, in HKL
+
+            - p2 (list): New secondary projection, in HKL
+
+        Kwargs:
+
+            - p3 (list): New tertiary projection, in HKL. If None, orthogonal to p1 and p2 (default None)
+        """
+        self.sample.setProjectionVectors(p1=p1,p2=p2,p3=p3)
 
 
 class SingleCrystalDataFile(DataFile):

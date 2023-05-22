@@ -116,15 +116,14 @@ class Viewer3D(object):
                 
                 self.ax = self.axNorm
                 hkl = ['H','K','L']
-                xLabelSplit = self._axes[0].sample.projectionVectors[:,0].flatten()
-                yLabelSplit = self._axes[0].sample.projectionVectors[:,1].flatten()
-                zLabelSplit = self._axes[0].sample.projectionVectors[:,2].flatten()
+                xLabelSplit = self._axes[2].sample.projectionVectors[:,0].flatten()
+                yLabelSplit = self._axes[2].sample.projectionVectors[:,1].flatten()
+                zLabelSplit = self._axes[2].sample.projectionVectors[:,2].flatten()
                 self.xlabel = '\n'.join(['{}: '.format(hkl[i])+'{:+.3f}'.format(float(x)) for i,x in enumerate(xLabelSplit)])
                 self.ylabel = '\n'.join(['{}: '.format(hkl[i])+'{:+.3f}'.format(float(y)) for i,y in enumerate(yLabelSplit)])
                 self.zlabel = '\n'.join(['{}: '.format(hkl[i])+'{:+.3f}'.format(float(z)) for i,z in enumerate(zLabelSplit)])
                 self.rlu = True
-                
-                self.EnergySliderTransform=[1.0,1.0,1.0] # Factor to divide the Energy slider value with (only applicable for QE axes)
+
 
             else:
                 raise AttributeError('Number of provided axes is {} but only 1 or 3 is accepted.'.format(len(ax)))
@@ -310,13 +309,13 @@ class Viewer3D(object):
             val = 0.5*(self.Z[0,0,self.value+1]+self.Z[0,0,self.value])
         except:
             val = 0.5*(2*self.Z[0,0,self.value]-self.Z[0,0,self.value-1])
-        if hasattr(self,'EnergySliderTransform'):
-            val/=self.EnergySliderTransform[self.axis]
         return val
         
     def stringValue(self):
         unit = self.units[self.axis]
-        val = self.calculateValue()
+        val = self.calculateValue() # value in |1/AA|
+        if hasattr(self.ax,'sample'):
+            val*=np.linalg.norm(self.ax.sample.inv_tr(0,0,1)) # Convert to
         return str(np.round(val,2))+unit
     
     def setProjection(self,value):
@@ -502,7 +501,8 @@ def sliders_on_changed(self,val): # pragma: no cover
             #self.Energy_slider.set_val(value)
             self.plot()
     if hasattr(self.ax,'_step'):
-        self.ax._step=self.calculateValue()
+        val = self.calculateValue()
+        self.ax._step=val
 
 
 def addColorbarSliders(self,c_min,c_max,c_minval,c_maxval,ax_cmin,ax_cmax,log=True):

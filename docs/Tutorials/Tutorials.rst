@@ -23,7 +23,13 @@ Main text about the tutorials below..
 
    View3D/Alignment.rst
 
-   Cut2D.rst
+   View3D/Viewer3D_align.rst
+
+   View3D/Viewer3D_align_projectionVectors.rst
+
+   Cut2D_hk0.rst
+
+   Cut2D_hhl.rst
 
    Cut1D.rst
 

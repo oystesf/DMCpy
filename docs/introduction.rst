@@ -35,6 +35,8 @@ The package can be installed using the Python Package manager `PyPI <https://pyp
 
 5. If a jupyter notebook is wanted continue in the prompt to install it by 'pip install jupyter' or by going to the *Home* tab in the navigator an through it install jupyter notebook.
 
+6. If you prefer to work in spyder, you must install it in the new environment by: 'pip install spyder' 
+
 After the initial installation, try running one of the :ref:`Tutorials` to check that the installation was successful. Make sure to activate the created environment before running tutorials or notebooks.
 
 To update to the newest version of DMCpy, you can run this command:  :code:`pip install --upgrade DMCpy`
