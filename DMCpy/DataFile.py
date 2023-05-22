@@ -190,8 +190,8 @@ def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,**kwargs):
     
     df.initializeQ()
     df.loadNormalization()
-
-    year,month,date = [int(x) for x in df.startTime.split(' ')[0].split('-')]
+    
+    year,month,date = [int(x) for x in df.startTime.replace('T',' ').split(' ')[0].split('-')]
     if year == 2022:
         df.mask[0,-2,:] = True
 
