@@ -2154,7 +2154,7 @@ class DataSet(object):
             if dQy is None:
                 raise AttributeError('Neither dQx or xBins are set!')
 
-        
+       
         if yBins is None and xBins is None:
             bins = None # Automatic binning
             autoBins = True
@@ -2164,6 +2164,7 @@ class DataSet(object):
                 yBins = np.arange(-5,5,dQy)
             elif xBins is None:
                 xBins = np.arange(-5,5,dQx)
+
 
         if not points is None:
             if rlu:
