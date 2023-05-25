@@ -29,8 +29,7 @@ def Tester():
     ds = DataSet.DataSet([df])
 
     # subtract backround in a A3 range. This must be done on the dataSet level and act on every dataFile in the dataSet
-    #ds.subtractBkgRange(50,100)
-    # this has a bug...
+    ds.subtractBkgRange(50,100,saveToFile=True, saveToNewFile = 'data_bkgRange.hdf' )
 
     # run the Interactive Viewer
     IA2 = ds[0].InteractiveViewer()
@@ -40,7 +39,7 @@ def Tester():
     IA2.fig.savefig(r'docs/Tutorials/InteractiveViewer/InteractiveViewer2.png',format='png',dpi=300)
 
     # change index of A3
-    IA2.plotSpectrum(index=114)
+    IA2.plotSpectrum(index=214)
 
     IA2.fig.savefig(r'docs/Tutorials/InteractiveViewer/InteractiveViewer2_114.png',format='png',dpi=300)
 
