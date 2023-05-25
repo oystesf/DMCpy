@@ -64,6 +64,7 @@ It can be very useful to subtract two data sets from each other, e.g. to look fo
    Viewer2 = ds.Viewer3D(0.03,0.03,0.03,rlu=False)
    Viewer2.set_clim(0,0.001)
    Viewer2.setPlane(int(zSteps/2)-1)
+   Viewer2.ax.axis('equal')
    
    fig2 = Viewer2.ax.get_figure()
    fig2.savefig('figure3.png',format='png')        

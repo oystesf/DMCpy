@@ -32,8 +32,7 @@ A useful feature is to use a defined A3 range to subtract background from a samp
    ds = DataSet.DataSet([df])
    
    # subtract backround in a A3 range. This must be done on the dataSet level and act on every dataFile in the dataSet
-   #ds.subtractBkgRange(50,100)
-   # this has a bug...
+   ds.subtractBkgRange(50,100,saveToFile=True, saveToNewFile = 'data_bkgRange.hdf' )
    
    # run the Interactive Viewer
    IA2 = ds[0].InteractiveViewer()
@@ -43,7 +42,7 @@ A useful feature is to use a defined A3 range to subtract background from a samp
    IA2.fig.savefig('figure1.png',format='png')
    
    # change index of A3
-   IA2.plotSpectrum(index=114)
+   IA2.plotSpectrum(index=214)
    
    IA2.fig.savefig('figure2.png',format='png')
    

@@ -87,6 +87,11 @@ def Tester():
     ax.set_xticks_number(7)
     ax.set_yticks_number(3)
     
+    ax.colorbar.set_label('')
+    ax.colorbar.remove()
+    plt.gcf().colorbar(ax.colorbar.mappable,ax=ax,orientation='horizontal', location='top')
+    
+    
     planeFigName = 'docs/Tutorials/2Dcut_hhl_side'
     plt.savefig(planeFigName+'.png',format='png', dpi=300)
     

@@ -195,6 +195,10 @@ def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,**kwargs):
     if year == 2022:
         df.mask[0,-2,:] = True
 
+    if year == 2023:
+        df.mask[0,-1,:] = True
+        df.mask[0,:,-1] = True
+
     return df
 
 

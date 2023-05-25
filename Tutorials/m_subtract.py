@@ -63,6 +63,7 @@ def Tester():
     Viewer2 = ds.Viewer3D(0.03,0.03,0.03,rlu=False)
     Viewer2.set_clim(0,0.001)
     Viewer2.setPlane(int(zSteps/2)-1)
+    Viewer2.ax.axis('equal')
     
     fig2 = Viewer2.ax.get_figure()
     fig2.savefig(r'docs/Tutorials/subtract/3DSubMask.png',format='png',dpi=300)        
