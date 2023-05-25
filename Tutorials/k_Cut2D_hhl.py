@@ -1,4 +1,4 @@
-import sys
+#import sys
 #sys.path.append(r'C:\Software\DMCpy\DMCpy')
 from Tutorial_Class import Tutorial
 import os
@@ -7,17 +7,18 @@ def Tester():
     import matplotlib.pyplot as plt
     from DMCpy import DataSet,DataFile,_tools
     import numpy as np
-    import os, copy
     
     # Give file number and folder the file is stored in.
-    scanNumbers = '12153-12154' 
+    scanNumbers = '12105-12106' 
     folder = 'data/SC'
     year = 2022
   
     filePath = _tools.fileListGenerator(scanNumbers,folder,year=year) 
 
+    unitCell = np.array([ 7.218, 7.218, 18.183, 90.0, 90.0, 120.0])
+
     # # # load dataFiles
-    dataFiles = [DataFile.loadDataFile(dFP) for dFP in filePath]
+    dataFiles = [DataFile.loadDataFile(dFP,unitCell = unitCell) for dFP in filePath]
             
     # load data files and make data set
     ds = DataSet.DataSet(dataFiles)
@@ -52,7 +53,7 @@ def Tester():
     
     ax.set_clim(0,0.0001)
 
-    planeFigName = 'docs/Tutorials/2Dcut_hk0'
+    planeFigName = 'docs/Tutorials/2Dcut_hhl'
     plt.savefig(planeFigName+'.png',format='png', dpi=300)
     
     # save csv and txt file with data
@@ -83,33 +84,41 @@ def Tester():
     ax,returndata,bins = ds.plotQPlane(points=points,width=width,**kwargs)
     
     ax.set_clim(0,0.0001)
-    ax.set_xticks_number(9)
+    ax.set_xticks_number(7)
     ax.set_yticks_number(3)
     
-    planeFigName = 'docs/Tutorials/2Dcut_hk0_side'
+    ax.colorbar.set_label('')
+    ax.colorbar.remove()
+    plt.gcf().colorbar(ax.colorbar.mappable,ax=ax,orientation='horizontal', location='top')
+    
+    
+    planeFigName = 'docs/Tutorials/2Dcut_hhl_side'
     plt.savefig(planeFigName+'.png',format='png', dpi=300)
     
-    kwargs = {
-       'rmcFileName' : planeFigName+'.txt'
-       }
-    
-    ax.to_csv(planeFigName+'.csv',**kwargs)   
+    if False:
+        kwargs = {
+        'rmcFileName' : planeFigName+'.txt'
+        }
+        
+        ax.to_csv(planeFigName+'.csv',**kwargs)   
    
      
     
 title = 'Cut2D hhl'
 
 introText = 'After inspecting the scattering plane, we want to perform cuts along certain directions.'\
-+' In this tutorial, we demonstrate the cut2D function. Cuts can be made given by hkl or Qx, Qy, Qz.'\
-+' The width of the cut orthogonal to the plane can be adjusted by the keywords width and width.'\
-+' The grid the cut is projected on is given by the xBins and yBins keywords.'\
++' In this tutorial, we demonstrate the cut2D function. Cuts can be made given by hkl or Qx, Qy, Qz, by using rlu=True/False.'\
++' The width of the cut orthogonal to the plane can be adjusted by the keywords width.'\
++' The grid the cut is projected on is given by the xBins and yBins keywords or dQx and dQy. '\
++' The binning is allways given in Q-space, also when you do a cut in HKL-space. '\
++' The unit of width and binning is AA-1.'\
 
 
-outroText = 'The above code takes the data from the A3 scan file dmc2021n000590, align and plot the scattering plane.'\
+outroText = 'The above code takes the data from the A3 scan files dmc2022n012105-dmc2022n012106, align and plot the scattering plane.'\
 +'\n\nFigure of the 2D plane in RLU. \n'\
-+'\n.. figure:: 2Dcut_hk0.png \n  :width: 50%\n  :align: center\n\n '\
++'\n.. figure:: 2Dcut_hhl.png \n  :width: 50%\n  :align: center\n\n '\
 +'\n\nFigure of the 2D plane in RLU. \n'\
-+'\n.. figure:: 2Dcut_hk0_side.png \n  :width: 50%\n  :align: center\n\n '\
++'\n.. figure:: 2Dcut_hhl_side.png \n  :width: 50%\n  :align: center\n\n '\
 
 introText = title+'\n'+'^'*len(title)+'\n'+introText
 

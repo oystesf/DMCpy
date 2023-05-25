@@ -2154,7 +2154,7 @@ class DataSet(object):
             if dQy is None:
                 raise AttributeError('Neither dQx or xBins are set!')
 
-        
+       
         if yBins is None and xBins is None:
             bins = None # Automatic binning
             autoBins = True
@@ -2164,6 +2164,7 @@ class DataSet(object):
                 yBins = np.arange(-5,5,dQy)
             elif xBins is None:
                 xBins = np.arange(-5,5,dQx)
+
 
         if not points is None:
             if rlu:
@@ -2188,10 +2189,11 @@ class DataSet(object):
             
             for idx in _tools.arange(0,len(df),steps):
                 
-                q = np.einsum('ij,jk->ik',totalRotMatDF,df.q[idx[0]:idx[1]].reshape(3,-1),optimize='greedy')
-
+                q = np.einsum('ij,jk->ik',totalRotMatDF,df.q[idx[0]:idx[-1]].reshape(3,-1),optimize='greedy')
+                mask = df.mask[idx[0]:idx[-1]]
+                
                 # Check that the points are in the plane and take only the local x and y coordinates
-                inside = np.abs(q[2]-translation)<width*0.5
+                inside = np.logical_or(np.abs(q[2]-translation)<width*0.5,mask.flatten())
                 q = q[:2,inside]
                 print(df.fileName,'from',idx[0],'to',idx[-1])
                 if q.shape[1] == 0:

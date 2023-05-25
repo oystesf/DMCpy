@@ -1,11 +1,10 @@
-import sys
+#import sys
 # sys.path.append(r'C:\Users\lass_j\Documents\Software\DMCpy')
 from Tutorial_Class import Tutorial
 import os
 
 def Tester():
     from DMCpy import DataFile,DataSet, _tools
-    import numpy as np
     
     # Create a DataFile and DataSet for 565
     file = r'data\dmc2021n000565.hdf'

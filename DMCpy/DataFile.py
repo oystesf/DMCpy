@@ -190,8 +190,8 @@ def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,**kwargs):
     
     df.initializeQ()
     df.loadNormalization()
-
-    year,month,date = [int(x) for x in df.startTime.split(' ')[0].split('-')]
+    
+    year,month,date = [int(x) for x in df.startTime.replace('T',' ').split(' ')[0].split('-')]
     if year == 2022:
         df.mask[0,-2,:] = True
 
@@ -555,7 +555,7 @@ class DataFile(object):
             else:
                 colorbar = False
             
-            ax._pcolormesh = ax.pcolormesh(self.twoTheta,self.pixelPosition[2],np.sum(intensity,axis=0),shading='auto')
+            ax._pcolormesh = ax.pcolormesh(np.abs(self.twoTheta),self.pixelPosition[2],np.sum(intensity,axis=0),shading='auto')
 
             if colorbar:
                 ax._col = fig.colorbar(ax._pcolormesh)

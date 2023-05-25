@@ -1,11 +1,10 @@
-import sys, os
+import  os
 # sys.path.append(r'C:\Users\lass_j\Documents\Software\DMCpy')
 from Tutorial_Class import Tutorial
 
 
 def Tester():
     from DMCpy import DataSet,DataFile,_tools
-    import numpy as np
     import os
 
     # Give file number and folder the file is stored in.
@@ -30,7 +29,7 @@ def Tester():
     ds = DataSet.DataSet([df])
 
     # subtract backround in a A3 range. This must be done on the dataSet level and act on every dataFile in the dataSet
-    ds.subtractBkgRange(50,100)
+    ds.subtractBkgRange(50,100,saveToFile=True, saveToNewFile = 'data_bkgRange.hdf' )
 
     # run the Interactive Viewer
     IA2 = ds[0].InteractiveViewer()
@@ -40,7 +39,7 @@ def Tester():
     IA2.fig.savefig(r'docs/Tutorials/InteractiveViewer/InteractiveViewer2.png',format='png',dpi=300)
 
     # change index of A3
-    IA2.plotSpectrum(index=114)
+    IA2.plotSpectrum(index=214)
 
     IA2.fig.savefig(r'docs/Tutorials/InteractiveViewer/InteractiveViewer2_114.png',format='png',dpi=300)
 
@@ -52,7 +51,7 @@ def Tester():
 title = 'Interactive Viewer'
 
 introText = 'In a single crystal experiment, the first step is to gain an overview of the system. This is most often done '\
-+'by performing an A3 scan with the sample in a specific phase. Due to the 2D detector of DMC, such an A3 scan produces '\
++'by performing an A3 scan with the sample in a specific scattering plane. Due to the 2D detector of DMC, such an A3 scan produces '\
 +'a 3D set of measured data points. In the frame of reference of the instrument, the majority of the covered volume is '\
 +'in the Qx-Qy plane, i.e. with Qz close to zero. A single A3 slices corresponds to a curved line in th Qx-Qy '\
 +' together with a symmetrically curved line in Qz. This sheet is then rotated around the origin with each A3 step.'\
