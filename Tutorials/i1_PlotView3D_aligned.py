@@ -55,16 +55,14 @@ title = 'Viewer 3D align'
 introText = 'To generate a UB matirx, it is convinient to use the 3D Viewer. '\
 +'We recommend to use the alignToRefs function. By running 3D Viewer with rlu=False, you can read of the coordinates of two reflections in Q-space. '\
 +'These coordinates and the corresponding HKL will then be used for making a UB. You can change the orientation of the 3D Viewer by pressing 0, 1 and 2. '\
++'When apropriate Q-coordinates are identified, they can be used to align and plot the data in HKL, as showed in the code below. '\
 
 
 outroText = 'The above code takes the data from the A3 scan files 12153-12154 from 2022 '\
-+'and generates the Viewer 3D utilizing a voxel size of 0.01 x 0.01 x 0.01 in Q-space. '\
-+'By default, the viewer starts out in projection 2, i.e. with Qz being the axis stepped through. When handling the '\
-+'data directly it is more convenient to utilize the keyboard shortcuts but in a scripting interface these are not '\
-+'available. Instead one can utilize the *.setPlane* and *.changeAxis* methods. In addition, the color scale has been tweaked '\
-+'such that weaker peaks are visible. It is possible to slightly tweak the color scale directly in the Viewer 3D by using the '\
-+'sliders to the right of the color bar. Notice: When saving the figure these slides are rendered invisible. The end results are shown below:'\
-+'\n\nFirst data overview with Qz slightly positive and Qx and Qy in the plane\n'\
++'and generates the Viewer 3D utilizing a voxel size of 0.01 x 0.01 x 0.01 in Q-space, and plot the data in HKL space. '\
++'By default, the viewer starts out in projection 2, i.e. with Qz being the axis stepped through. '\
++'The end results are shown below:'\
++'\n\nFirst data overview the HK0-plane\n'\
 +'\n.. figure:: CenterMiddel_aligned_hk0.png \n  :width: 50%\n  :align: center\n\n '\
 
 
