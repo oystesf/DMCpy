@@ -8,7 +8,7 @@ def Tester():
     import matplotlib.pyplot as plt 
     
     # To plot powder data we give the file number, or list of filenumbers as a string and the folder of the raw data
-    scanNumbers = '1285'
+    scanNumbers = '1285-1290'
     folder = 'data'
     year = 2022    
 
@@ -77,7 +77,7 @@ def Tester():
 title = 'Plot of diffraction patterns'
 
 introText = 'When a powder sample has been measured at DMC it is saved in hdf files. Several DataFiles can be combined into a common DataSet and plotted. '\
-+'The follwing code takes a DatsSet, here consisting of one single DataFile, and plot it. Two different settings '\
++'The follwing code takes a DatsSet, here consisting of several DataFiles, and plot the dataSet. Two different settings '\
 +'for the binning method is used *correctedTwoTheta* equal to *True* and *False*. When *False* a naive summation across the '\
 +'2D detector is performed where the out-of-plane component is not taken into account. That is, summation is performed vertically '\
 +'on the detector. For powder patterns around 90\ :sup:`o`, this is only a very minor error, but for scattering close to the direct '\

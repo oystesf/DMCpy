@@ -37,7 +37,10 @@ def Tester():
         ds_sub = DataSet.DataSet(dataFiles_sub)
         
         # we can choose if we write the subtracted data into the original data file or if we make a new file.
-        ds.directSubtractDS(ds_sub,saveToFile=False,saveToNewFile='subtractedFile.hdf')
+        ds.directSubtractDS(ds_sub,saveToFile=True,saveToNewFile='subtracted_data.hdf')
+
+        #saveToFile (bool): If True, save background to data file, else save in RAM (default False)
+        #saveToNewFile (string) If provided, and saveToFile is True, save a new file with the background subtraction (default False)
     
     # run the Interactive Viewer
     IA2 = df.InteractiveViewer()

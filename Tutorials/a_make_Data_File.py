@@ -5,6 +5,7 @@ import os
 
 def Tester():
     from DMCpy import DataFile,DataSet, _tools
+    import numpy as np
     
     # Create a DataFile and DataSet for 565
     file = r'data\dmc2021n000565.hdf'
@@ -14,7 +15,7 @@ def Tester():
     
     
     # Create a DataFile and DataSet for 565 with correct twoTheta
-    twoThetaOffset = 18.0
+    twoThetaOffset = 1.0
     
     df = DataFile.loadDataFile(file,twoThetaPosition=twoThetaOffset)
     ds = DataSet.DataSet(df)
@@ -33,6 +34,19 @@ def Tester():
     dataFiles = [DataFile.loadDataFile(dFP,twoThetaPosition=twoThetaOffset) for dFP in _tools.fileListGenerator(scanNumbers,folder)]
     
     ds = DataSet.DataSet(dataFiles)
+
+
+    # We can also add a unit cell to the dataFiles when loaded:
+    scanNumbers = '12153' 
+    folder = 'data/SC'
+    year = 2022
+  
+    filePath = _tools.fileListGenerator(scanNumbers,folder,year=year) 
+
+    unitCell = np.array([ 7.218, 7.218, 18.183, 90.0, 90.0, 120.0])
+
+    # # # load dataFiles
+    dataFiles = [DataFile.loadDataFile(dFP,unitCell = unitCell) for dFP in filePath]
 
     
 title = 'Make a DataFile and DataSet'

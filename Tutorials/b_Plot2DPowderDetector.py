@@ -83,7 +83,7 @@ introText = 'The simplets data set on the DMC instrument is that of a powder mea
 
 
 outroText = 'The software use the defualt normalization from the calibration file which is matched with the file number. '\
-    +'As default a mask for the second top line of the detector is used as it has an issue. The code show how the mask can be removed, '\
+    +'As default a mask for the top horizontal and the last vertical lines of the detector is used as these have an issue. The code show how the mask can be removed, '\
     +'how an angular mask can be added, and how a line mask cna be added. '\
     +'Running the above code generates the following images showing neutron intensity as function of 2Theta and out of plane position: '\
     +'Note that two theta is negative, which is defualt at DMC. '\
