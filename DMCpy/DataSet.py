@@ -1765,7 +1765,6 @@ class DataSet(object):
         
         # find mean monitor
         meanMonitor = np.median(monitor)
-        intensity[np.isnan(intensity)] = -1
 
         # rescale intensity and err
         if hourNormalization is False:
