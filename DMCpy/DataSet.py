@@ -197,10 +197,37 @@ class DataSet(object):
         
         #inserted, _  = np.histogram(twoTheta[np.logical_not(self.mask)],bins=twoThetaBins)
         
-        normalizedIntensity = np.divide(summedRawIntensity,summedMonitor)
-        normalizedIntensityError =  np.sqrt(summedRawIntensity)/summedMonitor
+        ## Check the population of intensity. Empty bins can be in three places: start edge, end edge, and in the middle.
+        # The two former is to be corrected and the last throw a warning
+        zeros = summedMonitor == 0
+        if np.sum(zeros) != 0:
+            diff = np.abs(np.diff(zeros))!=0
+            diffIdx = np.arange(len(diff))[diff]
+            
 
-        return twoThetaBins, normalizedIntensity, normalizedIntensityError,summedMonitor
+            emptyEndBins = zeros[diffIdx[-1]+1:]
+            emptyStartBins = zeros[:diffIdx[0]+1]
+            
+            if np.all(emptyEndBins):
+                emptyEndBins = -np.sum(emptyEndBins)-1
+            else:
+                emptyEndBins = -1
+            
+            if np.all(emptyStartBins):
+                emptyStartBins = np.sum(emptyStartBins)
+            else:
+                emptyStartBins = 0
+
+            if not np.sum(zeros) == emptyStartBins-emptyEndBins-1:
+                warnings.warn('There are empty bins in the middle of the data! Please overlap these with additional detector settings or prepare to deal with 0 values.')
+        else:
+            emptyStartBins = 0
+            emptyEndBins = -1
+
+        normalizedIntensity = np.divide(summedRawIntensity[emptyStartBins:emptyEndBins],summedMonitor[emptyStartBins:emptyEndBins])
+        normalizedIntensityError =  np.sqrt(summedRawIntensity[emptyStartBins:emptyEndBins])/summedMonitor[emptyStartBins:emptyEndBins]
+
+        return twoThetaBins[emptyStartBins:emptyEndBins], normalizedIntensity, normalizedIntensityError,summedMonitor[emptyStartBins:emptyEndBins]
     
 
     @_tools.KwargChecker(function=plt.errorbar,include=_tools.MPLKwargs)
