@@ -125,8 +125,8 @@ def getInstrument(file):
     return file.get(location)
 
 
-@KwargChecker(include=['radius','twoTheta','verticalPosition','twoThetaPosition']+list(HDFTranslation.keys()))
-def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,**kwargs):
+@KwargChecker(include=['radius','twoTheta','verticalPosition','twoThetaPosition','forcePowder']+list(HDFTranslation.keys()))
+def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,forcePowder=False,**kwargs):
     """Load DMC data file, either powder or single crystal data.
     
     
@@ -153,7 +153,7 @@ def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,**kwargs):
     if A3 is None: # there is no A3 values at all
         T = 'powder'
         
-    elif len(A3) == 1 and se_r.any() is None:
+    elif (len(A3) == 1 and se_r.any() is None) or forcePowder:
         T = 'powder'
     else:
         T = 'singlecrystal'
@@ -161,7 +161,7 @@ def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,**kwargs):
     ## here be genius function to determine type of data
     
     if fileType.lower() == 'powder' or T == 'powder':
-        df = PowderDataFile(fileLocation,unitCell=unitCell)
+        df = PowderDataFile(fileLocation,unitCell=unitCell,forcePowder=forcePowder)
     elif fileType.lower() == 'singlecrystal' or T == 'singlecrystal':
         df = SingleCrystalDataFile(fileLocation,unitCell=unitCell)
     else:
@@ -205,7 +205,7 @@ def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,**kwargs):
 
 class DataFile(object):
     @KwargChecker()
-    def __init__(self, file=None,unitCell=None):
+    def __init__(self, file=None,unitCell=None,forcePowder=False):
         self.fileType = 'DataFile'
         self._twoThetaOffset = 0.0
         self._counts = None
@@ -224,7 +224,7 @@ class DataFile(object):
                 raise FileNotFoundError('Provided file path "{}" not found.'.format(file))
 
     @KwargChecker()
-    def loadFile(self,filePath,unitCell=None):
+    def loadFile(self,filePath,unitCell=None,forcePowder=False):
         if not os.path.exists(filePath):
             raise FileNotFoundError('Provided file path "{}" not found.'.format(filePath))
 
@@ -754,7 +754,10 @@ class DataFile(object):
                 if self.backgroundType == 'powder':
                     bg = np.repeat(np.array(f.get(HDFCountsBG))[np.newaxis],repeats=self.countShape[0],axis=0)
                 else:
-                    bg = np.array(f.get(HDFCountsBG)).reshape(self.countShape)
+                    if self.fileType == 'powder':
+                        bg = np.array(f.get(HDFCountsBG)).sum(axis=(0,1)).reshape(self.countShape)
+                    else:
+                        bg = np.array(f.get(HDFCountsBG)).reshape(self.countShape)
                 return bg
         else:
             return self._background.reshape(self.countShape)
@@ -837,5 +840,10 @@ class PowderDataFile(DataFile):
     def __init__(self,fileType,*args,**kwargs):
         super(PowderDataFile,self).__init__(fileType,*args,**kwargs)
         self.fileType = 'Powder'
+
+        if 'forcePowder' in kwargs:
+            if kwargs['forcePowder']:
+                self._counts = np.sum(self.counts,axis=(0,1))
+                self.countShape = (1,128,1152)
         self.counts.shape = (1,128,1152)
 
