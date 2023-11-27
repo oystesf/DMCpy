@@ -845,5 +845,6 @@ class PowderDataFile(DataFile):
             if kwargs['forcePowder']:
                 self._counts = np.sum(self.counts,axis=(0,1))
                 self.countShape = (1,128,1152)
+                self.monitor = np.array([np.sum(self.monitor)])
         self.counts.shape = (1,128,1152)
 
