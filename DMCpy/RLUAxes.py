@@ -145,8 +145,10 @@ def get_aspect(ax):
     data_ratio = sub(*ax.get_ylim()) / sub(*ax.get_xlim())
     return (disp_ratio / data_ratio)
 
-def axisChanged(axis,forceUpdate=False,direction='both'):
+def axisChanged(event,axis=None,forceUpdate=False,direction='both'):
     """Function to recalculate the base number for RLU axis"""
+    if axis is None:
+        axis = event
     s = axis.sample
     xlim = axis.get_xlim()
     ylim = axis.get_ylim()
@@ -331,8 +333,8 @@ def createRLUAxes(self,sample=None, figure=None,ids=[1, 1, 1],basex=None,basey=N
 
     ax.callbacks.connect('xlim_changed', axisChanged)
     ax.callbacks.connect('ylim_changed', axisChanged)
-    ax.callbacks.connect('draw_event',lambda ax: axisChanged(ax,forceUpdate=True))
-    ax.axisChanged = lambda direction='both': axisChanged(ax,forceUpdate=True,direction=direction)
+    ax.get_figure().canvas.mpl_connect('draw_event',lambda event: axisChanged(event,axis=ax,forceUpdate=True))
+    ax.axisChanged = lambda direction='both': axisChanged(None,ax,forceUpdate=True,direction=direction)
 
     @updateAxisDecorator(ax=ax,direction='x')
     def set_xticks_base(xBase,ax=ax):

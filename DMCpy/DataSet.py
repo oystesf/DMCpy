@@ -12,7 +12,7 @@ import warnings
 import DMCpy
 
 class DataSet(object):
-    def __init__(self, dataFiles=None,unitCell=None,**kwargs):
+    def __init__(self, dataFiles=None,unitCell=None,forcePowder=False,**kwargs):
         """DataSet object to hold a series of DataFile objects
         Kwargs:
             - dataFiles (list): List of data files to be used in reduction (default None)
@@ -27,7 +27,7 @@ class DataSet(object):
             if isinstance(dataFiles,(str,DataFile.DataFile)): # If either string or DataFile instance wrap in a list
                 dataFiles = [dataFiles]
             try:
-                self.dataFiles = [DataFile.loadDataFile(dF,unitCell=unitCell) if isinstance(dF,(str)) else dF for dF in dataFiles]
+                self.dataFiles = [DataFile.loadDataFile(dF,unitCell=unitCell,forcePowder=forcePowder) if isinstance(dF,(str)) else dF for dF in dataFiles]
             except TypeError:
                 raise AttributeError('Provided dataFiles attribute is not iterable, filepath, or of type DataFile. Got {}'.format(dataFiles))
             
@@ -1611,6 +1611,218 @@ class DataSet(object):
             sample.offsetA3 = offsetA3
             sample.UB = np.dot(sample.ROT.T,np.dot(sample.projectionB,np.linalg.inv(sample.projectionVectors)))
 
+
+    def boxIntegration(self,peakDic,roi=True,saveFig=False,title=None,integrationList=None,closeFigures=False,plane=None):
+        """
+
+        boxIntegration creates a region of interest on the detector (roi) and sum all intensity in the roi for a range of A3. 
+        Peak positions on the detector is defined by the user. 
+        No optiization methods avaliable.
+
+        peakDic has the form:
+
+        peakDic = { }
+        peakDic['300'] = {
+                    'h' : 3,
+                    'k' : 0,
+                    'l' : 0,
+                    'df' : 0,
+                    'A3_center' : 103, 
+                    'A3_minus' : 20, 
+                    'A3_pluss' : 20, 
+                    'tth' : 113.8, 
+                    'tth_minus' : 1, 
+                    'tth_pluss' : 1, 
+                    'startZ' : 50, 
+                    'stopZ' : 100, 
+                    'vmin' : 0,
+                    'vmax' : 0.002,
+                  }
+
+        '300' : is the name of the peak
+        'h' : Miller index
+        'k' : Miller index
+        'l' : Miller index
+        'df' : index of the dataFile in the dataSet where the peak is
+        'A3_center' : Center position of the peak in A3
+        'A3_minus' : range in frames on the lower bound side of the peak 
+        'A3_pluss' : range in frames on the higher bound side of the peak
+        'tth' : 2tw of the peak
+        'tth_minus' : lower bound limit in 2th
+        'tth_pluss' : lower bound limit in 2th 
+        'startZ' : lower bound for pixels on detector
+        'stopZ' : higher bound for pixels on detector
+        'vmin' : vmin for box integration plot
+        'vmax' : vmax for box integration plot
+        
+        roi=True, Plot the rois on the detector for all A3
+        saveFig=False, Save the figures, give str to add into the name used for saving
+        title=None, Title for A3 figure
+        integrationList=None, if you only want to integrate some peaks in your dictonary, give a list with str for the peak name
+        closeFigures=False, for closing figures after a peak is integrated
+
+        returns peakDic with:
+                peakDic[peak]['summed_counts'] = np.sum(counts)
+                peakDic[peak]['peak_cut'] = [xdata,ydata]
+                peakDic[peak]['fit'] = [H,x0,sigma,FWHM,integrated]
+        
+        """
+
+
+
+        # def Gaussian
+        def gauss(x, H, A, x0, sigma):
+            return H + A * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2))
+
+        def gauss_fit(x, y):
+            mean = sum(x * y) / sum(y)
+            sigma = np.sqrt(sum(y * (x - mean) ** 2) / sum(y))
+            popt, pcov = curve_fit(gauss, x, y, p0=[min(y), max(y), mean, sigma])
+            return popt
+
+        roi = roi
+
+        if integrationList is None:
+            integrationList = []
+            for peak in peakDic: 
+                integrationList.append(peak)
+
+        for peak in peakDic:
+        
+            if peak in integrationList:
+                        
+                df = self[peakDic[peak]['df']]   
+                
+                # vertical range in pixcel
+                startZ = peakDic[peak]['startZ']
+                stopZ = peakDic[peak]['stopZ']
+                
+                # # # peak position
+                tth = peakDic[peak]['tth']
+                tth_minus = peakDic[peak]['tth_minus']
+                tth_pluss = peakDic[peak]['tth_pluss']
+                
+                # # # twoTheta range
+                startThetaVal = -(tth - tth_minus)
+                stopThetaVal = -(tth +  tth_pluss)
+                
+                startTheta = np.argmin(np.abs(df.twoTheta[64]-startThetaVal))
+                stopTheta = np.argmin(np.abs(df.twoTheta[64]-stopThetaVal))
+                
+                # # # A3 range
+                A3_center = peakDic[peak]['A3_center']
+                A3_minus = peakDic[peak]['A3_minus']
+                A3_pluss = peakDic[peak]['A3_pluss']
+                
+                # Find index of A3
+                absolute_differences = np.abs(df.A3 - A3_center)
+                A3_center = np.argmin(absolute_differences)
+                
+                startA3 = A3_center - A3_minus
+                stopA3 = A3_center + A3_pluss
+                
+                a3StepDegrees=(max(df.A3)-min(df.A3))/len(df.A3)
+                A3Steps = abs(stopA3-startA3)
+                A3StepSign = np.sign(stopA3-startA3)
+                sttRange = (stopA3-startA3)*a3StepDegrees*2
+                
+                sttStepDegreesToIndex = np.diff(df.twoTheta[65])[0]
+                sttSteps = A3StepSign*sttRange/sttStepDegreesToIndex
+                sttOffset = np.linspace(-sttSteps*0.5,sttSteps*0.5,A3Steps).astype(int)
+                
+                countsAllTwoTheta = df.intensity[startA3:stopA3,startZ:stopZ,:].sum(axis=(1))
+                monitors = df.monitor[startA3:stopA3]
+                
+                counts = []
+                
+                for i,offset in enumerate(sttOffset):
+                    counts.append(countsAllTwoTheta[i,startTheta+offset:stopTheta+offset].sum())
+                
+                counts = np.asarray(counts) / monitors 
+                
+                xdata = df.A3[startA3:stopA3]
+                ydata = counts
+                
+                H, A, x0, sigma = gauss_fit(xdata, ydata)
+                FWHM = 2.35482 * sigma
+               
+                #Now calculate more points for the plot
+                step = 0.01
+                plotx = []
+                ploty = []
+                
+                for value in np.arange(min(xdata),max(xdata)+step,step):
+                    plotx.append(value)
+                    ploty.append(gauss(value, H, A, x0, sigma))
+                
+                fig,ax = plt.subplots()
+                ax.plot(xdata, ydata, 'bo--', linewidth=1, markersize=6,label='data')
+                ax.plot(plotx, ploty, 'r', label='fit')
+                plt.xlabel('a3 (deg.)')
+                plt.ylabel('Intensity (arb. units)')
+
+                if title is not None:
+                    if plane is not None:
+                        plt.title(f'{title} - {peak} in {plane}')
+                    else:
+                        plt.title(f'{title} - {peak}')
+                
+                if saveFig is not False:
+                        fig.savefig(saveFig+f'{peak}.png',format='png')    
+                
+                # integrated intensity of peak
+                integrated = A * np.sqrt(2*np.pi) * np.abs(sigma)    # this is wrong?
+                
+                print(f'\nFit of {peak} yields:')
+                print('The offset of the gaussian baseline is', np.round(H,5))
+                print('The center of the gaussian fit is', np.round(x0,3))
+                print('The sigma of the gaussian fit is', np.round(sigma,5))
+                print('The maximum intensity of the gaussian fit is', np.round(H + A,3))
+                print('The Amplitude of the gaussian fit is', np.round(A,3))
+                print('The FWHM of the gaussian fit is', np.round(FWHM,3))
+                print('The integrated intensity is',np.round(integrated,3))   # this is wrong?
+                ################################################
+                
+                # export integrated intensities
+                peakDic[peak]['summed_counts'] = np.sum(counts)
+                peakDic[peak]['peak_cut'] = [xdata,ydata]
+                peakDic[peak]['monitors'] = monitors
+                peakDic[peak]['fit'] = [H,x0,sigma,FWHM,integrated]
+                
+                if roi:
+                    # plot rois
+                    total = len(df.A3[startA3:stopA3])
+                    rows = int(np.floor(np.sqrt(total)))
+                    cols = int(np.ceil(np.sqrt(total)))
+                    
+                    fig,Ax = plt.subplots(nrows=rows,ncols=cols,figsize=(15,12))
+                    Ax = Ax.flatten()
+                    II = []
+                    
+                    vmin = peakDic[peak]['vmin']
+                    vmax = peakDic[peak]['vmax']
+                    
+                    for a3,A3Idx,offset,ax in zip(df.A3[startA3:stopA3],range(startA3,stopA3), sttOffset ,Ax):
+                        c = df.counts[A3Idx,startZ:stopZ,startTheta+offset:stopTheta+offset]/df.monitor[A3Idx].reshape(-1,1)
+                        offsetVal = sttStepDegreesToIndex*offset
+                        II.append(ax.imshow(c,origin='lower',extent=(startThetaVal+offsetVal,stopThetaVal+offsetVal,startZ,stopZ),vmin=vmin,vmax=vmax))
+                        ax.set_xlabel('two Theta')
+                        ax.set_ylabel('z')
+                        ax.set_title(str(a3))
+                        ax.axis('auto')
+                    
+                    fig.tight_layout()
+                    
+                    for i in II:
+                        i.set_clim(vmin,vmax)
+                    
+                    if saveFig is not False:
+                        fig.savefig(saveFig+f'{peak}_roi.png',format='png')   
+
+                if closeFigures is True:
+                    plt.close('all') 
+
+        return peakDic
 
     def subtractBkgRange(self,bkgStart,bkgEnd,saveToFile=False, saveToNewFile = False):
         """Function generate background as defined by a range of the first dataFile of the dataSet

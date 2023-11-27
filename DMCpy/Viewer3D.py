@@ -330,16 +330,17 @@ class Viewer3D(object):
     def plot(self):
         self.text.set_text(self.stringValue())
         try:
-            self.im.set_array(self.emptyData)
+            pass
+            #self.im.set_array(self.emptyData)
         except TypeError:
             pass
         if self._axesChanged:
             tempData = np.ma.array(self.im.get_array().T)
-            tempData.mask = np.zeros_like(tempData,dtype=bool)
+            tempData.mask = np.ones_like(tempData,dtype=bool)
             self.im.set_array(tempData)
             self._axesChanged = False
         else:
-            self.im.set_array(self.masked_array[:,:,self.value].T.flatten())
+            self.im.set_array(self.masked_array[:,:,int(self.value)].T.flatten())
         self.im.set_clim(self.caxis)
         self.ax.set_position(self.figpos)
         
@@ -454,7 +455,7 @@ def reloadslider(self,axis): # pragma: no cover
     self.setAxis(axis)
     self.Energy_slider.set_val(0)
     self.Energy_slider.label.remove()
-    self.Energy_slider.disconnect(self.Energy_slider.cids[0])
+    self.Energy_slider.disconnect_events()#self.Energy_slider.disconnect(self.Energy_slider.cids[0])
     self.Energy_slider.vline.set_visible(False)
     
     del self.Energy_slider
