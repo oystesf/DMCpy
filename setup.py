@@ -26,10 +26,10 @@ setup(
     data_files = [(pythonPath, ["LICENSE.txt"]),((os.path.join(pythonPath),["DMCpy/calibrationDict.dat"]))],
     packages=['DMCpy','DMCpy/CommandLineScripts'],
     entry_points = {
-        "console_scripts": []#'MJOLNIRHistory = MJOLNIR.CommandLineScripts.MJOLNIRHistory:main',
+        "console_scripts": ['DMCSpy=DMCpy.CommandLineScripts.DMCS:main'],
         },
     python_requires='>=3.6',
-    install_requires=['matplotlib>=3','numpy>=1.14','h5py>=2.5','scipy','datetime','pandas','future','crystals',
+    install_requires=['matplotlib>=3<3.6','numpy>=1.14','h5py>=2.5','scipy','datetime','pandas','future','crystals',
                     'pip>=20'],
     classifiers=[
         'Development Status :: 3 - Alpha',
