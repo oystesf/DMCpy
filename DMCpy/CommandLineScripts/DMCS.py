@@ -667,7 +667,11 @@ class MyGUI:
         plt.show()
 
 
-if __name__ == "__main__":
+def main():
     root = tk.Tk()
     gui = MyGUI(root)
     root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
