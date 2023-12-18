@@ -30,6 +30,13 @@ def cleanTutorialFolders():
     print('Cleaning tutorial folders: '+', '.join(folders))
     for folder in folders:
         os.system('python clean.py '+folder)
+    # Generate needed folders
+    newFolders = ['box','InteractiveViewer','Powder','subtract','View3D']
+    for f in newFolders:
+        folder = os.path.join('docs','Tutorials',f)
+        if not os.path.exists(folder):
+            os.system('mkdir '+folder)
+            
 
 def generateTutorials():
     os.system('python '+str(os.path.join('Tutorials','tutorials.py')))
