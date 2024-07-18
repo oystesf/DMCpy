@@ -16,7 +16,7 @@ pythonPath =  os.path.relpath(os.path.join(installFolder,'DMCpy'),sys.base_prefi
 
 setup(
     name='DMCpy',
-    version='version=0.9.0',
+    version='0.9.2',
     description=('Python software packaged designed for reduction of neutron powder diffraction data from DMC at PSI.'),
     long_description=long_description,
     author='Jakob Lass',
@@ -26,10 +26,10 @@ setup(
     data_files = [(pythonPath, ["LICENSE.txt"]),((os.path.join(pythonPath),["DMCpy/calibrationDict.dat"]))],
     packages=['DMCpy','DMCpy/CommandLineScripts'],
     entry_points = {
-        "console_scripts": []#'MJOLNIRHistory = MJOLNIR.CommandLineScripts.MJOLNIRHistory:main',
+        "console_scripts": ['DMCSpy=DMCpy.CommandLineScripts.DMCS:main'],
         },
     python_requires='>=3.6',
-    install_requires=['matplotlib>=3','numpy>=1.14','h5py>=2.5','scipy','datetime','pandas','future','crystals',
+    install_requires=['matplotlib<3.6','numpy>=1.14','h5py>=2.5','scipy','datetime','pandas','future','crystals',
                     'pip>=20'],
     classifiers=[
         'Development Status :: 3 - Alpha',
