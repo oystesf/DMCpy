@@ -125,7 +125,7 @@ def getInstrument(file):
     return file.get(location)
 
 
-@KwargChecker(include=['radius','twoTheta','verticalPosition','twoThetaPosition','forcePowder']+list(HDFTranslation.keys()))
+@KwargChecker(include=['radius','twoTheta','verticalPosition','twoThetaPosition','forcePowder','sampleOffsetZ']+list(HDFTranslation.keys()))
 def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,forcePowder=False,**kwargs):
     """Load DMC data file, either powder or single crystal data.
     
@@ -176,6 +176,12 @@ def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,forcePowder=
     if not 'verticalPosition' in kwargs:
         kwargs['verticalPosition'] = np.linspace(-0.1,0.1,repeats,endpoint=True)
 
+    if 'sampleOffsetZ' in kwargs:
+        temp_sampleOffsetZ = kwargs['sampleOffsetZ']
+        del kwargs['sampleOffsetZ']
+    else:
+        temp_sampleOffsetZ = None
+
     # Overwrite parameters provided in the kwargs
     for key,item in kwargs.items():
         setattr(df,key,item)
@@ -188,9 +194,12 @@ def loadDataFile(fileLocation=None,fileType='Unknown',unitCell=None,forcePowder=
     elif 'twoTheta' in kwargs:
         df.twoTheta = kwargs['twoTheta']
     
-    df.initializeQ()
+    if temp_sampleOffsetZ is None:
+        df.initializeQ()
+    else:
+        df.sampleOffsetZ = temp_sampleOffsetZ
     df.loadNormalization()
-    
+
     year,month,date = [int(x) for x in df.startTime.replace('T',' ').split(' ')[0].split('-')]
     if year == 2022:
         df.mask[0,-2,:] = True
@@ -208,6 +217,7 @@ class DataFile(object):
     def __init__(self, file=None,unitCell=None,forcePowder=False):
         self.fileType = 'DataFile'
         self._twoThetaOffset = 0.0
+        self.monochromatorDistance = 2.82 # <----------------- CHECK
         self._counts = None
         self._background = None
 
@@ -422,12 +432,30 @@ class DataFile(object):
         self._Ki = 2*np.pi/wavelength
         self.calculateQ()
     
+    @property
+    def sampleOffsetZ(self):
+        return self._sampleOffsetZ
+
+    @sampleOffsetZ.getter
+    def sampleOffsetZ(self):
+        if not hasattr(self,'_sampleOffsetZ'):
+            self._sampleOffsetZ =  0.0
+        return self._sampleOffsetZ
+
+    @sampleOffsetZ.setter
+    def sampleOffsetZ(self,sampleOffsetZ):
+        self._sampleOffsetZ = sampleOffsetZ
+        self.initializeQ()
+        self.calculateQ()
+        
     def calculateQ(self):
         """Calculate Q and qx,qy,qz using the current A3 values"""
         if not (hasattr(self,'Ki') and hasattr(self,'twoTheta')
                 and hasattr(self,'alpha') and hasattr(self,'A3')):
             return 
-        self.ki = np.array([0.0,self.Ki,0.0]) # along ki=2pi/lambda with y (Lumsden2005)
+
+        self.neu = np.rad2deg(np.arctan2(self.sampleOffsetZ,self.monochromatorDistance))
+        self.ki = np.array([0.0,np.cos(np.deg2rad(self.neu)),np.sin(np.deg2rad(self.neu))])*self.Ki# along ki=2pi/lambda with y (Lumsden2005)
         self.ki.shape = (3,1,1)
 
         self.kf = self.Ki*self.pixelPosition/np.linalg.norm(self.pixelPosition,axis=0)
