@@ -5,6 +5,8 @@ import matplotlib.gridspec
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
+import matplotlib
+pltversion = float('.'.join(matplotlib.__version__.split('.')[:2]))
 from DMCpy import  _tools
 
 import functools
@@ -335,7 +337,10 @@ class Viewer3D(object):
         except TypeError:
             pass
         if self._axesChanged:
-            tempData = np.ma.array(self.im.get_array().T)
+            if pltversion>3.69:
+                tempData = np.ma.array(self.im.get_array())
+            else:
+                tempData = np.ma.array(self.im.get_array().T)
             tempData.mask = np.ones_like(tempData,dtype=bool)
             self.im.set_array(tempData)
             self._axesChanged = False
