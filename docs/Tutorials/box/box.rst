@@ -1,0 +1,144 @@
+Box integration
+^^^^^^^^^^^^^^^
+This tutorial demonstrate a primitive method for integrating Bragg peaks from single crystals. Here, we define a range in A3 and 2Theta, and sum the intensities in the region. This means that the detector operates as a point detector. We can plot the integrated intensities and fit it with a Gaussian peak. You shoud use InteractiveViewer and View3D to determin the correct integration parameters, in addition to inspecting the roi. 
+
+.. code-block:: python
+   :linenos:
+
+   from DMCpy import DataSet,DataFile,_tools
+   import numpy as np
+   import pickle
+   
+   # name for exports
+   planeFigName = r'Al2O3_box'
+   
+   # Give file number and folder the file is stored in.
+   scanNumbers = '8540' 
+   folder = 'data/SC'
+   year = 2022
+  
+   filePath = _tools.fileListGenerator(scanNumbers,folder,year=year) 
+      
+   # # # load dataFiles
+   dataFiles = [DataFile.loadDataFile(dFP) for dFP in filePath]
+         
+   # load data files and make data set
+   ds = DataSet.DataSet(dataFiles)
+   
+   
+   peakDict = { }
+   
+   peakDict['111'] = {
+                     'h' : 1,
+                     'k' : 1,
+                     'l' : 1,
+                     'df' : 0,
+                     'A3_center' : 112.75, 
+                     'A3_minus' : 15, 
+                     'A3_pluss' : 20, 
+                     'tth' : 51, 
+                     'tth_minus' : 3, 
+                     'tth_pluss' : 2, 
+                     'startZ' : 35, 
+                     'stopZ' : 90, 
+                     'vmin' : 0,
+                     'vmax' : 0.005,
+                 }
+   
+   integrationList = None
+   
+   # keywords for box integration
+   integrationKwargs = {
+      'roi' : True,
+      'saveFig' : r'docs/Tutorials/box/box1_',
+      'title' : r'Al2O3',
+      'integrationList' : integrationList,
+      'closeFigures' : True,
+      'plane' : 'hhh'
+      }
+   
+   integratedPeakDict = ds.boxIntegration(peakDict,**integrationKwargs)   
+   
+   # print information
+   if False:
+      for peak in integratedPeakDict:
+         print(integratedPeakDict[peak]['fit'][1])
+   
+   
+   # Make hkl file
+   if True: 
+      # Specify the file name
+      file_name = f"docs/Tutorials/box/{planeFigName}.hkl"
+      
+      # Open the file in write mode
+      with open(file_name, 'w') as file:
+         # Write the column headers with appropriate spacing
+         file.write('{:>3} {:>3} {:>3} {:>10} {:>10}\n'.format('h', 'k', 'l', 'Int', 'err'))
+      
+         # Loop through the peaks in integratedPeakDict and write the data
+         for peak in integratedPeakDict:
+             # Format the data with consistent spacing, considering the negative sign
+             h = int(integratedPeakDict[peak]['h'])
+             k = int(integratedPeakDict[peak]['k'])
+             l = int(integratedPeakDict[peak]['l'])
+             intensity = np.round(integratedPeakDict[peak]['summed_counts'], 4) 
+             error = np.round(np.sqrt(integratedPeakDict[peak]['summed_counts'] * np.mean(integratedPeakDict[peak]['monitors'])) / np.mean(integratedPeakDict[peak]['monitors']), 4)
+      
+             # Use a modified format string to align numbers to the right
+             peak_data = '{:>3} {:>3} {:>3} {:>10} {:>10}\n'.format(h, k, l, intensity, error)
+      
+             # Write the formatted data to the file
+             file.write(peak_data)
+      
+      print(f"Data has been written to {file_name}")
+   
+   
+   # save dictionary    
+   if False:   
+      file_name = f"docs/Tutorials/box/{planeFigName}.pickle"
+      with open(file_name, 'wb') as file:
+         pickle.dump(integratedPeakDict, file)
+      print(f"Data has been written to {file_name}")
+      
+   # load dictionary      
+   if False:
+      # Load dictionary from file
+      file_name = f"docs/Tutorials/box/{planeFigName}.pickle"
+      with open(file_name, 'rb') as file:
+         loaded_dict = pickle.load(file)
+         
+      print(loaded_dict)
+   
+   
+   # export xy data
+   if True:
+      file_name = f"docs/Tutorials/box/{planeFigName}.txt"
+      with open(file_name, 'w') as file:
+         for key, values in integratedPeakDict.items():
+             # print(key)
+             file.write(f'{key}' + '\n')
+             file.write(' '.join(map(str, values['peak_cut'][0])) + '\n')
+             file.write(' '.join(map(str, values['peak_cut'][1])) + '\n')
+             file.write(' '.join(map(str, values['monitors'])) + '\n')
+             file.write('\n')  # Add a new line to separate data sets 
+   
+      print(f"Data has been written to {file_name}")
+   
+
+The above code takes the data from the A3 scan file dmc2022n008540, and select and area in A3 and pixels. It then sums the detector in the given pixel area and extract the intensity as a function of A3. The integration details are given in a dictionary. The A3 range is given in frames, while the tth range is in degrees. startZ and stopZ gives the height on the detector in pixels (0-128). The roi keyword determines if the rois are plotted. 
+
+Intensity as a function of A3 
+
+.. figure:: box1_111.png 
+  :width: 50%
+  :align: center
+
+ 
+
+Visualization of the pixel area of the detector used 
+
+.. figure:: box1_111_roi.png 
+  :width: 50%
+  :align: center
+
+ 
