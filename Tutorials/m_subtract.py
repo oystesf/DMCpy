@@ -11,22 +11,22 @@ def Tester():
     scanNumbers = '8540' 
     folder = 'data/SC'
     year = 2022
+  
+    filePath = _tools.fileListGenerator(scanNumbers,folder,year=year) 
         
-    # Create complete filepath
-    file = os.path.join(os.getcwd(),_tools.fileListGenerator(scanNumbers,folder,year=year)[0]) 
-
-    # Load data file with corrected twoTheta
-    df = DataFile.loadDataFile(file)
+    # # # load dataFiles
+    dataFiles = [DataFile.loadDataFile(dFP) for dFP in filePath]
+            
+    # load data files and make data set
+    ds = DataSet.DataSet(dataFiles)
     
     # run the Interactive Viewer
+    df = ds[0]
     IA1 = df.InteractiveViewer()
     IA1.set_clim(0,20)
     IA1.set_clim_zIntegrated(0,1000)
 
     IA1.fig.savefig(r'docs/Tutorials/subtract/InteractiveViewer1.png',format='png',dpi=300)
-
-    # Use above data file in data set. Must be inserted as a list
-    ds = DataSet.DataSet([df])
 
     # # # subtract dataSets
     if True:
