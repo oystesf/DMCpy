@@ -2090,8 +2090,9 @@ class DataSet(object):
         bMon = [df.protonBeam for df in self]
         pMon = [df.monitor for df in self]
         sMon = [[0.0]]
-        
-        timeMin, timeMax = [func([df.time for df in self]) for func in minmax]
+
+        flattened_times = [time for df in self for time in df.time]
+        timeMin, timeMax = [func(flattened_times) for func in minmax]
         sMonMin, sMonMax = [func(sMon) for func in minmax]
         bMonMin, bMonMax = [func(bMon) for func in minmax]
         aMon = np.mean([0.0 for df in self])
