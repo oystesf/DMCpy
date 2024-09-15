@@ -5,7 +5,6 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
 .. code-block:: python
    :linenos:
 
-   import matplotlib.pyplot as plt
    from DMCpy import DataSet,DataFile,_tools
    import numpy as np
    import os

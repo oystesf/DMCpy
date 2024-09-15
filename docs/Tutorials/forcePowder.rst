@@ -5,10 +5,8 @@ This tutorial demonstrate how a single crystal dataset can be converted to a pow
 .. code-block:: python
    :linenos:
 
-   from DMCpy import DataSet,DataFile,_tools
+   from DMCpy import DataSet,_tools
    import matplotlib.pyplot as plt
-   import numpy as np
-   
    # Give file number and folder the file is stored in.
    scanNumbers = '12105-12106' 
    folder = 'data/SC'

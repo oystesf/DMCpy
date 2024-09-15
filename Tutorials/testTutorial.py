@@ -6,7 +6,6 @@ from Tutorial_Class import Tutorial
 
 
 def Tester():
-    import numpy as np
     import matplotlib.pyplot as plt
 
     fig,ax = plt.subplots()

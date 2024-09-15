@@ -4,7 +4,6 @@ from Tutorial_Class import Tutorial
 import os
 
 def Tester():
-    import matplotlib.pyplot as plt
     from DMCpy import DataSet,DataFile,_tools
     import numpy as np
     import os

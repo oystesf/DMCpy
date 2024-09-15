@@ -6,7 +6,6 @@ It can be very useful to subtract two data sets from each other, e.g. to look fo
    :linenos:
 
    from DMCpy import DataSet,DataFile,_tools
-   import os
    
    # Give file number and folder the file is stored in.
    scanNumbers = '8540' 

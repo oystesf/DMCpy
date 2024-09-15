@@ -5,7 +5,6 @@ This is a simple test script to check that all is working as expected. Below sho
 .. code-block:: python
    :linenos:
 
-   import numpy as np
    import matplotlib.pyplot as plt
    
    fig,ax = plt.subplots()

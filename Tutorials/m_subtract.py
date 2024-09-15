@@ -5,7 +5,6 @@ from Tutorial_Class import Tutorial
 
 def Tester():
     from DMCpy import DataSet,DataFile,_tools
-    import os
 
     # Give file number and folder the file is stored in.
     scanNumbers = '8540' 
