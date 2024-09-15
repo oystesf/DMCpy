@@ -19,3 +19,7 @@ C:\software\DMCpy\docs/Tutorials/\forcePowder.rst
 C:\software\DMCpy\docs/Tutorials/\forcePowder.rst
 C:\software\DMCpy\docs/Tutorials/\forcePowder.rst
 C:\software\DMCpy\docs/Tutorials/\forcePowder.rst
+C:\software\DMCpy\docs/Tutorials/\forcePowder.rst
+C:\software\DMCpy\docs/Tutorials/subtract\subtract.rst
+C:\software\DMCpy\docs/Tutorials/subtract\subtract.rst
+C:\software\DMCpy\docs/Tutorials/subtract\subtract.rst

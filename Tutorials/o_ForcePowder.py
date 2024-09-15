@@ -23,7 +23,7 @@ def Tester():
     plt.savefig(planeFigName+'.png',format='png', dpi=300)
 
     # Export to an dat and xye file
-    ds.export_PSI_format(outFile='force_powder.Dat',outFolder='docs/Tutorials')
+    ds.export_PSI_format(outFile='force_powder.dat',outFolder='docs/Tutorials')
     ds.export_xye_format(outFile='force_powder.xye',outFolder='docs/Tutorials')
         
     

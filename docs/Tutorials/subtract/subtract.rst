@@ -29,14 +29,15 @@ It can be very useful to subtract two data sets from each other, e.g. to look fo
    
    IA1.fig.savefig('figure0.png',format='png')
    
-   # # # subtract dataSets
+   # # # subtract dataSets. Needs to be loaded same way as the first DataSet
    if True:
-      files_sub = '8553'
-      filePath_sub =  os.path.join(os.getcwd(),_tools.fileListGenerator(files_sub,folder,year=year)[0]) 
+      scanNumbers_sub = '8553'
+      filePath_sub = _tools.fileListGenerator(scanNumbers_sub,folder,year=year)
+   
+      dataFiles_sub = [DataFile.loadDataFile(dFP_sub) for dFP_sub in filePath_sub]
       
-      dataFiles_sub = DataFile.loadDataFile(filePath_sub)
       ds_sub = DataSet.DataSet(dataFiles_sub)
-      
+   
       # we can choose if we write the subtracted data into the original data file or if we make a new file.
       ds.directSubtractDS(ds_sub,saveToFile=True,saveToNewFile='subtracted_data.hdf')
    

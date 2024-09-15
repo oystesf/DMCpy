@@ -24,7 +24,7 @@ This tutorial demonstrate how a single crystal dataset can be converted to a pow
    plt.savefig('figure0.png',format='png')
    
    # Export to an dat and xye file
-   ds.export_PSI_format(outFile='force_powder.Dat',outFolder='docs/Tutorials')
+   ds.export_PSI_format(outFile='force_powder.dat',outFolder='docs/Tutorials')
    ds.export_xye_format(outFile='force_powder.xye',outFolder='docs/Tutorials')
    
 
