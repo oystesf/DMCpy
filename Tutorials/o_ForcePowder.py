@@ -22,14 +22,9 @@ def Tester():
     planeFigName = 'docs/Tutorials/forecePowder'
     plt.savefig(planeFigName+'.png',format='png', dpi=300)
 
-    # make centres for bins
-    Centres=0.5*(bins[1:]+bins[:-1])
-
-    # export
-    stacked_array = np.column_stack((Centres.flatten(), Int.flatten(), Int_err.flatten()))
-
-    # Export the stacked array to an ASCII file
-    np.savetxt('docs/Tutorials/Force_powder.xy', stacked_array, delimiter='\t', fmt='%s')
+    # Export to an dat and xye file
+    ds.export_PSI_format(outFile='force_powder.Dat',outFolder='docs/Tutorials')
+    ds.export_xye_format(outFile='force_powder.xye',outFolder='docs/Tutorials')
         
     
     

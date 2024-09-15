@@ -23,19 +23,14 @@ This tutorial demonstrate how a single crystal dataset can be converted to a pow
    planeFigName = 'docs/Tutorials/forecePowder'
    plt.savefig('figure0.png',format='png')
    
-   # make centres for bins
-   Centres=0.5*(bins[1:]+bins[:-1])
-   
-   # export
-   stacked_array = np.column_stack((Centres.flatten(), Int.flatten(), Int_err.flatten()))
-   
-   # Export the stacked array to an ASCII file
-   np.savetxt('docs/Tutorials/Force_powder.xy', stacked_array, delimiter='\t', fmt='%s')
+   # Export to an dat and xye file
+   ds.export_PSI_format(outFile='force_powder.Dat',outFolder='docs/Tutorials')
+   ds.export_xye_format(outFile='force_powder.xye',outFolder='docs/Tutorials')
    
 
 The above code takes a single crystal data file and converts it into a powder file. This means that all A3 are merged. Note that we do not load the datafiles first into DataFiles, but they are loaded directly into a DataSet. 
 
-Diffraction pattern from single crystal data 
+Diffraction pattern from single crystal data. 
 
 .. figure:: forecePowder.png 
   :width: 50%
