@@ -2669,7 +2669,12 @@ class DataSet(object):
             QxCenter = 0.25*(Qx[:-1,:-1]+Qx[:-1,1:]+Qx[1:,1:]+Qx[1:,:-1])
             QyCenter = 0.25*(Qy[:-1,:-1]+Qy[:-1,1:]+Qy[1:,1:]+Qy[1:,:-1])
             QzCenter = np.full(Qx[:-1,:-1].shape,ax.QzMean)
-            H,K,L = ax.sample.calculateQxQyQzToHKL(QxCenter,QyCenter,QzCenter)
+
+            QxQyQz_AX = np.asarray([QxCenter,QyCenter,QzCenter]) # size [3,Nx,Ny]
+            inversRot = np.linalg.inv(ax.sample.ROT)
+            QxQyQz_DF = np.einsum('ij,j...->i...',inversRot,QxQyQz_AX)
+
+            H,K,L = ax.sample.calculateQxQyQzToHKL(*QxQyQz_DF)
             intensity,monitorCount,Normalization,NormCount = ax.data
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
