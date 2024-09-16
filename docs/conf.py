@@ -30,9 +30,9 @@ copyright = u'2023, Jakob Lass & Øystein Slagtern Fjellvåg'
 author = u'Jakob Lass'
 
 # The short X.Y version
-version = u'0.9.2'
+version = u'1.0.0'
 # The full version, including alpha/beta/rc tags
-release = u'0.9.2'
+release = u'1.0.0'
 
 
 
