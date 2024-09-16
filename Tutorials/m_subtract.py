@@ -5,37 +5,37 @@ from Tutorial_Class import Tutorial
 
 def Tester():
     from DMCpy import DataSet,DataFile,_tools
-    import os
 
     # Give file number and folder the file is stored in.
     scanNumbers = '8540' 
     folder = 'data/SC'
     year = 2022
+  
+    filePath = _tools.fileListGenerator(scanNumbers,folder,year=year) 
         
-    # Create complete filepath
-    file = os.path.join(os.getcwd(),_tools.fileListGenerator(scanNumbers,folder,year=year)[0]) 
-
-    # Load data file with corrected twoTheta
-    df = DataFile.loadDataFile(file)
+    # # # load dataFiles
+    dataFiles = [DataFile.loadDataFile(dFP) for dFP in filePath]
+            
+    # load data files and make data set
+    ds = DataSet.DataSet(dataFiles)
     
     # run the Interactive Viewer
+    df = ds[0]
     IA1 = df.InteractiveViewer()
     IA1.set_clim(0,20)
     IA1.set_clim_zIntegrated(0,1000)
 
     IA1.fig.savefig(r'docs/Tutorials/subtract/InteractiveViewer1.png',format='png',dpi=300)
 
-    # Use above data file in data set. Must be inserted as a list
-    ds = DataSet.DataSet([df])
-
-    # # # subtract dataSets
+    # # # subtract dataSets. Needs to be loaded same way as the first DataSet
     if True:
-        files_sub = '8553'
-        filePath_sub =  os.path.join(os.getcwd(),_tools.fileListGenerator(files_sub,folder,year=year)[0]) 
+        scanNumbers_sub = '8553'
+        filePath_sub = _tools.fileListGenerator(scanNumbers_sub,folder,year=year)
+
+        dataFiles_sub = [DataFile.loadDataFile(dFP_sub) for dFP_sub in filePath_sub]
         
-        dataFiles_sub = DataFile.loadDataFile(filePath_sub)
         ds_sub = DataSet.DataSet(dataFiles_sub)
-        
+
         # we can choose if we write the subtracted data into the original data file or if we make a new file.
         ds.directSubtractDS(ds_sub,saveToFile=True,saveToNewFile='subtracted_data.hdf')
 

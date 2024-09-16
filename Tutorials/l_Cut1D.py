@@ -4,7 +4,6 @@ from Tutorial_Class import Tutorial
 import os
 
 def Tester():
-    import matplotlib.pyplot as plt
     from DMCpy import DataSet,DataFile,_tools
     import numpy as np
     import os
@@ -33,7 +32,7 @@ def Tester():
     # this function uses two coordinates in Q space and align them to corrdinates in HKL space
     ds.alignToRefs(q1=q1,q2=q2,HKL1=HKL1,HKL2=HKL2)
 
-    # Here we do a cut over the (440) reflection by the cut1D function. 
+    # Here we do a cut over a reflection by the cut1D function. 
     # cut1D takes start and end point as lists.
    
     kwargs = {

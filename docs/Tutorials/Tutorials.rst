@@ -37,6 +37,8 @@ Main text about the tutorials below..
 
    box/box.rst
 
+   forcePowder.rst
+
    Testing.rst
 
 
