@@ -140,7 +140,7 @@ def calcTasQAngles(UB,planeNormal,ss,A3Off,qe):
     A3 = om + ss*theta + A3Off
     A3 = np.mod(A3 + ss*180.0,360.0) - ss*180.0
     
-    return -A3,-A4,sgu,sgl
+    return A3,A4,sgu,sgl
     
 
 def calcTasMisalignment(UB,planeNormal,qe):
@@ -260,13 +260,13 @@ def calcCell(cell):
 
 
 
-def converterToA3A4(Qx,Qy,Qz, Ei,Ef,A3Off=0.0,A4Sign=1): # pragma: no cover
+def converterToA3A4Z(Qx,Qy,Qz, Ki,Kf,A3Off=0.0,A4Sign=1,radius=0.8): # pragma: no cover
     ## home made function to calculate A3 and A4
     Qx = np.asarray(Qx)
     Qy = np.asarray(Qy)
     Qz = np.asarray(Qz)
 
-    QC = np.array([Qx,Qy,Qz])
+    QC = np.array([Qx,Qy,Qz*0.0])
     q = np.linalg.norm(QC)
 
     U1V = np.array([Qx.flatten(),Qy.flatten(),Qz.flatten()],dtype=float).flatten()
@@ -283,8 +283,8 @@ def converterToA3A4(Qx,Qy,Qz, Ei,Ef,A3Off=0.0,A4Sign=1): # pragma: no cover
     cossgl = np.sqrt(R[0,0]*R[0,0]+R[1,0]*R[1,0])
     om = arctan2d(R[1,0]/cossgl, R[0,0]/cossgl)
     
-    ki = np.sqrt(Ei)*factorsqrtEK
-    kf = np.sqrt(Ef)*factorsqrtEK
+    ki = Ki
+    kf = Kf
     
     cos2t =(ki**2 + kf**2 - q**2) / (2. * np.abs(ki) * np.abs(kf))
     
@@ -292,4 +292,8 @@ def converterToA3A4(Qx,Qy,Qz, Ei,Ef,A3Off=0.0,A4Sign=1): # pragma: no cover
     theta = calcTheta(ki, kf, A4)
 
     A3 = -om + np.sign(A4Sign)*ss*theta + A3Off
-    return A3,np.sign(A4Sign)*A4
+
+    ## Out of plane part:
+    z = np.arctan2(Qz,np.linalg.norm([Qx,Qy],axis=0))*radius
+
+    return A3,np.sign(A4Sign)*A4,z
