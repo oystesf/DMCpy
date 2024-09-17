@@ -778,69 +778,59 @@ class DataSet(object):
                
                 optimizationStepInPlane = 0.05
                 optimizationStepInPlane = np.min([optimizationStepInPlane,width*0.6])
-                
+
                 ## Define boundig box
                 direction = QStop-QStart
                 directionLength=np.linalg.norm(direction)
                 direction*=1.0/directionLength
                 orthogonal = np.cross(direction,np.array([0,0,1]))
-                
+                orthogonalVertical = np.cross(direction,orthogonal)
+
+
                 # Factor between actual cut and width used for cutoff
-                expansionFactior = 1.25
-                effectiveWidth = expansionFactior*width
+                expansionFactor = 1.15
+                effectiveWidth = expansionFactor*width
                     
-                if not np.isclose(np.abs(np.dot(direction,[0,0,1])),1.0): # If cut is not along z
-                    # Points for bounding box
-                    startEdge = QStart.reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonal.reshape(3,1)-stepSize*direction.reshape(3,1)
-                    endEdge = QStop.reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonal.reshape(3,1)+stepSize*direction.reshape(3,1)
-                    rightEdge = QStart.reshape(3,1)+0.5*effectiveWidth*orthogonal.reshape(3,1)+np.arange(-stepSize,directionLength+stepSize,optimizationStepInPlane)*direction.reshape(3,1)
-                    leftEdge =  QStart.reshape(3,1)-0.5*effectiveWidth*orthogonal.reshape(3,1)+np.arange(-stepSize,directionLength+stepSize,optimizationStepInPlane)*direction.reshape(3,1)
-                    
-                    checkPositions = np.concatenate([startEdge,endEdge,rightEdge,leftEdge],axis=1)
-                
-                else: # if cut is along z
-                    orthogonalX = np.array([1,0,0])
-                    orthogonalY = np.array([0,1,0])
-                    startEdge = np.mean([QStart,QStop],axis=0).reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonalX.reshape(3,1)-effectiveWidth*orthogonalY.reshape(3,1)
-                    endEdge = np.mean([QStart,QStop],axis=0).reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonalX.reshape(3,1)+effectiveWidth*orthogonalY.reshape(3,1)
-                    rightEdge = np.mean([QStart,QStop],axis=0).reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonalY.reshape(3,1)-effectiveWidth*orthogonalX.reshape(3,1)
-                    leftEdge =  np.mean([QStart,QStop],axis=0).reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonalY.reshape(3,1)+effectiveWidth*orthogonalX.reshape(3,1)
-                    
-                    checkPositions = np.concatenate([startEdge,endEdge,rightEdge,leftEdge],axis=1)
-                #print(checkPositions)
-                # Calcualte the corresponding A3 and A4 positons
-                E = np.power(df.ki[1,0][0]/0.694692,2.0)
-                A3,A4 = np.array([TasUBlibDEG.converterToA3A4(*pos,E,E,A4Sign=-1) for pos in checkPositions.T]).T
-            
+                startEdge = QStart.reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonal.reshape(3,1)-stepSize*direction.reshape(3,1)
+                endEdge = QStop.reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonal.reshape(3,1)+stepSize*direction.reshape(3,1)
+                rightEdge = QStart.reshape(3,1)+0.5*effectiveWidth*orthogonal.reshape(3,1)+np.arange(-stepSize,directionLength+stepSize,optimizationStepInPlane)*direction.reshape(3,1)
+                leftEdge =  QStart.reshape(3,1)-0.5*effectiveWidth*orthogonal.reshape(3,1)+np.arange(-stepSize,directionLength+stepSize,optimizationStepInPlane)*direction.reshape(3,1)
+
+                voff = (effectiveWidth*0.5*orthogonalVertical).reshape(3,1)
+
+                checkPositions = np.concatenate([startEdge+voff,endEdge+voff,
+                                                rightEdge+voff,leftEdge+voff,
+                                                startEdge-voff,endEdge-voff,
+                                                rightEdge-voff,leftEdge-voff],axis=1)
+                # Calcualte the corresponding A3, A4, and Z positons
+
+                A3,A4,Z = np.array([TasUBlibDEG.converterToA3A4Z(*pos,df.Ki,df.Ki,A4Sign=-1,radius=df.radius) for pos in checkPositions.T]).T
+
                 # remove nan-values
                 A4NonNaN = np.logical_not(np.isnan(A4))
                 A3 = A3[A4NonNaN]
                 A4 = A4[A4NonNaN]
-
+                Z = Z[A4NonNaN]
                 
+
                 A3Min,A3Max = [f(A3) for f in [np.nanmin,np.nanmax]]
                 A4Min,A4Max = [f(A4) for f in [np.nanmin,np.nanmax]]
-                
-                
+                ZMin,ZMax = [f(Z) for f in [np.nanmin,np.nanmax]]
+
                 # Find and sort ascending the indices        
-                twoThetaIdx = np.sort(np.array([np.argmin(np.abs(df.twoTheta[0]-tt)) for tt in [A4Min,A4Max]]))
-                
-                A3Idx = np.sort(np.array([np.argmin(np.abs(df.A3-a3)) for a3 in [A3Min,A3Max]]))
-                
-                if not np.isclose(np.abs(np.dot(direction,[0,0,1])),1.0):
-                    maxQz = np.max([QStart[2],QStop[2]])+widthZ*expansionFactior
-                    minQz = np.min([QStart[2],QStop[2]])-widthZ*expansionFactior
-                    qzIdx = np.array(np.sort(np.array([np.argmin(np.abs(w-df.q[None][2,0,:,0])) for w in [minQz,maxQz]])))
-                else:
-                    qzIdx = np.array([0,df.counts.shape[1]])#np.sort(np.array([np.argmin(np.abs(p[2]-df.q[2,0,:,0])) for p in [P1,P2]])))
-                
+                twoThetaInside = np.logical_and(df.twoTheta[0]>A4Min,df.twoTheta[0]<A4Max)
+                A3Inside = np.logical_and(df.A3>A3Min,df.A3<A3Max)
+                ZInside = np.logical_and(df.verticalPosition>ZMin,df.verticalPosition<ZMax)
+
+
                 mask = np.zeros_like(df.counts,dtype=bool)
-                mask[A3Idx[0]:A3Idx[1]+1,
-                        qzIdx[0]:qzIdx[1]+1,
-                        twoThetaIdx[0]:twoThetaIdx[1]+1]=True
-                
+                mask[A3Inside,:,:]=True
+                mask[:,:,twoThetaInside]=True
+                mask[:,ZInside,:]=True
+
                 data = data[mask]
                 relativePosition = df.q[None][:,mask]-QStart.reshape(3,-1)
+
                 
             else:
                 # along = np.einsum('ij,i...->...j',relativePosition,directionVector)
@@ -1699,7 +1689,7 @@ class DataSet(object):
                 stopZ = peakDic[peak]['stopZ']
                 
                 # # # peak position
-                tth = peakDic[peak]['tth']
+                tth = np.abs(peakDic[peak]['tth'])
                 tth_minus = peakDic[peak]['tth_minus']
                 tth_pluss = peakDic[peak]['tth_pluss']
                 
