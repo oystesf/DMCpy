@@ -1749,8 +1749,8 @@ class DataSet(object):
                 fig,ax = plt.subplots()
                 ax.plot(xdata, ydata, 'bo--', linewidth=1, markersize=6,label='data')
                 ax.plot(plotx, ploty, 'r', label='fit')
-                plt.xlabel('a3 (deg.)')
-                plt.ylabel('Intensity (arb. units)')
+                plt.xlabel('A3 [deg.]')
+                plt.ylabel('Intensity [arb. units]')
 
                 if title is not None:
                     if plane is not None:
@@ -1797,9 +1797,9 @@ class DataSet(object):
                         c = df.counts[A3Idx,startZ:stopZ,startTheta+offset:stopTheta+offset]/df.monitor[A3Idx].reshape(-1,1)
                         offsetVal = sttStepDegreesToIndex*offset
                         II.append(ax.imshow(c,origin='lower',extent=(startThetaVal+offsetVal,stopThetaVal+offsetVal,startZ,stopZ),vmin=vmin,vmax=vmax))
-                        ax.set_xlabel('two Theta')
-                        ax.set_ylabel('z')
-                        ax.set_title(str(a3))
+                        ax.set_xlabel('Two Theta [deg.]')
+                        ax.set_ylabel('z [pixcel]')
+                        ax.set_title(f'A3: {str(a3)}')
                         ax.axis('auto')
                     
                     fig.tight_layout()
