@@ -1462,9 +1462,8 @@ class DataSet(object):
 
         q1Rotated,q2Rotated = [np.dot(rotMatrix,q) for q in [q1,q2]]
 
-        A31,A41 = np.asarray(TasUBlibDEG.calcTasQAngles(np.eye(3),np.array([0.0,0.0,-1.0]),ss=1,A3Off = 0.0,qe=[*q1Rotated,E,E]))[:2]#[[-1,1]]
-
-        A32,A42 = np.asarray(TasUBlibDEG.calcTasQAngles(np.eye(3),np.array([0.0,0.0,-1.0]),ss=1,A3Off = 0.0,qe=[*q2Rotated,E,E]))[:2]#[[-1,1]]
+        A31,A41,_ = TasUBlibDEG.converterToA3A4Z(*q1Rotated,Ki=self[0].Ki,Kf=self[0].Ki,A4Sign=-1,radius=self[0].radius)
+        A32,A42,_ = TasUBlibDEG.converterToA3A4Z(*q2Rotated,Ki=self[0].Ki,Kf=self[0].Ki,A4Sign=-1,radius=self[0].radius)
 
         # H K L A3 A4 sgu sgl Ei Ef
         R1 = [*HKL1, A31, A41, 0.0, 0.0, E, E]
