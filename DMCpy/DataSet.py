@@ -699,7 +699,7 @@ class DataSet(object):
         raise RuntimeError('This code is not meant to be run but rather is to be overwritten by decorator. Something is wrong!! Should run {}'.format(RLUAxes.createRLUAxes))
 
         
-    def plotCut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True,ax=None,fmt='.',**kwargs):
+    def plotCut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True,ax=None,steps=None,**kwargs):
         """Cut and plot data from P1 to P2 in steps of stepSize [1/AA] width a cylindrical width [1/AA]
         Args:
             - P1 (list): Start position for cut in either (Qx,Qy,Qz) or (H,K,L)
@@ -717,7 +717,7 @@ class DataSet(object):
             
         """
 
-        hkl,I,err = self.cut1D(P1=P1,P2=P2,rlu=rlu,stepSize=stepSize,width=width,widthZ=widthZ,raw=raw,optimize=optimize)
+        hkl,I,err = self.cut1D(P1=P1,P2=P2,rlu=rlu,stepSize=stepSize,width=width,widthZ=widthZ,raw=raw,optimize=optimize,steps=steps)
         if ax is None:
             ax  = generate1DAxis(P1,P2,rlu=rlu)
 
@@ -725,12 +725,16 @@ class DataSet(object):
             X = ax.calculatePositionInv(*hkl)
         else:
             X = np.linalg.norm(*hkl,axis=1)
+
+        if not 'fmt' in kwargs:
+            kwargs['fmt'] = 'o'
+            
         ax.errorbar(X,I,yerr=err,**kwargs)
 
         ax.get_figure().tight_layout()
         return hkl,I,err,ax
 
-    def cut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True):
+    def cut1D(self,P1,P2,rlu=True,stepSize=0.01,width=0.05,widthZ=0.05,raw=False,optimize=True,steps=None):
         """Cut data from P1 to P2 in steps of stepSize [1/AA] width a cylindrical width [1/AA]
         Args:
             - P1 (list): Start position for cut in either (Qx,Qy,Qz) or (H,K,L)
@@ -768,113 +772,115 @@ class DataSet(object):
             
             intensity = []
             pos = []
-            
-            
-            if not raw:
-                data = df.intensity
-            else:
-                data = df.counts
-            if optimize:
-               
-                optimizationStepInPlane = 0.05
-                optimizationStepInPlane = np.min([optimizationStepInPlane,width*0.6])
+            if steps is None:
+                steps = len(df)
+            for idx in _tools.arange(0,len(df),steps):
+                print(df.fileName,'from',idx[0],'to',idx[-1])
+                if not raw:
+                    data = df.intensitySliced(slice(idx[0],idx[1]))
+                else:
+                    data = df.countsSliced(slice(idx[0],idx[1]))
+                if optimize:
+                
+                    optimizationStepInPlane = 0.05
+                    optimizationStepInPlane = np.min([optimizationStepInPlane,width*0.6])
 
-                ## Define boundig box
-                direction = QStop-QStart
-                directionLength=np.linalg.norm(direction)
-                direction*=1.0/directionLength
-                orthogonal = np.cross(direction,np.array([0,0,1]))
-                orthogonalVertical = np.cross(direction,orthogonal)
+                    ## Define boundig box
+                    direction = QStop-QStart
+                    directionLength=np.linalg.norm(direction)
+                    direction*=1.0/directionLength
+                    orthogonal = np.cross(direction,np.array([0,0,1]))
+                    orthogonalVertical = np.cross(direction,orthogonal)
 
 
-                # Factor between actual cut and width used for cutoff
-                expansionFactor = 1.15
-                effectiveWidth = expansionFactor*width
+                    # Factor between actual cut and width used for cutoff
+                    expansionFactor = 1.15
+                    effectiveWidth = expansionFactor*width
+                        
+                    startEdge = QStart.reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonal.reshape(3,1)-stepSize*direction.reshape(3,1)
+                    endEdge = QStop.reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonal.reshape(3,1)+stepSize*direction.reshape(3,1)
+                    rightEdge = QStart.reshape(3,1)+0.5*effectiveWidth*orthogonal.reshape(3,1)+np.arange(-stepSize,directionLength+stepSize,optimizationStepInPlane)*direction.reshape(3,1)
+                    leftEdge =  QStart.reshape(3,1)-0.5*effectiveWidth*orthogonal.reshape(3,1)+np.arange(-stepSize,directionLength+stepSize,optimizationStepInPlane)*direction.reshape(3,1)
+
+                    voff = (effectiveWidth*0.5*orthogonalVertical).reshape(3,1)
+
+                    checkPositions = np.concatenate([startEdge+voff,endEdge+voff,
+                                                    rightEdge+voff,leftEdge+voff,
+                                                    startEdge-voff,endEdge-voff,
+                                                    rightEdge-voff,leftEdge-voff],axis=1)
+                    # Calcualte the corresponding A3, A4, and Z positons
+
+                    A3,A4,Z = np.array([TasUBlibDEG.converterToA3A4Z(*pos,df.Ki,df.Ki,A4Sign=-1,radius=df.radius) for pos in checkPositions.T]).T
+
+                    # remove nan-values
+                    A4NonNaN = np.logical_not(np.isnan(A4))
+                    A3 = A3[A4NonNaN]
+                    A4 = A4[A4NonNaN]
+                    Z = Z[A4NonNaN]
                     
-                startEdge = QStart.reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonal.reshape(3,1)-stepSize*direction.reshape(3,1)
-                endEdge = QStop.reshape(3,1)+np.arange(-effectiveWidth*0.5,effectiveWidth*0.51,optimizationStepInPlane).reshape(1,-1)*orthogonal.reshape(3,1)+stepSize*direction.reshape(3,1)
-                rightEdge = QStart.reshape(3,1)+0.5*effectiveWidth*orthogonal.reshape(3,1)+np.arange(-stepSize,directionLength+stepSize,optimizationStepInPlane)*direction.reshape(3,1)
-                leftEdge =  QStart.reshape(3,1)-0.5*effectiveWidth*orthogonal.reshape(3,1)+np.arange(-stepSize,directionLength+stepSize,optimizationStepInPlane)*direction.reshape(3,1)
 
-                voff = (effectiveWidth*0.5*orthogonalVertical).reshape(3,1)
+                    A3Min,A3Max = [f(A3) for f in [np.nanmin,np.nanmax]]
+                    A4Min,A4Max = [f(A4) for f in [np.nanmin,np.nanmax]]
+                    ZMin,ZMax = [f(Z) for f in [np.nanmin,np.nanmax]]
 
-                checkPositions = np.concatenate([startEdge+voff,endEdge+voff,
-                                                rightEdge+voff,leftEdge+voff,
-                                                startEdge-voff,endEdge-voff,
-                                                rightEdge-voff,leftEdge-voff],axis=1)
-                # Calcualte the corresponding A3, A4, and Z positons
+                    # Find and sort ascending the indices        
+                    twoThetaInside = np.logical_and(df.twoTheta[0]>A4Min,df.twoTheta[0]<A4Max)
+                    A3Inside = np.logical_and(df.A3[idx[0]:idx[1]]>A3Min,df.A3[idx[0]:idx[1]]<A3Max)
+                    ZInside = np.logical_and(df.verticalPosition>ZMin,df.verticalPosition<ZMax)
 
-                A3,A4,Z = np.array([TasUBlibDEG.converterToA3A4Z(*pos,df.Ki,df.Ki,A4Sign=-1,radius=df.radius) for pos in checkPositions.T]).T
 
-                # remove nan-values
-                A4NonNaN = np.logical_not(np.isnan(A4))
-                A3 = A3[A4NonNaN]
-                A4 = A4[A4NonNaN]
-                Z = Z[A4NonNaN]
+                    mask = np.zeros_like(data,dtype=bool)
+                    mask[A3Inside,:,:]=True
+                    mask[:,:,twoThetaInside]=True
+                    mask[:,ZInside,:]=True
+
+                    data = data[mask]
+                    relativePosition = df.q[idx[0]:idx[1]][:,mask]-QStart.reshape(3,-1)
+
+                    
+                else:
+                    # along = np.einsum('ij,i...->...j',relativePosition,directionVector)
+                    
+                    # orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+                    
+                    # orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+                    # test1 = (orthogonal<width).flatten()
+                    # test2 = (along[0]>-stepSize).flatten()
+                    # test3 = (along[0]<np.linalg.norm(stopAlong)+stepSize).flatten()
+                    
+                    # insideQ = np.all([test1,test2,test3],axis=0)
                 
-
-                A3Min,A3Max = [f(A3) for f in [np.nanmin,np.nanmax]]
-                A4Min,A4Max = [f(A4) for f in [np.nanmin,np.nanmax]]
-                ZMin,ZMax = [f(Z) for f in [np.nanmin,np.nanmax]]
-
-                # Find and sort ascending the indices        
-                twoThetaInside = np.logical_and(df.twoTheta[0]>A4Min,df.twoTheta[0]<A4Max)
-                A3Inside = np.logical_and(df.A3>A3Min,df.A3<A3Max)
-                ZInside = np.logical_and(df.verticalPosition>ZMin,df.verticalPosition<ZMax)
-
-
-                mask = np.zeros_like(df.counts,dtype=bool)
-                mask[A3Inside,:,:]=True
-                mask[:,:,twoThetaInside]=True
-                mask[:,ZInside,:]=True
-
-                data = data[mask]
-                relativePosition = df.q[None][:,mask]-QStart.reshape(3,-1)
-
+                    # intensity = data.flatten()[insideQ]
+                    # pos = sign*along.flatten()[insideQ]
+                    
+                #else:
+                    relativePosition = df.q[idx[0]:idx[1]].reshape(3,-1)-QStart.reshape(3,-1)
                 
-            else:
-                # along = np.einsum('ij,i...->...j',relativePosition,directionVector)
+                along = np.einsum('ij,i...->...j',relativePosition,directionVector)
+                    
+                orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
                 
-                # orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+                orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
+                test1 = (orthogonal<width*0.5).flatten()
+                test2 = (along[0]>-stepSize).flatten()
+                test3 = (along[0]<np.linalg.norm(stopAlong)+stepSize).flatten()
                 
-                # orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
-                # test1 = (orthogonal<width).flatten()
-                # test2 = (along[0]>-stepSize).flatten()
-                # test3 = (along[0]<np.linalg.norm(stopAlong)+stepSize).flatten()
-                
-                # insideQ = np.all([test1,test2,test3],axis=0)
+                insideQ = np.all([test1,test2,test3],axis=0)
             
-                # intensity = data.flatten()[insideQ]
-                # pos = sign*along.flatten()[insideQ]
-                
-            #else:
-                relativePosition = df.q[None].reshape(3,-1)-QStart.reshape(3,-1)
-            
-            along = np.einsum('ij,i...->...j',relativePosition,directionVector)
-                
-            orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
-            
-            orthogonal = np.linalg.norm(relativePosition-along*directionVector,axis=0)
-            test1 = (orthogonal<width*0.5).flatten()
-            test2 = (along[0]>-stepSize).flatten()
-            test3 = (along[0]<np.linalg.norm(stopAlong)+stepSize).flatten()
-            
-            insideQ = np.all([test1,test2,test3],axis=0)
-        
-            intensity = data.flatten()[insideQ]
-            pos = sign*along.flatten()[insideQ]
+                intensity = data.flatten()[insideQ]
+                pos = sign*along.flatten()[insideQ]
 
-                
-            weights = [intensity]
-            _intensities,_normCounts = _tools.histogramdd(pos.reshape(-1,1),bins=[bins],weights=weights,returnCounts=True)
-            _monitors = np.full_like(_intensities,df.monitor[0])
-            if intensities is None:
-                intensities,normCounts,monitors = _intensities,_normCounts,_monitors
-            else:
-                intensities+=_intensities
-                normCounts+=_normCounts
-                monitors += _monitors
-        
+                    
+                weights = [intensity]
+                _intensities,_normCounts = _tools.histogramdd(pos.reshape(-1,1),bins=[bins],weights=weights,returnCounts=True)
+                _monitors = np.full_like(_intensities,df.monitor[0])
+                if intensities is None:
+                    intensities,normCounts,monitors = _intensities,_normCounts,_monitors
+                else:
+                    intensities+=_intensities
+                    normCounts+=_normCounts
+                    monitors += _monitors
+            
         I = np.divide(intensities,monitors)
         errors = np.divide(np.sqrt(intensities),monitors)
         I[normCounts==0]=np.nan
