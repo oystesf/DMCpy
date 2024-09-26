@@ -1921,7 +1921,8 @@ class DataSet(object):
             fg.hasBackground = True
             fg.backgroundType = 'singleCrystal'
                   
-
+    def calcualteHKLToA3A4Z(self,H,K,L,Print=True,A4Sign=-1):
+        return self[0].calcualteHKLToA3A4Z(H,K,L,Print=Print,A4Sign=A4Sign)
 
     def export_PSI_format(self,dTheta=0.125,twoThetaOffset=0,bins=None,hourNormalization=False,outFile=None,addTitle=None,outFolder=None,useMask=False,maxAngle=5,applyCalibration=True,correctedTwoTheta=True,sampleName=True,sampleTitle=True,temperature=False,magneticField=False,electricField=False,fileNumber=False,waveLength=False):
 

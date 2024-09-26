@@ -8,6 +8,7 @@ import pandas as pd
 import DMCpy
 import os.path
 from DMCpy import InteractiveViewer
+from DMCpy.TasUBlibDEG import converterToA3A4Z
 
 import warnings
 
@@ -476,7 +477,6 @@ class DataFile(object):
 
         #self.correctedTwoTheta = 2.0*np.rad2deg(np.arcsin(self.wavelength*self.Q[0]/(4*np.pi)))[np.newaxis].repeat(self.Q.shape[0],axis=0)
         
-        
 
     def generateMask(self,maskingFunction = maskFunction, replace=True, **pars):
         """Generate mask to applied to data in data file
@@ -863,6 +863,23 @@ class SingleCrystalDataFile(DataFile):
         super(SingleCrystalDataFile,self).__init__(fileType,*args,**kwargs)
         self.fileType = 'SingleCrystal'
         self.countShape = (self.countShape[0]*self.countShape[1],128,1152)
+
+    def calcualteHKLToA3A4Z(self,H,K,L,Print=True,A4Sign=-1):
+        Qx,Qy,Qz = self.sample.calculateHKLToQxQyQz(H,K,L)
+        if Print:
+            A3, A4, z = converterToA3A4Z(Qx,Qy,Qz,Ki=self.Ki,Kf=self.Ki,A4Sign=A4Sign,radius=self.radius)
+            print(f'Calculated angles for ({H},{K},{L}): \nA3: {np.round(A3,3)} \nA4: {np.round(A4,3)} \nz: {np.round(z,5)}\n')
+            print('Disclaimer: You might want to use a peak 180 or 360 deg away.\n')
+            if A3 < -180:
+                print(f'Alternative A3: {np.round(A3+180,3)} or {np.round(A3+360,3)}')
+            if -180 < A3 < 0:
+                print(f'Alternative A3: {np.round(A3+180,3)}')
+            if 0 < A3 < 180:
+                print(f'Alternative A3: {np.round(A3+180,3)} or {np.round(A3-180,3)}')
+        else:
+            return converterToA3A4Z(Qx,Qy,Qz,Ki=self.Ki,Kf=self.Ki,A4Sign=A4Sign,radius=self.radius)
+
+    
 
 class PowderDataFile(DataFile):
     def __init__(self,fileType,*args,**kwargs):
