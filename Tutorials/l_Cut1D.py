@@ -40,7 +40,7 @@ def Tester():
                 'widthZ' : 0.5,
                 'stepSize' : 0.005,
                 'rlu' : True,
-                'optimize' : False,
+                'optimize' : True,
                 'marker' : 'o',
                 'color' : 'green',
                 'markersize' : 8,

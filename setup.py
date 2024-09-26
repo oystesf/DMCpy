@@ -17,9 +17,9 @@ pythonPath =  os.path.relpath(os.path.join(installFolder,'DMCpy'),sys.base_prefi
 setup(
     name='DMCpy',
     version='1.0.0',
-    description=('Python software packaged designed for reduction of neutron powder diffraction data from DMC at PSI.'),
+    description=('Python software packaged designed for reduction of neutron powder and single crystal diffraction data from DMC at PSI.'),
     long_description=long_description,
-    author='Jakob Lass',
+    author='Jakob Lass, Sam Moody, Øystein S. Fjellvåg',
     author_email='jakob.lass@psi.ch',
     url='https://www.psi.ch/en/sinq/dmc/',
     license='MPL-2.0',
@@ -30,7 +30,7 @@ setup(
         "console_scripts": ['DMCSpy=DMCpy.CommandLineScripts.DMCS:main'],
         },
     python_requires='>=3.6',
-    install_requires=['matplotlib','numpy>=1.14','h5py>=2.5','scipy','datetime','pandas','future','crystals',
+    install_requires=['matplotlib','numpy>=1.14','h5py>=2.5','scipy','datetime','pandas','future',
                     'pip>=20'],
     classifiers=[
         'Development Status :: 3 - Alpha',

@@ -42,6 +42,10 @@ alignToRef is a method which takes one spesific QxQyQz coordinates, which is use
    # this function uses two coordinates in Q space and align them to corrdinates in HKL space
    ds.alignToRefs(q1=q1,q2=q2,HKL1=HKL1,HKL2=HKL2)
    
+   # To find the A3, A4 and z values of a reflection, we can use calcualteHKLToA3A4Z
+   # The function work on both DataSet and DataFile level
+   ds.calcualteHKLToA3A4Z(1,1,0)
+   
    # save UB to file
    if False:
       _tools.saveSampleToDesk(ds[0].sample,r'UB.bin')

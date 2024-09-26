@@ -41,7 +41,7 @@ After inspecting the scattering plane, we want to perform cuts along certain dir
              'widthZ' : 0.5,
              'stepSize' : 0.005,
              'rlu' : True,
-             'optimize' : False,
+             'optimize' : True,
              'marker' : 'o',
              'color' : 'green',
              'markersize' : 8,
