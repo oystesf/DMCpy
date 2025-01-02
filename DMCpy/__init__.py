@@ -3,7 +3,7 @@ sys.path.append('.')
 import pickle,numpy as np
 
 __version__ = '1.0.1'
-__author__ = 'Jakob Lass'
+__author__ = 'Jakob Lass, Sam Moody, Øystein S. Fjellvåg'
 
 # installFolder = os.path.abspath(os.path.split(__file__)[0])
 # calibrationFile =  os.path.join(installFolder,'calibrationDict.dat')

@@ -80,7 +80,7 @@ def Tester():
     integrationKwargs = {
     'roi' : True,
     'saveFig' : r'docs/Tutorials/box/box1_',
-    'title' : r'CeBr$_3$',
+    'title' : r'Integated data',
     'integrationList' : integrationList,
     'closeFigures' : True,
     'plane' : 'HHL'
